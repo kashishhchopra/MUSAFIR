@@ -8,6 +8,7 @@ import { touristIcon, sosIcon, stationIcon, cameraIcon, centralIcon, riskColor }
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
 import CctvNetworkPanel from '../../components/CctvNetworkPanel.jsx'
 import { relativeTime } from '../../lib/relativeTime'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 // ---------------------------------------------------------------- demo data
 // The backend tracks named units (PoliceUnit) and real zone/camera/tourist
@@ -440,8 +441,7 @@ export default function PoliceNetwork() {
         <div className="xl:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden" style={{ height: 480 }}>
             <MapContainer center={mapCfg.center} zoom={mapCfg.zoom} style={{ height: '100%', width: '100%' }} className="map-ops-dark">
-              <TileLayer attribution="&copy; OpenStreetMap"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
               <FlyTo target={focusTarget} />
 
               {zones.map((z) => {

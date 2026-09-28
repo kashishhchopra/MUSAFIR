@@ -219,7 +219,7 @@ class Settings(BaseSettings):
     # statuses to re-probe. Anything slower keeps its previous state and is
     # picked up by the next poll -- the dashboard must never hang on the
     # slowest camera in the network.
-    CCTV_LIST_PROBE_DEADLINE_SECONDS: float = 3.0
+    CCTV_LIST_PROBE_DEADLINE_SECONDS: float = 6.0
     # A still-image camera whose frame is this dominated by a single shade is
     # an operator "camera unavailable" notice card, not a view. Measured on
     # real feeds: notice cards ~0.79, actual camera frames 0.02-0.05.
@@ -257,6 +257,10 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
+    # Lets an OpenAI-compatible provider (Groq, OpenRouter, Together, etc.)
+    # stand in for OpenAI itself -- they all speak the same
+    # /chat/completions shape, just at a different host and with a free key.
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
 

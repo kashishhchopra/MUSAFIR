@@ -6,6 +6,7 @@ import { sosIcon, missingIcon, policeIcon } from '../../components/mapIcons'
 import { SeverityBadge, StatusBadge, Card } from '../../components/ui.jsx'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
 import TouristIdScanner from '../../components/TouristIdScanner.jsx'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 // A responder's worklist: incidents assigned to the unit they represent.
 // Essential tourist info + a map pin per incident, with quick
@@ -69,8 +70,7 @@ export default function ResponderConsole() {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden" style={{ height: 320 }}>
         <MapContainer center={mapCfg.center} zoom={mapCfg.zoom} style={{ height: '100%', width: '100%' }} className="map-ops-dark">
-          <TileLayer attribution="&copy; OpenStreetMap"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
           {pins.map((i) => (
             <Marker key={i.id} position={[i.lat, i.lng]}
               icon={i.type === 'missing_person' ? missingIcon : i.type === 'sos' ? sosIcon : policeIcon}>

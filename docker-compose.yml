@@ -34,6 +34,17 @@ services:
       SEED_TOURIST_PASSWORD: ${SEED_TOURIST_PASSWORD:-tourist123}
       SEED_RESPONDER_PASSWORD: ${SEED_RESPONDER_PASSWORD:-responder123}
       WEB_CONCURRENCY: 1
+      # Lets the tourist copilot (services/llm.py) answer open-ended
+      # questions the intent router doesn't cover. OPENAI_BASE_URL lets an
+      # OpenAI-compatible free provider (Groq, OpenRouter, ...) stand in for
+      # OpenAI itself -- set OPENAI_API_KEY (+ OPENAI_MODEL/OPENAI_BASE_URL
+      # if not using OpenAI directly) in .env to enable it.
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-250}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

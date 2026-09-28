@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import useWebSocket from '../../useWebSocket'
 import { getEmergencyTrack, listLiveEmergencies } from '../../lib/emergencyLocationService'
 import { sosIcon } from '../../components/mapIcons'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 const STATUS_META = {
   live: { label: '🟢 LIVE', cls: 'bg-emerald-100 text-emerald-700' },
@@ -175,7 +176,7 @@ export default function LiveEmergencies() {
               <MapContainer center={[selected.latest.lat, selected.latest.lng]} zoom={15}
               className="map-ops-dark"
                 style={{ height: '100%' }} key={selected.incident_id}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OSM" />
+                <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
                 <Marker position={[selected.latest.lat, selected.latest.lng]} icon={sosIcon}>
                   <Popup>
                     <div className="text-xs">

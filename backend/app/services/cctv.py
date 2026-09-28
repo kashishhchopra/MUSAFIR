@@ -28,8 +28,10 @@ empty when not, and the payload always says which.
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -40,6 +42,8 @@ from app.core.time import utc_now
 from app.models.police import Camera, PoliceStation
 
 logger = logging.getLogger(__name__)
+
+_SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / "data" / "snapshots" / "cctv_caltrans_d9.json"
 
 # What the frontend's player knows how to render. "none" means this camera is
 # a coverage record with no viewable feed -- a normal, supported state.
@@ -273,7 +277,12 @@ def refresh_statuses(db: Session, cams: list[Camera]) -> None:
         return
     deadline = settings.CCTV_LIST_PROBE_DEADLINE_SECONDS
     results: dict[int, str] = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    # One worker per stale camera (capped) so a network with more cameras
+    # than the old fixed pool of 8 doesn't serialize them into multiple
+    # rounds of "still connecting" -- they're independent I/O, so probing
+    # 8 at a time when 21 are stale just means 13 sit idle inside the same
+    # wall-clock deadline for no reason.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(stale), 32)) as pool:
         futures = {
             pool.submit(probe_stream, c.stream_url,
                         c.stream_type or infer_stream_type(c.stream_url)): c.id
@@ -502,6 +511,39 @@ def _coerce(record: dict) -> dict | None:
         "source_url": record.get("sourceUrl") or record.get("source_url"),
         "attribution": record.get("attribution") or record.get("license"),
     }
+
+
+def seed_cameras_from_snapshot(db: Session) -> int:
+    """Upsert Camera rows from the committed Caltrans District 9 snapshot
+    (real, public traffic-camera JPEGs -- see app/data/snapshots/cctv_caltrans_d9.json),
+    keyed by (label, lat, lng) same as `import_from_provider`. A missing/empty
+    snapshot writes nothing -- the caller (seed.py) falls back to its own
+    hand-written, feed-less fixtures in that case."""
+    if not _SNAPSHOT_PATH.exists():
+        return 0
+    with open(_SNAPSHOT_PATH, encoding="utf-8") as f:
+        records = json.load(f)
+    written = 0
+    for fields in records:
+        label, lat, lng = fields.get("label"), fields.get("lat"), fields.get("lng")
+        if label is None or lat is None or lng is None:
+            continue
+        existing = (
+            db.query(Camera)
+            .filter(Camera.label == label, Camera.lat == lat, Camera.lng == lng)
+            .first()
+        )
+        if existing:
+            for k, v in fields.items():
+                setattr(existing, k, v)
+            existing.stream_status = None
+            existing.stream_checked_at = None
+        else:
+            db.add(Camera(**fields))
+        written += 1
+    if written:
+        db.flush()
+    return written
 
 
 def import_from_provider(db: Session) -> dict:

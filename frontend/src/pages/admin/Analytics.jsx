@@ -10,6 +10,7 @@ import { downloadCSV } from '../../lib/csv'
 import { getCctvNetwork } from '../../lib/cctvService'
 import HeatmapLayer from '../../components/HeatmapLayer.jsx'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 // Validated categorical order (dataviz reference palette) — assigned by fixed order, never cycled.
 const CATEGORICAL = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#4a3aa7', '#e34948']
@@ -273,8 +274,7 @@ export default function Analytics() {
         <Card title="Incident Density Heatmap">
           <div className="rounded-lg overflow-hidden" style={{ height: 280 }}>
             <MapContainer center={mapCfg.center} zoom={mapCfg.zoom} style={{ height: '100%', width: '100%' }} className="map-ops-dark">
-              <TileLayer attribution="&copy; OpenStreetMap"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
               <HeatmapLayer points={heatmapPoints} />
             </MapContainer>
           </div>

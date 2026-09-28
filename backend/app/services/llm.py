@@ -60,7 +60,7 @@ def _ollama_complete(system: str, user: str) -> str | None:
 def _openai_complete(system: str, user: str) -> str | None:
     try:
         resp = httpx.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"{settings.OPENAI_BASE_URL.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
             json={
                 "model": settings.OPENAI_MODEL,
