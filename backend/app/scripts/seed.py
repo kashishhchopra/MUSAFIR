@@ -20,7 +20,7 @@ from app.models.police import Camera, PoliceStation, PoliceUnit
 from app.models.tourist import Tourist
 from app.models.user import User
 from app.models.zone import Zone
-from app.services import hashchain, poi, tourist_id
+from app.services import cctv, hashchain, poi, tourist_id
 from app.services.crime_index import calibrate_zone_crime_index
 
 CENTER = (26.1445, 91.7362)  # Guwahati
@@ -178,20 +178,32 @@ def seed() -> None:
         ]
         db.add_all(stations)
 
-        # ---- CCTV/camera directory (mock, no video feed) ----
-        cameras = [
-            Camera(label="City Center Market Sq Cam 1", zone_id=city_zone.id,
-                  lat=26.1448, lng=91.7365),
-            Camera(label="City Center Bus Stand Cam 2", zone_id=city_zone.id,
-                  lat=26.1442, lng=91.7358),
-            Camera(label="Old Market Main Gate Cam 1", zone_id=market_zone.id,
-                  lat=26.1652, lng=91.7502),
-            Camera(label="Riverside Ghat Cam 1", zone_id=riverside_zone.id,
-                  lat=26.1798, lng=91.7698),
-            Camera(label="Hillside Trailhead Cam 1", zone_id=hillside_zone.id,
-                  lat=26.1252, lng=91.7152, status="offline"),
-        ]
-        db.add_all(cameras)
+        # ---- CCTV/camera directory ----
+        # Real, public traffic-camera JPEGs from Caltrans District 9 (see
+        # app/data/snapshots/cctv_caltrans_d9.json, services/cctv.py:seed_cameras_from_snapshot).
+        # Genuine live feeds, just not of these Guwahati zones -- there is no
+        # real feed for this demo's actual locations, and a URL-less
+        # "mock, no video feed" row is honest but not what the CCTV Network
+        # dashboard is meant to demo. Falls back to feed-less coverage
+        # records (matching the demo's own zones) if the snapshot is ever
+        # removed.
+        cctv_count = cctv.seed_cameras_from_snapshot(db)
+        if cctv_count:
+            print(f"  Imported {cctv_count} real Caltrans District 9 traffic cameras")
+        else:
+            cameras = [
+                Camera(label="City Center Market Sq Cam 1", zone_id=city_zone.id,
+                      lat=26.1448, lng=91.7365),
+                Camera(label="City Center Bus Stand Cam 2", zone_id=city_zone.id,
+                      lat=26.1442, lng=91.7358),
+                Camera(label="Old Market Main Gate Cam 1", zone_id=market_zone.id,
+                      lat=26.1652, lng=91.7502),
+                Camera(label="Riverside Ghat Cam 1", zone_id=riverside_zone.id,
+                      lat=26.1798, lng=91.7698),
+                Camera(label="Hillside Trailhead Cam 1", zone_id=hillside_zone.id,
+                      lat=26.1252, lng=91.7152, status="offline"),
+            ]
+            db.add_all(cameras)
 
         # ---- pharmacy/transport directory (demo fixtures -- hospitals and
         # police already have a real committed OSM import, see services/poi.py;

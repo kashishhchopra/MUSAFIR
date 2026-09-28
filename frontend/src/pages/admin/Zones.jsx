@@ -4,6 +4,7 @@ import api from '../../api'
 import { Card } from '../../components/ui.jsx'
 import { riskColor } from '../../components/mapIcons'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 const RISK_LEVELS = ['low', 'medium', 'high', 'restricted']
 
@@ -116,8 +117,7 @@ export default function Zones() {
 
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden" style={{ height: 560 }}>
           <MapContainer center={mapCfg.center} zoom={mapCfg.zoom} style={{ height: '100%', width: '100%' }} className="map-ops-dark">
-            <TileLayer attribution="&copy; OpenStreetMap"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
             <DrawCapture active={drawing} onPoint={(p) => setPoints((prev) => [...prev, p])} />
 
             {zones.map((z) => (

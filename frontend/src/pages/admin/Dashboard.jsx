@@ -7,6 +7,7 @@ import { Stat, SeverityBadge, bandColor } from '../../components/ui.jsx'
 import { DEFAULT_MAP, POLL_INTERVAL_MS, loadMapConfig } from '../../config'
 import HeatmapLayer from '../../components/HeatmapLayer.jsx'
 import TrajectoryOverlay from '../../components/TrajectoryOverlay.jsx'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 export default function Dashboard() {
   const [tourists, setTourists] = useState([])
@@ -104,10 +105,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden" style={{ height: 520 }}>
           <MapContainer center={mapCfg.center} zoom={mapCfg.zoom} style={{ height: '100%', width: '100%' }} className="map-ops-dark">
-            <TileLayer
-              attribution='&copy; OpenStreetMap'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
             {zones.map((z) => (
               <Polygon key={z.id} positions={z.polygon}
                 pathOptions={{ color: riskColor[z.risk_level], fillOpacity: 0.18, weight: 2 }}>

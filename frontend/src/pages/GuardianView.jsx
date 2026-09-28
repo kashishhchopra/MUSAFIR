@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import api from '../api'
 import { bandColor, bandLabel } from '../components/ui.jsx'
 import { touristIcon } from '../components/mapIcons'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../lib/mapConfig"
 
 const POLL_MS = 10000
 
@@ -73,7 +74,7 @@ export default function GuardianView() {
         {hasLocation && (
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden" style={{ height: 300 }}>
             <MapContainer center={[state.last_lat, state.last_lng]} zoom={13} style={{ height: '100%' }}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OSM" />
+              <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
               <Marker position={[state.last_lat, state.last_lng]} icon={touristIcon(state.safety_score)} />
             </MapContainer>
           </div>

@@ -10,6 +10,7 @@ import { RouteLayer } from '../../../components/RoutePicker.jsx'
 import DisasterBanner from '../../../components/DisasterBanner.jsx'
 import RecommendedPlaces from '../../../components/RecommendedPlaces.jsx'
 import SafetyAssistantCard from '../../../components/SafetyAssistantCard.jsx'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../../lib/mapConfig"
 
 // Quick-action row: the handful of things a tourist reaches for constantly,
 // one tap away from the home screen, without cluttering it with full panels
@@ -177,7 +178,7 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
         <MapContainer
           center={me.last_lat != null && me.last_lng != null ? [me.last_lat, me.last_lng] : DEFAULT_MAP.center}
           zoom={14} style={{ height: '100%' }} key={me.id}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OSM" />
+          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
           {zones.map((z) => (
             <Polygon key={z.id} positions={z.polygon}
               pathOptions={{ color: riskColor[z.risk_level], fillOpacity: 0.15, weight: 1.5 }} />

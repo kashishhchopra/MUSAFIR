@@ -16,9 +16,7 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       : null
   const supported = Boolean(SpeechRecognitionCtor)
 
-  const start = useCallback(() => {
-    if (!supported || listening) return
-    setError(null)
+  const beginRecognition = useCallback(() => {
     const recognition = new SpeechRecognitionCtor()
     recognition.lang = lang
     recognition.interimResults = false
@@ -52,7 +50,35 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       setError(e?.name || 'speech-recognition-error')
       setListening(false)
     }
-  }, [SpeechRecognitionCtor, lang, listening, supported])
+  }, [SpeechRecognitionCtor, lang])
+
+  const start = useCallback(() => {
+    if (!supported || listening) return
+    setError(null)
+
+    // SpeechRecognition is supposed to trigger the browser's own mic
+    // permission prompt on first use, but that path has proven unreliable
+    // in the wild -- some builds silently do nothing (no prompt, no error)
+    // when the request wasn't preceded by a plain getUserMedia call on the
+    // same origin. Asking via getUserMedia first forces the standard,
+    // well-tested permission UI to appear; once it resolves, SpeechRecognition
+    // reuses that same granted permission instead of re-requesting it.
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          // Only needed the prompt/grant, not the audio itself --
+          // SpeechRecognition opens its own capture internally.
+          stream.getTracks().forEach((t) => t.stop())
+          beginRecognition()
+        })
+        .catch((e) => {
+          setError(e?.name || 'not-allowed')
+          setListening(false)
+        })
+      return
+    }
+    beginRecognition()
+  }, [supported, listening, beginRecognition])
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop()

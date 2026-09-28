@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Marker } from 'react-leaflet'
 import { touristIcon } from './mapIcons'
+import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../lib/mapConfig"
 
 // Time-scrub playback over a tourist's GPS ping history. `pings` is expected
 // oldest-first (matches GET /tourists/{id}/pings, which already reverses the
@@ -29,7 +30,7 @@ export default function TrailReplay({ pings }) {
     <div className="space-y-3">
       <div className="rounded-lg overflow-hidden" style={{ height: 260 }}>
         <MapContainer center={[current.lat, current.lng]} zoom={14} style={{ height: '100%' }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OSM" />
+          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} subdomains={TILE_SUBDOMAINS} />
           <Polyline positions={path} pathOptions={{ color: '#0284c7', weight: 3 }} />
           {visible.map((p, i) => p.is_anomaly && (
             <CircleMarker key={i} center={[p.lat, p.lng]} radius={5}
