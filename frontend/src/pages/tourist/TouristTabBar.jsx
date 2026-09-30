@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 const TABS = [
   { key: 'home', icon: '🗺️', labelKey: 'nav.tab_home' },
   { key: 'plan', icon: '🧭', labelKey: 'nav.tab_plan' },
+  { key: 'explore', icon: '🌍', labelKey: 'nav.tab_explore' },
   { key: 'help', icon: '🏥', labelKey: 'nav.tab_help' },
   { key: 'me', icon: '👤', labelKey: 'nav.tab_me' },
 ]
@@ -18,7 +19,7 @@ export default function TouristTabBar({ active, onChange }) {
       className="fixed bottom-0 left-0 right-0 z-[1000] bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-[env(safe-area-inset-bottom)]"
       aria-label={t('nav.sections_aria')}
     >
-      <div className="max-w-md mx-auto grid grid-cols-4">
+      <div className="max-w-md mx-auto grid grid-cols-5">
         {TABS.map((tab) => (
           <button
             key={tab.key}

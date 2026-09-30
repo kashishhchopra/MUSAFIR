@@ -19,6 +19,12 @@ from sqlalchemy.pool import StaticPool
 # hash chain is keyed with it, so tests must not depend on a generated dev key.
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-only-not-a-real-key")
 os.environ.setdefault("ENVIRONMENT", "test")
+# Discovery's live Overpass lookups (services/discovery.py) hit a real public
+# API -- never exercised in the test suite, so tests stay fast and
+# deterministic and never depend on outbound network access. Same reasoning
+# as pinning SECRET_KEY above: a test run must not depend on anything the
+# environment doesn't guarantee.
+os.environ.setdefault("DISCOVERY_LIVE_ENABLED", "false")
 
 from app.core import ratelimit  # noqa: E402
 from app.core.security import hash_password  # noqa: E402

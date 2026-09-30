@@ -41,6 +41,15 @@ and a responsive tourist mobile view.
 | 8 | **Incident Workflow** | Lifecycle `detected → acknowledged → dispatched → resolved`, ML/rule severity classification, response-time tracking. |
 | 9 | **Self-Registration** | Public KYC form issues a digital ID and (optionally) a login, then auto-signs the tourist in. |
 | 10 | **Security Audit Log** | Admin page + API trailing logins (with IP), SOS, and missing-person actions for accountability. |
+| 11 | **Smart Trip Planner** | Turns the tourist's confirmed itinerary into a day-by-day plan, live against weather (services/weather.py), festivals/public holidays (services/festival.py), and permit flags (services/permit.py) for each day — a bad-weather day gets a real nearby indoor alternative (live OpenStreetMap lookup), not just a warning. |
+| 12 | **Crowd & Queue Forecast** | Per-zone crowd forecast combining live tourist density, peak/off-peak season, real public holidays (Calendarific API), nearby festivals, and weather — plus a per-POI queue-wait estimate. Every forecast carries its `reasons[]`, never a bare number. |
+| 13 | **Discovery** | Hidden spots, regional food, and homestays near the tourist — live from the OpenStreetMap Overpass API, merged with the database, with the DB as an automatic fallback if the live lookup is slow/unavailable. |
+| 14 | **Multilingual Guide** | An everyday phrasebook (greetings, directions, food, shopping) in the tourist's chosen language — tap to translate and hear it spoken. |
+| 15 | **Permit & E-Pass Automation** | Pre-fills a permit/e-pass application (Inner Line Permit, Restricted/Protected Area Permit, forest/wildlife entry) from the tourist's own KYC + itinerary. Two-step and honest: a draft the tourist reviews/edits, then an explicit confirm that **never submits anything to a government system** — it hands back the real official portal (Nagaland ILP, e-FRRO, Assam Sewa Setu) for the tourist to finish there themselves. |
+| 16 | **Two-Way Live Voice Translator** | A conversation-mode translator for a tourist and a foreign traveler talking face-to-face — each side speaks in their own language, the other hears it translated aloud. |
+| 17 | **Festival & Local Event Intelligence** | A calendar of this app's curated local festivals plus real national public holidays (Calendarific API), connected into the Smart Trip Planner and the Crowd & Queue Forecast rather than living as an isolated page. |
+
+All seven live in the tourist app's new **Explore** tab (🌍). None of them touch any existing feature's data or routes — they're additive, reusing the existing itinerary, zone, weather, translation, and POI infrastructure wherever possible. Two external, free-tier data sources back them: OpenStreetMap's **Overpass API** (Discovery + indoor alternatives — no key needed) and **Calendarific** (public holidays — free key needed, see `backend/.env.example` / `CALENDARIFIC_API_KEY`). With no Calendarific key, holiday-driven signals are simply absent, never fabricated.
 
 ---
 
@@ -347,6 +356,12 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 | GET/PATCH | `/api/incidents` | Incident list / advance lifecycle |
 | GET | `/api/analytics/*` | Summary, over-time, by-type, zone-risk, severity |
 | GET | `/api/audit-log` | Security audit trail (admin only) |
+| GET | `/api/tourists/{id}/trip-plan` | Smart Trip Planner: day-by-day plan with per-day weather check |
+| GET | `/api/crowd/forecast` · `/api/crowd/forecast/poi/{id}` | Crowd & Queue Forecast: per-zone forecast · per-POI queue estimate |
+| GET | `/api/discovery` · `/api/discovery/offline-bundle` | Discovery: hidden spots/regional food/homestays · offline-cacheable bundle |
+| GET | `/api/translate/guide/categories` · `/api/translate/guide/{category}` · POST `/api/translate/guide/phrase` | Multilingual Guide phrasebook |
+| GET | `/api/permits/types` · GET/POST `/api/tourists/{id}/permits` · PATCH/POST `…/permits/{id}` · `…/{id}/confirm` | Permit & E-Pass Automation: draft → edit → explicit confirm (never auto-submitted) |
+| GET | `/api/festivals` · `/api/festivals/near` | Festival & Local Event Intelligence |
 | WS | `/ws/alerts?token=…` | Live alert/location/incident stream (admin token required) |
 
 ---

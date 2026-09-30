@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from datetime import timedelta
+from datetime import date, timedelta
 
 from app.core.config import settings
 from app.core.security import hash_password
@@ -213,6 +213,37 @@ def seed() -> None:
         ]
         db.add_all(places)
 
+        # ---- Discovery: hidden spots / regional food / homestays (demo
+        # fixtures -- `phone` is reused as a short free-text tip for these
+        # three categories, see services/discovery.py) ----
+        discovery_places = [
+            PointOfInterest(name="Sualkuchi Weavers' Lane", category="hidden_gem",
+                            lat=26.0930, lng=91.6330,
+                            phone="A quiet riverside village of silk weavers -- rarely on tour itineraries."),
+            PointOfInterest(name="Deepor Beel Viewpoint", category="hidden_gem",
+                            lat=26.1280, lng=91.6560,
+                            phone="A wetland bird sanctuary with a quiet sunset viewpoint, minutes from the city."),
+            PointOfInterest(name="Chandubi Lake Trail", category="hidden_gem",
+                            lat=25.9670, lng=91.3210,
+                            phone="A scenic lake formed by an old earthquake, popular for camping, still off most maps."),
+            PointOfInterest(name="Paradise Restaurant (Assamese Thali)", category="regional_food",
+                            lat=26.1810, lng=91.7460,
+                            phone="Try the traditional Assamese thali -- khar, tenga, and duck curry."),
+            PointOfInterest(name="Riverside Fish Curry House", category="regional_food",
+                            lat=26.1738, lng=91.7610,
+                            phone="Known for masor tenga (tangy fish curry) with fresh Brahmaputra fish."),
+            PointOfInterest(name="Street Food Corner, Fancy Bazaar", category="regional_food",
+                            lat=26.1865, lng=91.7515,
+                            phone="Try jolpan (Assamese breakfast): pitha, doi-chira, and laru."),
+            PointOfInterest(name="Brahmaputra Homestay", category="homestay",
+                            lat=26.1920, lng=91.7420,
+                            phone="Family-run homestay with a river view and home-cooked Assamese meals."),
+            PointOfInterest(name="Hillside Village Homestay", category="homestay",
+                            lat=26.1300, lng=91.7100,
+                            phone="A tribal-run homestay on the trekking trail with cultural evenings."),
+        ]
+        db.add_all(discovery_places)
+
         # ---- police units ----
         units = [
             PoliceUnit(name="Unit Alpha", station="City Central PS", phone="100",
@@ -344,6 +375,39 @@ def seed() -> None:
             db.flush()
             db.add(IncidentEvent(incident_id=inc.id, status="resolved", note="Closed"))
 
+        # ---- Festival & Local Event Intelligence: a curated calendar (real,
+        # well-known Indian festivals/fairs -- month/day only matters since
+        # these are `recurring_yearly`, see services/festival.py) ----
+        from app.models.festival import Festival
+
+        festivals = [
+            Festival(name="Bihu (Rongali)", description="Assam's spring harvest festival with folk dance and music.",
+                     category="festival", state="Assam", lat=26.1445, lng=91.7362,
+                     start_date=date(now.year, 4, 14), end_date=date(now.year, 4, 20),
+                     recurring_yearly=True, crowd_impact="high"),
+            Festival(name="Ambubachi Mela", description="Major religious fair at Kamakhya Temple.",
+                     category="religious", state="Assam", lat=26.1665, lng=91.7055,
+                     start_date=date(now.year, 6, 22), end_date=date(now.year, 6, 26),
+                     recurring_yearly=True, crowd_impact="high"),
+            Festival(name="Durga Puja", description="Major pan-India festival with elaborate pandals.",
+                     category="religious", state="Assam", lat=26.1600, lng=91.7500,
+                     start_date=date(now.year, 10, 10), end_date=date(now.year, 10, 14),
+                     recurring_yearly=True, crowd_impact="high"),
+            Festival(name="Diwali", description="Festival of lights, celebrated nationwide.",
+                     category="festival", state=None, lat=None, lng=None,
+                     start_date=date(now.year, 11, 1), end_date=date(now.year, 11, 3),
+                     recurring_yearly=True, crowd_impact="high"),
+            Festival(name="Jonbeel Mela", description="Historic barter-trade fair near Jagiroad, Assam.",
+                     category="fair", state="Assam", lat=26.0270, lng=92.2000,
+                     start_date=date(now.year, 1, 15), end_date=date(now.year, 1, 17),
+                     recurring_yearly=True, crowd_impact="medium"),
+            Festival(name="Guwahati Winter Craft Fair", description="Local handicrafts and food stalls.",
+                     category="fair", state="Assam", lat=26.1500, lng=91.7400,
+                     start_date=date(now.year, 12, 15), end_date=date(now.year, 12, 22),
+                     recurring_yearly=True, crowd_impact="medium"),
+        ]
+        db.add_all(festivals)
+
         db.commit()
         print("Seed complete.")
         print(f"  Admin login : admin@tourism.gov.in / {admin_password}")
@@ -351,7 +415,8 @@ def seed() -> None:
         print(f"  Responder login: responder@tourism.gov.in / {responder_password} (Unit Alpha)")
         print(f"  Tourists: {db.query(Tourist).count()}, Zones: {db.query(Zone).count()}, "
               f"Units: {db.query(PoliceUnit).count()}, Stations: {db.query(PoliceStation).count()}, "
-              f"Cameras: {db.query(Camera).count()}, Places: {db.query(PointOfInterest).count()}")
+              f"Cameras: {db.query(Camera).count()}, Places: {db.query(PointOfInterest).count()}, "
+              f"Festivals: {db.query(Festival).count()}")
     finally:
         db.close()
 

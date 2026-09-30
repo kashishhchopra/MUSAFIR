@@ -12,18 +12,23 @@ from app.api import (
     auth,
     cctv,
     copilot,
+    crowd_forecast,
     devices,
     disaster,
+    discovery,
     emergency,
+    festivals,
     guardian,
     incidents,
     itinerary,
     maps,
     ml,
+    permits,
     police_network,
     tourist_id,
     tourists,
     translate,
+    trip_planner,
     ws,
     zones,
 )
@@ -211,6 +216,11 @@ app.include_router(guardian.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(copilot.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(disaster.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(anchor.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(trip_planner.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(crowd_forecast.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(discovery.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(festivals.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(permits.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(ws.router)  # websocket at /ws/alerts (auth via token query param)
 
 # /api/metrics — Prometheus scrape target. Excluded from request logging noise

@@ -44,6 +44,15 @@
     "voice_replies_on": "आवाज़ में जवाब चालू",
     "voice_unavailable": "वॉइस इनपुट अनुपलब्ध — अपना प्रश्न टाइप करें।"
   },
+  "crowd_forecast": {
+    "card_title": "Crowd & Queue Forecast",
+    "density_high": "High",
+    "density_low": "Low",
+    "density_medium": "Medium",
+    "failed": "Couldn't load the crowd forecast right now.",
+    "intro": "Forecasted crowd levels by zone, factoring season, holidays, festivals and weather.",
+    "reasons": "{{list}}"
+  },
   "digital_id": {
     "brand": "🛡️ टूरशील्ड आईडी",
     "cancel": "रद्द करें",
@@ -67,14 +76,28 @@
   },
   "disaster": {
     "advisory": "{{type}} सलाह",
+    "affected_area": "प्रभावित क्षेत्र",
+    "expires": "समाप्ति",
+    "instructions": "सुरक्षा निर्देश",
+    "issued": "जारी किया गया",
     "severity": "{{level}} गंभीरता",
     "source": "स्रोत",
-    "issued": "जारी किया गया",
-    "updated": "अपडेट किया गया",
-    "expires": "समाप्ति",
-    "affected_area": "प्रभावित क्षेत्र",
-    "instructions": "सुरक्षा निर्देश",
-    "translating": "अनुवाद हो रहा है…"
+    "translating": "अनुवाद हो रहा है…",
+    "updated": "अपडेट किया गया"
+  },
+  "discovery": {
+    "all": "All",
+    "card_title": "Discovery",
+    "category_hidden_gem": "Hidden gems",
+    "category_homestay": "Homestays",
+    "category_regional_food": "Regional food",
+    "failed": "Couldn't load discovery places right now.",
+    "intro": "Hidden spots, regional food, and homestays near you.",
+    "none_found": "No places found nearby yet.",
+    "save_offline": "Save for offline",
+    "showing_cached": "Showing a previously saved offline copy.",
+    "source_curated": "Curated",
+    "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
     "assigning": "आवंटित किया जा रहा है…",
@@ -102,10 +125,33 @@
     "tap_again_confirm": "पुष्टि के लिए फिर से टैप करें",
     "title": "🚨 आपातकालीन मोड"
   },
+  "explore_hero": {
+    "subtitle": "Plan smarter, discover more, and stay ready",
+    "title": "Explore"
+  },
+  "festivals": {
+    "card_title": "Festival & Local Events",
+    "failed": "Couldn't load the festival calendar right now.",
+    "impact_high": "High crowd impact",
+    "impact_low": "Low crowd impact",
+    "impact_medium": "Medium crowd impact",
+    "intro": "Festivals and local events happening near you soon.",
+    "none_upcoming": "No festivals or events found nearby in the coming months.",
+    "public_holidays": "Public holidays (live)"
+  },
   "geofence": {
     "safe": "आप एक सुरक्षित क्षेत्र में हैं।",
     "warning_body": "आप {{zone}} में हैं ({{risk}} जोखिम)। सतर्क रहें और क्षेत्र छोड़ने पर विचार करें।",
     "warning_title": "जियो-फेंस चेतावनी"
+  },
+  "guide": {
+    "card_title": "Multilingual Guide",
+    "category_directions": "Directions",
+    "category_food": "Food",
+    "category_greetings": "Greetings",
+    "category_shopping": "Shopping",
+    "failed": "Couldn't load the phrasebook right now.",
+    "intro": "Everyday phrases in your language — tap to translate and hear it spoken."
   },
   "help": {
     "ask_safety_helper": "💬 सुरक्षा सहायक से पूछें"
@@ -191,6 +237,7 @@
   },
   "nav": {
     "sections_aria": "पर्यटक ऐप अनुभाग",
+    "tab_explore": "Explore",
     "tab_help": "मदद",
     "tab_home": "होम",
     "tab_me": "मैं",
@@ -211,6 +258,45 @@
     "toggle_hide": "नज़दीकी संसाधन छुपाएं ▲",
     "toggle_show": "🗺️ नज़दीकी अस्पताल, फार्मेसी और परिवहन",
     "verified": "सत्यापित"
+  },
+  "offline_trip": {
+    "as_of": "As of {{time}}",
+    "card_title": "Offline Trip",
+    "emergency_contacts": "Emergency contacts",
+    "failed": "Couldn't load your offline trip bundle right now.",
+    "intro": "Your itinerary, emergency contacts, nearest help, and saved places -- available even with weak or no connectivity.",
+    "itinerary": "Itinerary",
+    "nearest_help": "Nearest help",
+    "no_contacts": "No emergency contacts saved yet.",
+    "no_itinerary": "No saved itinerary yet.",
+    "offline_saved_data": "📥 Offline saved data",
+    "online_data": "🟢 Online data",
+    "saved_places": "Saved nearby places"
+  },
+  "permits": {
+    "applicant_label": "Applicant",
+    "apply_button": "Apply",
+    "apply_failed": "Couldn't submit the application right now.",
+    "applying": "Applying…",
+    "cancel": "Cancel",
+    "card_title": "Permit & E-Pass Automation",
+    "confirm_open_portal": "Confirm & Open Official Portal",
+    "confirming": "Confirming…",
+    "demo_notice": "Demo auto-approval — not a real government permit.",
+    "destination_label": "Destination",
+    "destination_placeholder": "Destination (optional)",
+    "failed": "Couldn't load permits right now.",
+    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
+    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
+    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
+    "none_yet": "No permit applications yet.",
+    "open_portal_again": "Open {{name}}",
+    "reference": "Reference: {{ref}}",
+    "review_edit": "Review / Edit",
+    "save_review": "Save",
+    "start_draft_button": "Start draft application",
+    "status_draft": "Draft",
+    "status_reviewed": "Reviewed"
   },
   "plan": {
     "hide_route_planner": "सुरक्षित मार्ग योजनाकार छुपाएं",
@@ -275,6 +361,19 @@
     "text_failed": "उस पाठ का अनुवाद नहीं हो सका।",
     "toggle_hide": "अनुवाद छुपाएं ▲",
     "toggle_show": "🌐 वाक्यांश अनुवाद करें"
+  },
+  "trip_planner": {
+    "card_title": "Smart Trip Planner",
+    "day_label": "Day {{n}} — {{date}}",
+    "failed": "Couldn't generate a trip plan right now.",
+    "falls_on_this_day": "falls on this day",
+    "generate_button": "Generate my trip plan",
+    "generating": "Generating…",
+    "intro": "Generate a day-by-day plan from your itinerary, checked against weather for each day.",
+    "permit_may_be_needed": "Permit may be required: {{types}}",
+    "weather_fair": "Fair",
+    "weather_good": "Good",
+    "weather_poor": "Poor — re-plan?"
   },
   "voice_action": {
     "opening": "{{tab}} खोल रहे हैं।",
@@ -357,5 +456,15 @@
     "subtitle": "आपके अगले पड़ाव की दिशा में बोला गया मार्गदर्शन",
     "voice_off": "🔈 वॉइस: बंद",
     "voice_on": "🔊 वॉइस: चालू"
+  },
+  "voice_translator": {
+    "card_title": "Two-Way Voice Translator",
+    "failed": "Translation is unavailable right now.",
+    "intro": "Have a live conversation across languages — each side speaks, the other hears it translated.",
+    "listening": "Listening…",
+    "tap_to_speak": "Tap to speak",
+    "traveler": "Traveler",
+    "unsupported": "Voice input not supported on this device",
+    "you": "You"
   }
 }

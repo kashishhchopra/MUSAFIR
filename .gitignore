@@ -7,6 +7,10 @@ __pycache__/
 *.db-wal
 backend/.env
 
+# Docker Compose deployment secrets (real SECRET_KEY / DB password once filled in)
+.env
+SECRET_KEY
+
 # ML artifacts (regenerate with train_all) — keep dir, ignore binaries.
 # Versioned snapshot copies (model_v1.joblib, hotzones_v2.json, ...) are also
 # ignored: they're per-training-run history the registry tracks in
