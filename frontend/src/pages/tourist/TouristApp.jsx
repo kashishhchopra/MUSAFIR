@@ -7,6 +7,7 @@ import TouristShell from './TouristShell.jsx'
 import TouristTabBar from './TouristTabBar.jsx'
 import HomeTab from './tabs/HomeTab.jsx'
 import PlanTab from './tabs/PlanTab.jsx'
+import ExploreTab from './tabs/ExploreTab.jsx'
 import HelpTab from './tabs/HelpTab.jsx'
 import MeTab from './tabs/MeTab.jsx'
 import ReportSheet from './tabs/ReportSheet.jsx'
@@ -14,9 +15,9 @@ import CopilotChat from '../../components/CopilotChat.jsx'
 import VoiceAssistantButton from '../../components/VoiceAssistantButton.jsx'
 import EmergencyModeCard from '../../components/EmergencyModeCard.jsx'
 
-const TAB_COMPONENTS = { home: HomeTab, plan: PlanTab, help: HelpTab, me: MeTab }
+const TAB_COMPONENTS = { home: HomeTab, plan: PlanTab, explore: ExploreTab, help: HelpTab, me: MeTab }
 
-// One calm screen (map + score + SOS) plus a four-tab bottom bar, instead of
+// One calm screen (map + score + SOS) plus a five-tab bottom bar, instead of
 // the ~15-card single scroll this used to be. Every feature that lived on
 // that scroll still exists -- see useTouristData.js and pages/tourist/tabs/*
 // -- only its location changed. All live data/mutations are in

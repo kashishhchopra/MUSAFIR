@@ -169,7 +169,7 @@ to tourist <id>", which the dashboard answers from the database.
 - You may answer general questions about procedure, safety practice, or how this platform works."""
 
 
-def answer_operator_question(db: Session, question: str) -> dict:
+def answer_operator_question(db: Session, question: str, history: list[Turn] | None = None) -> dict:
     """Control-room side: operational questions about the live situation."""
     for handler in (
         _intent_why_flagged, _intent_dispatch, _intent_at_risk_list,
@@ -180,7 +180,7 @@ def answer_operator_question(db: Session, question: str) -> dict:
             return {"answer": answer, "handled": True}
     operator_answer = llm.complete(
         _OPERATOR_SYSTEM_PROMPT,
-        f"Control-room operator asks: {question.strip()}" if question else "",
+        f"{_format_history(history)}Control-room operator asks: {question.strip()}",
     ) if (question or "").strip() else None
     if operator_answer:
         return {"answer": operator_answer, "handled": True, "source": "llm"}
@@ -497,8 +497,61 @@ def _intent_emergency_call(db: Session, tourist: Tourist, question: str) -> str 
     )
 
 
-def answer_tourist_question(db: Session, tourist: Tourist, question: str) -> dict:
+Turn = tuple[str, str]  # (role, text) -- "user" | "assistant"
+
+# A short affirmation on its own ("yes", "yes yes", "sure", "go ahead", ...)
+# carries no meaning without the assistant's previous turn. Matched against
+# the FULL stripped message so a real question that happens to start with
+# "yes" (rare, but "yes but where is the pharmacy" is a real question) isn't
+# swallowed.
+_AFFIRMATION_RE = re.compile(
+    r"^(?:yes|yeah|yep|yup|sure|ok(?:ay)?|please|go ahead|do it|please do|"
+    r"(?:yes[,.\s]*)+)[.!\s]*$",
+    re.I,
+)
+
+# When the assistant's last reply *offered* to look something up, a bare
+# "yes" should resolve to that real lookup (through the same intent handlers
+# below -- a real distance/name, never the LLM guessing one) rather than
+# dead-ending on "I'm not sure what you're asking". Ordered most-specific
+# first where offers could overlop (e.g. "transport" before "hotel").
+_FOLLOWUP_OFFERS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"transport|taxi|cab|bus|metro|railway|train station", re.I), "find nearest transport"),
+    (re.compile(r"hospital|ambulance|clinic", re.I), "nearest hospital"),
+    (re.compile(r"pharmacy|chemist|medical store", re.I), "nearest pharmacy"),
+    (re.compile(r"police station|police officer|\bpolice\b", re.I), "nearest police station"),
+    (re.compile(r"\bhotel\b|your (?:stay|accommodation)", re.I), "take me to my hotel"),
+    (re.compile(r"route|navigation|on track", re.I), "am I on the correct route"),
+    (re.compile(r"itinerary|travel plan|schedule", re.I), "show my itinerary"),
+    (re.compile(r"embassy|consulate", re.I), "my embassy"),
+]
+
+
+def resolve_followup(question: str, history: list[Turn]) -> str:
+    """Rewrite a bare affirmation ("yes yes") into the concrete question it's
+    affirming, read off the assistant's own last offer -- so it's answered by
+    the same real-data intent handler the original offer promised, instead of
+    the LLM inventing a distance/name it doesn't actually have. Returns
+    `question` unchanged when there's nothing to resolve (not an affirmation,
+    no history, or the last offer didn't name anything this app can look
+    up) -- callers still fall through to the open-ended model in that case."""
+    if not history or not _AFFIRMATION_RE.match(question.strip()):
+        return question
+    last_assistant = next((text for role, text in reversed(history) if role == "assistant"), None)
+    if not last_assistant:
+        return question
+    for pattern, canonical in _FOLLOWUP_OFFERS:
+        if pattern.search(last_assistant):
+            return canonical
+    return question
+
+
+def answer_tourist_question(
+    db: Session, tourist: Tourist, question: str, history: list[Turn] | None = None,
+) -> dict:
     """Tourist side: nearest help, area safety, itinerary-aware guidance."""
+    history = history or []
+    question = resolve_followup(question, history)
     for handler in (
         # Order matters where keyword sets overlap:
         #  - translate first: "how do I say I need a doctor in Hindi" would
@@ -520,10 +573,12 @@ def answer_tourist_question(db: Session, tourist: Tourist, question: str) -> dic
             return {"answer": answer, "handled": True}
 
     # No deterministic handler matched. Hand the question to a real language
-    # model, grounded in this tourist's live context, so the assistant can
-    # answer anything -- not just the intents above. Only if no model is
-    # available at all do we fall back to describing what we can do.
-    llm_answer = _llm_answer(db, tourist, question)
+    # model, grounded in this tourist's live context AND the recent
+    # conversation, so the assistant can answer anything -- not just the
+    # intents above, and without losing the thread on a genuine follow-up
+    # resolve_followup's keyword list didn't happen to cover. Only if no
+    # model is available at all do we fall back to describing what we can do.
+    llm_answer = _llm_answer(db, tourist, question, history)
     if llm_answer:
         return {"answer": llm_answer, "handled": True, "source": "llm"}
     return {"answer": _unmatched_reply(question), "handled": False}
@@ -574,12 +629,27 @@ is 112 and the tourist helpline is 1363. Never claim you have alerted anyone you
 - If you genuinely do not know, say so plainly."""
 
 
-def _llm_answer(db: Session, tourist: Tourist, question: str) -> str | None:
+def _format_history(history: list[Turn] | None) -> str:
+    if not history:
+        return ""
+    lines = [f"{'Tourist' if role == 'user' else 'Assistant'}: {text}" for role, text in history]
+    return "Recent conversation (most recent last):\n" + "\n".join(lines) + "\n\n"
+
+
+def _llm_answer(db: Session, tourist: Tourist, question: str, history: list[Turn] | None = None) -> str | None:
     """Open-ended answer from a language model, or None if none is
-    configured/reachable (see services/llm.py)."""
+    configured/reachable (see services/llm.py). Includes the recent
+    conversation (if any) so a genuine follow-up -- "what about at night?",
+    "why is that?" -- is answered in context instead of as a fresh, unrelated
+    question; resolve_followup already handles the narrower case of a bare
+    "yes" affirming a real-data offer before this is ever reached."""
     if not (question or "").strip():
         return None
-    prompt = f"Tourist's context:\n{_tourist_context(db, tourist)}\n\nTourist asks: {question.strip()}"
+    prompt = (
+        f"Tourist's context:\n{_tourist_context(db, tourist)}\n\n"
+        f"{_format_history(history)}"
+        f"Tourist asks: {question.strip()}"
+    )
     return llm.complete(_SYSTEM_PROMPT, prompt)
 
 

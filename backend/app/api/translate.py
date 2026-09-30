@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.schemas.translate import TranslatePhraseRequest, TranslateTextRequest
+from app.schemas.translate import (
+    TranslateGuidePhraseRequest,
+    TranslatePhraseRequest,
+    TranslateTextRequest,
+)
 from app.services import translation
 
 router = APIRouter(prefix="/translate", tags=["translate"])
@@ -33,3 +37,20 @@ def translate_phrase(payload: TranslatePhraseRequest, _: User = Depends(get_curr
 @router.post("/text")
 def translate_text(payload: TranslateTextRequest, _: User = Depends(get_current_user)):
     return translation.translate_text(payload.text, payload.target_lang, payload.source_lang)
+
+
+# ---- Multilingual Guide: everyday phrasebook, grouped by category ----
+
+@router.get("/guide/categories")
+def list_guide_categories(_: User = Depends(get_current_user)):
+    return translation.list_guide_categories()
+
+
+@router.get("/guide/{category}")
+def list_guide_phrases(category: str, _: User = Depends(get_current_user)):
+    return translation.list_guide_phrase_ids(category)
+
+
+@router.post("/guide/phrase")
+def translate_guide_phrase(payload: TranslateGuidePhraseRequest, _: User = Depends(get_current_user)):
+    return translation.translate_guide_phrase(payload.category, payload.phrase_id, payload.target_lang)

@@ -74,6 +74,32 @@ class Settings(BaseSettings):
     NOTIFICATION_CHANNEL: str = "console"
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # ---- public holidays (Calendarific -- free tier, key required) ----
+    # Used by Crowd & Queue Forecast and Festival & Local Event Intelligence
+    # for a real holiday-travel-window signal instead of a hand-maintained
+    # date table. Empty = that signal is simply absent (never a fabricated
+    # holiday) -- get a free key at https://calendarific.com/signup.
+    # ISO 3166-1 alpha-2; India by default.
+    CALENDARIFIC_API_KEY: str = ""
+    HOLIDAYS_COUNTRY_CODE: str = "IN"
+    HOLIDAYS_API_TIMEOUT_SECONDS: float = 4.0
+    HOLIDAYS_CACHE_TTL_SECONDS: int = 86_400  # a year's holiday list is static; refresh daily
+
+    # ---- Discovery: live OpenStreetMap Overpass lookups ----
+    # Real hidden-gem/regional-food/homestay places near the tourist, fetched
+    # live from the free public Overpass API (no key). Off by default at
+    # request time is NOT the default here -- see services/discovery.py's
+    # module docstring for why a short timeout + cache keep this safe to call
+    # synchronously (falls back to the seeded/cached DB rows on any failure).
+    DISCOVERY_LIVE_ENABLED: bool = True
+    OVERPASS_API_URL: str = "https://overpass-api.de/api/interpreter"
+    # The public instance is shared/rate-limited and can be slow; a request
+    # here blocks the Discovery API call, so this is a real timeout, not
+    # a knob to raise indefinitely -- a slow response falls back to the
+    # database rather than making the tourist wait.
+    OVERPASS_TIMEOUT_SECONDS: float = 8.0
+    DISCOVERY_CACHE_TTL_SECONDS: int = 3600
+
     # ---- weather (safety-score input) ----
     # Empty = use the deterministic mock (no network needed, works offline).
     # Set to a real OpenWeatherMap API key (free tier) to use live conditions.

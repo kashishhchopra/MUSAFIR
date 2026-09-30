@@ -44,6 +44,15 @@
     "voice_replies_on": "音声返信オン",
     "voice_unavailable": "音声入力は利用できません — 質問を入力してください。"
   },
+  "crowd_forecast": {
+    "card_title": "Crowd & Queue Forecast",
+    "density_high": "High",
+    "density_low": "Low",
+    "density_medium": "Medium",
+    "failed": "Couldn't load the crowd forecast right now.",
+    "intro": "Forecasted crowd levels by zone, factoring season, holidays, festivals and weather.",
+    "reasons": "{{list}}"
+  },
   "digital_id": {
     "brand": "🛡️ TOURSHIELD ID",
     "cancel": "キャンセル",
@@ -67,14 +76,28 @@
   },
   "disaster": {
     "advisory": "{{type}}に関する警報",
+    "affected_area": "影響地域",
+    "expires": "有効期限",
+    "instructions": "安全に関する指示",
+    "issued": "発表",
     "severity": "重大度: {{level}}",
     "source": "発信元",
-    "issued": "発表",
-    "updated": "更新",
-    "expires": "有効期限",
-    "affected_area": "影響地域",
-    "instructions": "安全に関する指示",
-    "translating": "翻訳中…"
+    "translating": "翻訳中…",
+    "updated": "更新"
+  },
+  "discovery": {
+    "all": "All",
+    "card_title": "Discovery",
+    "category_hidden_gem": "Hidden gems",
+    "category_homestay": "Homestays",
+    "category_regional_food": "Regional food",
+    "failed": "Couldn't load discovery places right now.",
+    "intro": "Hidden spots, regional food, and homestays near you.",
+    "none_found": "No places found nearby yet.",
+    "save_offline": "Save for offline",
+    "showing_cached": "Showing a previously saved offline copy.",
+    "source_curated": "Curated",
+    "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
     "assigning": "割り当て中…",
@@ -102,10 +125,33 @@
     "tap_again_confirm": "確認するにはもう一度タップ",
     "title": "🚨 緊急モード"
   },
+  "explore_hero": {
+    "subtitle": "Plan smarter, discover more, and stay ready",
+    "title": "Explore"
+  },
+  "festivals": {
+    "card_title": "Festival & Local Events",
+    "failed": "Couldn't load the festival calendar right now.",
+    "impact_high": "High crowd impact",
+    "impact_low": "Low crowd impact",
+    "impact_medium": "Medium crowd impact",
+    "intro": "Festivals and local events happening near you soon.",
+    "none_upcoming": "No festivals or events found nearby in the coming months.",
+    "public_holidays": "Public holidays (live)"
+  },
   "geofence": {
     "safe": "安全な地域にいます。",
     "warning_body": "{{zone}}にいます（リスク：{{risk}}）。警戒を続け、この地域から離れることを検討してください。",
     "warning_title": "ジオフェンス警告"
+  },
+  "guide": {
+    "card_title": "Multilingual Guide",
+    "category_directions": "Directions",
+    "category_food": "Food",
+    "category_greetings": "Greetings",
+    "category_shopping": "Shopping",
+    "failed": "Couldn't load the phrasebook right now.",
+    "intro": "Everyday phrases in your language — tap to translate and hear it spoken."
   },
   "help": {
     "ask_safety_helper": "💬 安全アシスタントに聞く"
@@ -191,6 +237,7 @@
   },
   "nav": {
     "sections_aria": "観光客アプリのセクション",
+    "tab_explore": "Explore",
     "tab_help": "ヘルプ",
     "tab_home": "ホーム",
     "tab_me": "マイ",
@@ -211,6 +258,45 @@
     "toggle_hide": "近くのリソースを非表示 ▲",
     "toggle_show": "🗺️ 近くの病院・薬局・交通機関",
     "verified": "確認済み"
+  },
+  "offline_trip": {
+    "as_of": "As of {{time}}",
+    "card_title": "Offline Trip",
+    "emergency_contacts": "Emergency contacts",
+    "failed": "Couldn't load your offline trip bundle right now.",
+    "intro": "Your itinerary, emergency contacts, nearest help, and saved places -- available even with weak or no connectivity.",
+    "itinerary": "Itinerary",
+    "nearest_help": "Nearest help",
+    "no_contacts": "No emergency contacts saved yet.",
+    "no_itinerary": "No saved itinerary yet.",
+    "offline_saved_data": "📥 Offline saved data",
+    "online_data": "🟢 Online data",
+    "saved_places": "Saved nearby places"
+  },
+  "permits": {
+    "applicant_label": "Applicant",
+    "apply_button": "Apply",
+    "apply_failed": "Couldn't submit the application right now.",
+    "applying": "Applying…",
+    "cancel": "Cancel",
+    "card_title": "Permit & E-Pass Automation",
+    "confirm_open_portal": "Confirm & Open Official Portal",
+    "confirming": "Confirming…",
+    "demo_notice": "Demo auto-approval — not a real government permit.",
+    "destination_label": "Destination",
+    "destination_placeholder": "Destination (optional)",
+    "failed": "Couldn't load permits right now.",
+    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
+    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
+    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
+    "none_yet": "No permit applications yet.",
+    "open_portal_again": "Open {{name}}",
+    "reference": "Reference: {{ref}}",
+    "review_edit": "Review / Edit",
+    "save_review": "Save",
+    "start_draft_button": "Start draft application",
+    "status_draft": "Draft",
+    "status_reviewed": "Reviewed"
   },
   "plan": {
     "hide_route_planner": "安全ルートプランナーを非表示",
@@ -275,6 +361,19 @@
     "text_failed": "そのテキストを翻訳できませんでした。",
     "toggle_hide": "翻訳を非表示 ▲",
     "toggle_show": "🌐 フレーズを翻訳"
+  },
+  "trip_planner": {
+    "card_title": "Smart Trip Planner",
+    "day_label": "Day {{n}} — {{date}}",
+    "failed": "Couldn't generate a trip plan right now.",
+    "falls_on_this_day": "falls on this day",
+    "generate_button": "Generate my trip plan",
+    "generating": "Generating…",
+    "intro": "Generate a day-by-day plan from your itinerary, checked against weather for each day.",
+    "permit_may_be_needed": "Permit may be required: {{types}}",
+    "weather_fair": "Fair",
+    "weather_good": "Good",
+    "weather_poor": "Poor — re-plan?"
   },
   "voice_action": {
     "opening": "{{tab}}を開きます。",
@@ -357,5 +456,15 @@
     "subtitle": "次の目的地までの音声案内",
     "voice_off": "🔈 音声：オフ",
     "voice_on": "🔊 音声：オン"
+  },
+  "voice_translator": {
+    "card_title": "Two-Way Voice Translator",
+    "failed": "Translation is unavailable right now.",
+    "intro": "Have a live conversation across languages — each side speaks, the other hears it translated.",
+    "listening": "Listening…",
+    "tap_to_speak": "Tap to speak",
+    "traveler": "Traveler",
+    "unsupported": "Voice input not supported on this device",
+    "you": "You"
   }
 }

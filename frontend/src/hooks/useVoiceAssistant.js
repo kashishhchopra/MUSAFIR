@@ -45,11 +45,25 @@ export default function useVoiceAssistant({
   const lastHandledRef = useRef('')
   const startedRef = useRef(false)
 
+  // Bounded, flattened prior turns to send with the next question -- lets
+  // the backend resolve a bare "yes" against what it just offered (see
+  // backend/app/services/copilot.py:resolve_followup) instead of every
+  // question being answered with no memory of the one before it. Only
+  // completed exchanges (a real answer already came back); the in-flight
+  // one being asked right now is the `question` param itself, not history.
+  const historyPayload = useCallback(() => {
+    const turns = exchanges
+      .filter((x) => x.answer)
+      .flatMap((x) => [{ role: 'user', text: x.question }, { role: 'assistant', text: x.answer }])
+    return turns.slice(-10)
+  }, [exchanges])
+
   // Sending is deliberately independent of the microphone: a typed question
   // and a spoken one take the exact same path from here on.
   const ask = useCallback(async (question) => {
     const text = (question || '').trim()
     if (!text) return null
+    const history = historyPayload()
     setExchanges((e) => [...e, { question: text, answer: null }])
     setThinking(true)
 
@@ -69,7 +83,7 @@ export default function useVoiceAssistant({
     }
 
     try {
-      const { data } = await api.post(endpoint, { question: text })
+      const { data } = await api.post(endpoint, { question: text, history })
       setExchanges((e) => e.map((x, i) => (i === e.length - 1 ? { ...x, answer: data.answer } : x)))
       if (speakReplies) {
         setSpeaking(true)
@@ -87,7 +101,7 @@ export default function useVoiceAssistant({
     } finally {
       setThinking(false)
     }
-  }, [endpoint, lang, speakReplies, t, onAction])
+  }, [endpoint, lang, speakReplies, t, onAction, historyPayload])
 
   // Push-to-talk. Speaking is stopped first so the assistant never talks
   // over the tourist (and never records its own voice).

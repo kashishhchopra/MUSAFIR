@@ -21,3 +21,19 @@ export function translateText(text, targetLang, sourceLang) {
     text, target_lang: targetLang, ...(sourceLang ? { source_lang: sourceLang } : {}),
   }).then((r) => r.data)
 }
+
+// ---- Multilingual Guide: everyday phrasebook, grouped by category ----
+
+export function listGuideCategories() {
+  return api.get('/translate/guide/categories').then((r) => r.data)
+}
+
+export function listGuidePhraseIds(category) {
+  return api.get(`/translate/guide/${category}`).then((r) => r.data)
+}
+
+export function translateGuidePhrase(category, phraseId, targetLang) {
+  return api
+    .post('/translate/guide/phrase', { category, phrase_id: phraseId, target_lang: targetLang })
+    .then((r) => r.data)
+}

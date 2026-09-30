@@ -36,6 +36,12 @@ class Incident(Base):
     # whenever `escalation_deadline` passes without a human acknowledgement.
     escalation_stage: Mapped[str] = mapped_column(String, default="control_room")
     escalation_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Real sentiment/distress analysis of `description` (services/sentiment.py)
+    # -- surfaced to the responder alongside the text itself, never in place
+    # of it. Null until analyzed (older rows, or a description-less incident).
+    sentiment_label: Mapped[str | None] = mapped_column(String, nullable=True)
+    sentiment_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    distress_detected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # Silent/Duress SOS: raised without any visible confirmation on the
     # tourist's screen (shake gesture, rapid trigger, or duress PIN). The
     # control room still sees it exactly like any other SOS -- this only

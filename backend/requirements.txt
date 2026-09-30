@@ -31,3 +31,5 @@ pytesseract==0.3.13 # itinerary document upload: OCR for photo/scan uploads
                     # (needs the `tesseract` binary on the host -- apt-get
                     # install tesseract-ocr in production; falls back to a
                     # clear "OCR unavailable" message if it's missing)
+vaderSentiment==3.3.2 # Women & Solo Traveller Safety: real sentiment/distress
+                    # analysis (services/sentiment.py) -- no network/key needed

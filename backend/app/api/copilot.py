@@ -17,7 +17,8 @@ router = APIRouter(tags=["copilot"])
 @router.post("/copilot/ask", response_model=CopilotAnswer)
 def ask_operator_copilot(payload: CopilotQuestion, db: Session = Depends(get_db),
                          _: User = Depends(require_admin_or_responder)):
-    return copilot.answer_operator_question(db, payload.question)
+    history = [(h.role, h.text) for h in payload.history]
+    return copilot.answer_operator_question(db, payload.question, history=history)
 
 
 @router.post("/tourists/{tourist_id}/copilot/ask", response_model=CopilotAnswer)
@@ -26,7 +27,8 @@ def ask_tourist_copilot(tourist_id: int, payload: CopilotQuestion, db: Session =
     t = db.get(Tourist, tourist_id)
     if not t:
         raise HTTPException(status_code=404, detail="Tourist not found")
-    return copilot.answer_tourist_question(db, t, payload.question)
+    history = [(h.role, h.text) for h in payload.history]
+    return copilot.answer_tourist_question(db, t, payload.question, history=history)
 
 
 @router.post("/copilot/public", response_model=CopilotAnswer)

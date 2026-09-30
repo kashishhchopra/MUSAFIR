@@ -89,6 +89,83 @@ _PHRASEBOOK: dict[str, dict[str, str]] = {
 }
 
 
+# Multilingual Guide: everyday phrases beyond the safety-critical set above,
+# grouped by category so the tourist app can render a phrasebook (greetings,
+# directions, food, shopping, numbers) rather than only emergency lines.
+# Same rule as _PHRASEBOOK: real, reviewed text only, never machine-generated
+# at request time.
+_GUIDE_PHRASEBOOK: dict[str, dict[str, dict[str, str]]] = {
+    "greetings": {
+        "hello": {
+            "en": "Hello", "hi": "नमस्ते", "fr": "Bonjour", "de": "Hallo",
+            "es": "Hola", "ja": "こんにちは", "zh": "你好", "ko": "안녕하세요", "ar": "مرحباً",
+        },
+        "goodbye": {
+            "en": "Goodbye", "hi": "अलविदा", "fr": "Au revoir", "de": "Auf Wiedersehen",
+            "es": "Adiós", "ja": "さようなら", "zh": "再见", "ko": "안녕히 가세요", "ar": "وداعاً",
+        },
+        "please": {
+            "en": "Please", "hi": "कृपया", "fr": "S'il vous plaît", "de": "Bitte",
+            "es": "Por favor", "ja": "お願いします", "zh": "请", "ko": "부탁합니다", "ar": "من فضلك",
+        },
+    },
+    "directions": {
+        "where_is_this": {
+            "en": "Where is this place?", "hi": "यह जगह कहाँ है?", "fr": "Où est cet endroit ?",
+            "de": "Wo ist dieser Ort?", "es": "¿Dónde está este lugar?", "ja": "この場所はどこですか。",
+            "zh": "这个地方在哪里？", "ko": "이곳이 어디예요?", "ar": "أين هذا المكان؟",
+        },
+        "how_far": {
+            "en": "How far is it from here?", "hi": "यहाँ से कितनी दूर है?",
+            "fr": "C'est à quelle distance d'ici ?", "de": "Wie weit ist es von hier?",
+            "es": "¿A qué distancia está de aquí?", "ja": "ここからどのくらい遠いですか。",
+            "zh": "从这里有多远？", "ko": "여기서 얼마나 멀어요?", "ar": "كم تبعد من هنا؟",
+        },
+    },
+    "food": {
+        "recommend_local_food": {
+            "en": "Can you recommend a local dish?", "hi": "क्या आप कोई स्थानीय व्यंजन सुझा सकते हैं?",
+            "fr": "Pouvez-vous recommander un plat local ?", "de": "Können Sie ein lokales Gericht empfehlen?",
+            "es": "¿Puede recomendar un plato local?", "ja": "地元の料理を勧めてもらえますか。",
+            "zh": "你能推荐一道当地菜吗？", "ko": "현지 음식을 추천해 주시겠어요?", "ar": "هل يمكنك أن توصي بطبق محلي؟",
+        },
+        "vegetarian": {
+            "en": "I am vegetarian.", "hi": "मैं शाकाहारी हूँ।", "fr": "Je suis végétarien(ne).",
+            "de": "Ich bin Vegetarier(in).", "es": "Soy vegetariano/a.", "ja": "私はベジタリアンです。",
+            "zh": "我吃素。", "ko": "저는 채식주의자예요.", "ar": "أنا نباتي.",
+        },
+    },
+    "shopping": {
+        "how_much": {
+            "en": "How much does this cost?", "hi": "इसकी कीमत कितनी है?", "fr": "Combien ça coûte ?",
+            "de": "Wie viel kostet das?", "es": "¿Cuánto cuesta esto?", "ja": "これはいくらですか。",
+            "zh": "这个多少钱？", "ko": "이거 얼마예요?", "ar": "كم يكلف هذا؟",
+        },
+        "too_expensive": {
+            "en": "That's too expensive.", "hi": "यह बहुत महँगा है।", "fr": "C'est trop cher.",
+            "de": "Das ist zu teuer.", "es": "Eso es demasiado caro.", "ja": "それは高すぎます。",
+            "zh": "太贵了。", "ko": "너무 비싸요.", "ar": "هذا غالٍ جداً.",
+        },
+    },
+}
+
+
+def list_guide_categories() -> list[str]:
+    return sorted(_GUIDE_PHRASEBOOK.keys())
+
+
+def list_guide_phrase_ids(category: str) -> list[str]:
+    return sorted(_GUIDE_PHRASEBOOK.get(category, {}).keys())
+
+
+def translate_guide_phrase(category: str, phrase_id: str, target_lang: str) -> dict:
+    entry = _GUIDE_PHRASEBOOK.get(category, {}).get(phrase_id)
+    if entry is None:
+        return {"text": None, "demo": True, "error": f"Unknown guide phrase: {category}/{phrase_id}"}
+    text = entry.get(target_lang, entry["en"])
+    return {"text": text, "demo": False, "category": category, "phrase_id": phrase_id, "lang": target_lang}
+
+
 def list_phrase_ids() -> list[str]:
     return sorted(_PHRASEBOOK.keys())
 
