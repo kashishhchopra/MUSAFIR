@@ -226,11 +226,18 @@ pip install -r requirements.txt
 # Train ML models (writes ml_models/*.joblib + metrics.json)
 python -m app.ml.train_all
 
-# Seed demo data (tourists, zones, police units, incidents)
-python -m app.scripts.seed
+# Create the database schema (required before seeding)
+alembic upgrade head
 
-# Run the API (http://127.0.0.1:8000 , docs at /docs)
-python -m uvicorn app.main:app --reload
+# Seed demo data (tourists, zones, police units, incidents).
+# Without the SEED_*_PASSWORD variables, random passwords are generated and
+# printed -- and re-running the seed regenerates them. Pin them for a stable demo:
+SEED_ADMIN_PASSWORD=admin123 SEED_TOURIST_PASSWORD=tourist123 \
+SEED_RESPONDER_PASSWORD=responder123 python -m app.scripts.seed
+
+# Run the API on port 8001 -- the port the Vite dev proxy targets
+# (docs at http://127.0.0.1:8001/docs)
+python -m uvicorn app.main:app --port 8001 --reload
 ```
 
 ### 2. Frontend
@@ -242,7 +249,8 @@ npm run dev                      # http://localhost:5173
 ```
 
 Open **http://localhost:5173** and log in with a [demo account](#demo-accounts).
-Vite proxies `/api` and `/ws` to the backend automatically.
+Vite proxies `/api` and `/ws` to the backend on **port 8001** (see `frontend/vite.config.js`),
+so start the API on that port or logins will fail.
 
 ---
 
@@ -372,7 +380,10 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 |------|-------|----------|
 | **Police / Admin** | `admin@tourism.gov.in` | `admin123` |
 | **Tourist** | `aarav@example.com` | `tourist123` |
+| **Responder** | `responder@tourism.gov.in` | `responder123` |
 | Tourist | `emma@example.com` / `rohan@…` / `sofia@…` / `kenji@…` | `tourist123` |
+
+> These passwords apply when the seed is run with the `SEED_*_PASSWORD` variables shown in [Setup & Run](#setup--run); otherwise they are randomly generated and printed.
 
 ---
 
