@@ -185,4 +185,16 @@ describe('Analytics page', () => {
     expect(await findByText('Incident Density Heatmap', undefined, { timeout: 4000 })).toBeInTheDocument()
     expect(await findByText(/No located incidents yet/i, undefined, { timeout: 4000 })).toBeInTheDocument()
   })
+
+  it('has an AI/ML Evaluation tab next to the operational reporting', async () => {
+    mockBaseEndpoints()
+    mock.onGet('/ml/evaluation/latest').reply(200, { latest: null, history: [] })
+    mock.onGet('/ml/registry').reply(404, {})
+    mock.onGet('/ml/drift').reply(200, { available: false, reason: 'no data' })
+    const { findByRole, findByText, queryByText } = render(<Analytics />)
+    await findByText('Analytics & Reporting', undefined, { timeout: 4000 })      // default tab unchanged
+    fireEvent.click(await findByRole('tab', { name: /AI\/ML Evaluation/ }))
+    expect(await findByText(/No evaluation has been run yet/)).toBeInTheDocument()
+    expect(queryByText('Analytics & Reporting')).not.toBeInTheDocument()
+  })
 })

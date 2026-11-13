@@ -27,9 +27,14 @@ def test_get_topic_falls_back_honestly_for_unreviewed_language():
 
 
 def test_unknown_topic_is_reported_not_guessed():
-    result = etiquette.get_topic("nonexistent", "en")
-    assert result["demo"] is True
-    assert result["text"] is None
+    import pytest
+    with pytest.raises(KeyError):
+        etiquette.get_topic("nonexistent", "en")
+
+
+def test_unknown_topic_api_returns_404(client, tourist_headers):
+    r = client.get("/api/etiquette/nonexistent", headers=tourist_headers)
+    assert r.status_code == 404
 
 
 def test_topics_api_requires_auth(client):

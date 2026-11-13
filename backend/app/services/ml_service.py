@@ -50,22 +50,33 @@ def anomaly_features(speed_kmh: float, dist_from_prev_m: float, dt_seconds: floa
     return [speed_kmh, dist_from_prev_m, inactivity_min, dist_from_route_m]
 
 
-def score_anomaly(features: list[float]) -> dict:
-    """Return {is_anomaly, score} where score in [0,1], higher = more anomalous."""
+def score_anomaly_batch(rows: list[list[float]]) -> list[dict]:
+    """Vectorised `score_anomaly` -- identical maths, one model call for many
+    pings (used by the evaluation harness, services/evaluation.py)."""
+    if not rows:
+        return []
     model = _load("anomaly_isoforest.joblib")
     scaler = _load("anomaly_scaler.joblib")
     if model is None or scaler is None:
         # Rule-based fallback: flag extreme speed or long inactivity
-        speed, dist_prev, inactivity_min, dist_route = features
-        rule = speed > 120 or inactivity_min > 45 or dist_route > 3000
-        return {"is_anomaly": bool(rule), "score": 0.85 if rule else 0.1}
+        out = []
+        for speed, dist_prev, inactivity_min, dist_route in rows:
+            rule = speed > 120 or inactivity_min > 45 or dist_route > 3000
+            out.append({"is_anomaly": bool(rule), "score": 0.85 if rule else 0.1})
+        return out
 
-    X = scaler.transform(np.array([features], dtype=float))
-    pred = model.predict(X)[0]  # -1 anomaly, 1 normal
+    X = scaler.transform(np.array(rows, dtype=float))
+    pred = model.predict(X)  # -1 anomaly, 1 normal
     # decision_function: higher = more normal. Convert to 0-1 anomaly score.
-    raw = model.decision_function(X)[0]
-    score = float(1.0 / (1.0 + np.exp(5 * raw)))  # squash to (0,1)
-    return {"is_anomaly": bool(pred == -1), "score": round(score, 3)}
+    raw = model.decision_function(X)
+    score = 1.0 / (1.0 + np.exp(5 * raw))  # squash to (0,1)
+    return [{"is_anomaly": bool(p == -1), "score": round(float(s), 3)}
+            for p, s in zip(pred, score, strict=True)]
+
+
+def score_anomaly(features: list[float]) -> dict:
+    """Return {is_anomaly, score} where score in [0,1], higher = more anomalous."""
+    return score_anomaly_batch([features])[0]
 
 
 # ---------------------------------------------------------------- safety score (RandomForest)

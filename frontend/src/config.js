@@ -3,6 +3,10 @@
 // can also be overridden at runtime by the backend's /api/config endpoint.
 
 export const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+// Vercel can't proxy WebSockets, so a Vercel-hosted frontend connects to the
+// long-running backend directly (e.g. wss://musafir-api.onrender.com). Empty =
+// same origin (nginx / Vite proxy).
+export const WS_ORIGIN = (import.meta.env.VITE_WS_ORIGIN || '').replace(/\/$/, '')
 export const WS_PATH = import.meta.env.VITE_WS_PATH || '/ws/alerts'
 export const SHOW_DEMO_LOGINS = (import.meta.env.VITE_SHOW_DEMO ?? 'true') !== 'false'
 // Demo-login shortcuts are deploy-config, not source: VITE_DEMO_LOGINS is a

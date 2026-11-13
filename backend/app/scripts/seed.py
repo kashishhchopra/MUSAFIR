@@ -47,6 +47,9 @@ def _seed_password(env_var: str) -> str:
     source, which is what actually ends up in a public repo."""
     value = os.environ.get(env_var)
     if value:
+        from app.core.config import KNOWN_WEAK_PASSWORDS
+        if settings.is_production and value.strip().lower() in KNOWN_WEAK_PASSWORDS:
+            raise RuntimeError(f"{env_var} is a known weak password; refusing to seed production with it.")
         return value
     generated = secrets.token_urlsafe(9)
     print(f"  ({env_var} not set -- generated: {generated})")

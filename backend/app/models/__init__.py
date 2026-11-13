@@ -15,6 +15,7 @@ from app.models.incident_transfer import IncidentTransfer
 from app.models.itinerary import ItineraryDocument
 from app.models.job_lock import JobLock
 from app.models.liveness import LivenessVerification
+from app.models.notification import NotificationLog, PushSubscription
 from app.models.password_reset import PasswordResetToken
 from app.models.permit import Permit
 from app.models.place import PointOfInterest
@@ -45,6 +46,8 @@ __all__ = [
     "Device",
     "EFIR",
     "TripGuardian",
+    "PushSubscription",
+    "NotificationLog",
     "CheckIn",
     "DisasterAdvisory",
     "ChainAnchor",

@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import api from '../api'
 import { bandColor, bandLabel } from '../components/ui.jsx'
 import { touristIcon } from '../components/mapIcons'
+import PushToggle from '../components/PushToggle.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../lib/mapConfig"
 
 const POLL_MS = 10000
@@ -47,6 +48,11 @@ export default function GuardianView() {
       </header>
 
       <div className="max-w-md mx-auto p-4 space-y-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
+          <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">Get alerts on this phone</div>
+          <p className="text-xs text-slate-500 mb-2">We’ll notify you right away if {state.tourist_name} triggers an SOS — even if this page is closed.</p>
+          <PushToggle guardianToken={token} />
+        </div>
         {state.status === 'sos' && (
           <div className="bg-red-600 text-white rounded-xl p-4 text-center font-bold sos-pulse">
             🚨 {state.tourist_name} has triggered an SOS

@@ -32,7 +32,14 @@ from app.schemas.incident import (
     SOSRequest,
 )
 from app.schemas.tourist import DuressSOSRequest
-from app.services import alert_priority, audit, dispatch, emergency_location, police_network
+from app.services import (
+    alert_priority,
+    audit,
+    dispatch,
+    emergency_location,
+    notifications,
+    police_network,
+)
 from app.services.efir import file_efir, generate_efir
 from app.services.efir_pdf import render_efir_pdf
 from app.services.monitoring import trigger_sos
@@ -286,6 +293,7 @@ def update_incident(incident_id: int, payload: IncidentStatusUpdate,
             if t and t.status == "sos":
                 t.status = "active"
     db.add(IncidentEvent(incident_id=inc.id, status=payload.status, note=payload.note))
+    notifications.notify_incident_update(db, inc, payload.status)
     db.commit()
     db.refresh(inc)
     _hydrate_tourist_info(db, [inc])
@@ -300,11 +308,14 @@ def acknowledge_incident(incident_id: int, db: Session = Depends(get_db),
     _assert_can_update(inc, user)
     inc.escalation_stage = "acknowledged"
     inc.escalation_deadline = None
+    was_detected = inc.status == "detected"
     if inc.status == "detected":
         inc.status = "acknowledged"
         inc.acknowledged_at = utc_now()
     db.add(IncidentEvent(incident_id=inc.id, status="acknowledged",
                          note=f"Acknowledged by {user.email}"))
+    if was_detected:
+        notifications.notify_incident_update(db, inc, "acknowledged")
     db.commit()
     db.refresh(inc)
     _hydrate_tourist_info(db, [inc])

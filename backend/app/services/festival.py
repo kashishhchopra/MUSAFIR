@@ -123,7 +123,7 @@ def on_date_near(db: Session, target_date: date, lat: float, lng: float, radius_
             continue
         dist_km = haversine_m(lat, lng, f.lat, f.lng) / 1000
         if dist_km <= radius_km:
-            out.append(_serialize(f, today, distance_km=round(dist_km, 1)))
+            out.append(_serialize(f, target_date, distance_km=round(dist_km, 1)))
     for h in holidays.fetch_public_holidays(settings.HOLIDAYS_COUNTRY_CODE, target_date.year):
         if h["date"] == target_date.isoformat():
             out.append({

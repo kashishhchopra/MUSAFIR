@@ -33,7 +33,7 @@ and a responsive tourist mobile view.
 |---|---------|--------------|
 | 1 | **Digital Tourist ID** | KYC registration → unique `STS-XXXX` ID + QR code. Records stored as a **SHA-256 linked hash chain** (blockchain-style, tamper-evident). ID validity tied to trip dates. |
 | 2 | **AI Anomaly Detection** | **Isolation Forest** flags sudden location drop-off, prolonged inactivity, and abnormal speed (abduction pattern). **Route-deviation** via distance-to-itinerary. **DBSCAN** clusters historical incidents into auto high-risk zones. |
-| 3 | **Safety Score (0–100)** | **Random Forest regressor** on zone risk, time-of-day, anomaly score, crime index, weather (mock). Live, color-coded. |
+| 3 | **Safety Score (0–100)** | **Random Forest regressor** on zone risk, time-of-day, anomaly score, crime index, and weather (live OpenWeatherMap when `OPENWEATHER_API_KEY` is set, otherwise a deterministic fallback). Live, color-coded. |
 | 4 | **Geo-fencing & Alerts** | Polygon zones + **point-in-polygon** (Shapely). Entering a high-risk/restricted zone auto-alerts tourist + dashboard over **WebSocket**. |
 | 5 | **Panic / SOS** | One-tap SOS → nearest available police unit auto-dispatched, emergency contacts notified, **critical incident** created. |
 | 6 | **Police/Admin Dashboard** | Live Leaflet map of all tourists + risk heat circles, real-time alert feed, tourist search by digital ID, **auto E-FIR** draft for missing persons, analytics charts. |
@@ -48,6 +48,9 @@ and a responsive tourist mobile view.
 | 15 | **Permit & E-Pass Automation** | Pre-fills a permit/e-pass application (Inner Line Permit, Restricted/Protected Area Permit, forest/wildlife entry) from the tourist's own KYC + itinerary. Two-step and honest: a draft the tourist reviews/edits, then an explicit confirm that **never submits anything to a government system** — it hands back the real official portal (Nagaland ILP, e-FRRO, Assam Sewa Setu) for the tourist to finish there themselves. |
 | 16 | **Two-Way Live Voice Translator** | A conversation-mode translator for a tourist and a foreign traveler talking face-to-face — each side speaks in their own language, the other hears it translated aloud. |
 | 17 | **Festival & Local Event Intelligence** | A calendar of this app's curated local festivals plus real national public holidays (Calendarific API), connected into the Smart Trip Planner and the Crowd & Queue Forecast rather than living as an isolated page. |
+| 18 | **Simulation Core** | Admin → **Simulation**. Spawns up to 100 virtual tourists (`SIM-xxxx`) that walk real Guwahati routes, with **Play/Pause and 1x–60x speed**, a one-click **scripted scenario** (off-route → danger zone → inactivity → abduction jump → SOS) and per-tourist **event triggers**. Events only move the virtual tourist — the real ML anomaly model, geofencing, route-deviation and SOS/incident workflow decide what gets raised. Live map, tourist queue, alert stream and event log. |
+| 19 | **AI/ML Evaluation Dashboard** | Admin → Analytics → **AI/ML Evaluation** tab. Generates labelled scenarios (safe vs suspicious) with the Simulation Core, runs the production detectors over them and reports **detection rate, false-alarm rate, precision/recall/F1, ROC & PR curves, confusion matrix, calibration (Brier/ECE), detection delay, response time, a Fairlearn fairness audit, SHAP attributions, drift and the model registry**. |
+| 20 | **Push & SMS Alerts** | When a tourist triggers SOS, **Web Push** (VAPID; works with the PWA closed) goes to the tourist, their guardians, the assigned unit's responders and the control room, and **SMS** (Twilio) goes to emergency contacts and guardians. Also incident updates (acknowledged / dispatched / resolved), critical incidents and escalations. Admin **Alerts** page: delivery status, retries, history, tests. Click a notification → the incident. |
 
 All seven live in the tourist app's new **Explore** tab (🌍). None of them touch any existing feature's data or routes — they're additive, reusing the existing itinerary, zone, weather, translation, and POI infrastructure wherever possible. Two external, free-tier data sources back them: OpenStreetMap's **Overpass API** (Discovery + indoor alternatives — no key needed) and **Calendarific** (public holidays — free key needed, see `backend/.env.example` / `CALENDARIFIC_API_KEY`). With no Calendarific key, holiday-driven signals are simply absent, never fabricated.
 
@@ -169,7 +172,11 @@ docker compose up --build
 ```
 
 Then open **http://localhost:8080**. The backend trains its ML models at image
-build time and (by default) seeds demo data on first boot (`SEED_ON_START=true`).
+build time (and again on first start if the artifacts are missing). Demo data is **not**
+seeded by default; to seed a demo deployment set `SEED_ON_START=true` **and**
+`SEED_FORCE=true` in `.env` — passwords are random and printed once in the backend logs
+unless you set strong `SEED_*_PASSWORD` values. In production the backend refuses to start
+if any of them is a known weak password (e.g. `admin123`).
 
 What compose runs:
 - **db** — PostgreSQL 16 with a persistent volume + healthcheck
@@ -177,8 +184,21 @@ What compose runs:
 - **frontend** — React build served by nginx, proxying `/api` and `/ws` to the backend
 
 For a real deployment set `ENVIRONMENT=production`, an explicit `ALLOWED_HOSTS`,
-your real `CORS_ORIGINS`, `SEED_ON_START=false`, and put a TLS-terminating reverse
+your real `CORS_ORIGINS`, leave `SEED_ON_START=false`, and put a TLS-terminating reverse
 proxy in front. Every tunable lives in `.env` / `backend/.env.example` — no code edits.
+
+### Hosting the backend (Render / Railway / a VM — not Vercel)
+
+The backend must run on a **long-running** host. Vercel serverless can't hold the
+`/ws/alerts` WebSocket and can't run the APScheduler jobs (SOS escalation, missed check-ins,
+retention deletion, disaster feed). So:
+
+- **Backend → Render** (`render.yaml` at the repo root: Docker service + Postgres). Set
+  `CORS_ORIGINS` to your Vercel URL and `ALLOWED_HOSTS` to the Render hostname. Use an
+  always-on plan; free tiers sleep and silently stop the scheduler and sockets.
+- **Frontend → Vercel** (`vercel.json`): edit the `/api` rewrite destination to your Render URL
+  and set `VITE_WS_ORIGIN=wss://<your-service>.onrender.com` at build time so the browser opens
+  the WebSocket directly to the backend.
 
 ---
 
@@ -224,7 +244,7 @@ venv\Scripts\activate            # source venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 
 # Train ML models (writes ml_models/*.joblib + metrics.json)
-python -m app.ml.train_all
+python -m app.ml.train_all --crime-index-source ncrb   # real NCRB-calibrated crime index; also writes docs/ML_EVALUATION.md
 
 # Create the database schema (required before seeding)
 alembic upgrade head
@@ -254,6 +274,63 @@ so start the API on that port or logins will fail.
 
 ---
 
+## Simulation Core
+
+Demo MUSAFIR without real tourists: **Admin → Simulation** (`/admin/simulation`).
+
+1. **Spawn** N tourists (default 50) — ordinary tourist rows with ids `SIM-0001…`, each on a looping route between real Guwahati landmarks that stays clear of the high-risk zones.
+2. **Play** and pick a speed (1x, 2x, 5x, 10x, 30x, 60x). Simulated time = speed × real time; pings are stamped with *simulated* time so inactivity, speed and trajectory maths stay correct at any speed.
+3. Trigger events on a selected tourist (or a random one): **enter danger zone**, **go off-route**, **go inactive** (needs ~70 simulated minutes of silence — use 30x–60x), **abduction jump**, **SOS**, or **mark safe**. **Run full demo scenario** chains five of them over ~13 simulated minutes.
+4. Watch detections arrive on the map, the **Alerts** tab and the **Incidents** page, and walk the normal acknowledge → dispatch → resolve workflow.
+
+Nothing is faked: the simulator only supplies GPS. `POST /api/simulation/*` (admin-only; see `/docs`) drives `process_ping` and `trigger_sos` — the same code real pings hit. **Purge data** deletes every simulated tourist and their alerts/incidents/pings.
+
+Notes: the clock is in-process, so run the backend with a single worker (`WEB_CONCURRENCY=1`, already the default here). Set `SIMULATION_ENABLED=false` to disable the endpoints in a real deployment. The older CLI scripts (`app/scripts/simulate.py`, `simulate_band.py`) still work for headless runs.
+
+---
+
+## AI/ML Evaluation Dashboard
+
+**Admin → Analytics → AI/ML Evaluation.** Press **Run evaluation** (50–500 scenarios, optional seed).
+
+1. **Generate** — the Simulation Core's own physics builds labelled scenarios: *safe* (normal walk, taxi ride, short signal gap, walk near a risky zone) and *suspicious* (enters high-risk zone, strays off route, goes silent, abduction jump). The label is fixed by construction. SOS is excluded — it is a human trigger, not a model output.
+2. **Run** — the same primitives `process_ping` uses score every ping: the Isolation Forest, the route-deviation rule, the geofence check, plus the safety Random Forest. A test (`test_evaluation_verdicts_match_the_real_pipeline`) asserts the harness's per-ping verdicts equal the alerts the real pipeline raises.
+3. **Measure** — detection rate (recall), false-alarm rate, precision, F1, ROC-AUC, ROC/PR curves, confusion matrix, per-detector and per-scenario breakdowns, **calibration curves** (Brier score, expected calibration error), **detection delay** (simulated minutes) and **inference latency** (real ms), **response time** (from real incident timestamps), a **fairness audit** by traveller type and age band (Fairlearn equalized-odds / parity gaps; groups are synthetic attributes, no real personal data), **SHAP** feature attributions, data drift, and the **model registry** (versions, training date, data hash, hold-out metrics).
+
+Honesty built in: results measure detection of *scripted simulated behaviour*, not real-world accuracy; precision depends on scenario prevalence, so the expected precision at a realistic 5% prevalence is shown too. The harness deliberately includes hard negatives, and they expose real weaknesses (e.g. the Isolation Forest flags many 20–40 minute signal gaps). Runs are stored in `EVALUATION_DIR` (default `evaluation_reports/`, last 12 kept) and are read-only with respect to tourist, alert and incident data.
+
+API (admin-only): `POST /api/ml/evaluation/run`, `GET /api/ml/evaluation/latest`, `GET /api/ml/evaluation/runs/{id}`.
+
+---
+
+## Push & SMS Alerts
+
+Emergency notifications that reach people **without MUSAFIR being open**.
+
+| Event | Push (Web Push) | SMS (Twilio) |
+|---|---|---|
+| **SOS triggered** | tourist (not for a silent/duress SOS), guardians who opted in, the assigned unit's responders, control room | emergency contacts, guardians' phone numbers |
+| Incident acknowledged / dispatched / resolved | tourist + guardians (SOS only); responders on dispatch | family on *resolved* |
+| Critical non-SOS incident | control room | — |
+| Escalation (nobody acknowledged) | control room + assigned responders | emergency contacts |
+
+**Set up**
+1. *Push:* works out of the box in development (a VAPID key pair is generated into `backend/.vapid_keys.json`). For production run `python -m app.scripts.generate_vapid_keys` and set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (push stays off in production without them). Set `PUBLIC_BASE_URL` to the frontend origin.
+2. *SMS:* create a Twilio account, then set `NOTIFICATION_CHANNEL=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` (or `TWILIO_MESSAGING_SERVICE_SID`). Until then SMS runs in **demo mode**: rows are recorded as *Simulated* and nothing is texted. Use `SMS_ALLOWLIST` while testing. Twilio trial accounts can only text numbers verified in your Twilio console.
+3. *Subscribe a device:* tourists — **Me → Emergency alerts**; guardians — the button on their share page (no account needed); responders — the Responder Console; admins — **Alerts** page. The browser will ask for permission.
+
+**Service worker.** `frontend/public/push-sw.js` is loaded into the PWA's service worker (`importScripts`), shows the notification (an SOS stays on screen until acted on), and on click opens/focuses the target page (same-origin only). Service workers don't run under plain `vite dev`: test with `npm run build && npm run preview` (port 4173, proxies to the API), or `VITE_DEV_SW=true npm run dev`. Browsers need HTTPS (or localhost) for push; iOS requires the app to be added to the Home Screen.
+
+**Delivery guarantees.** Rows are written inside the SOS transaction and delivered *after* it commits, on worker threads — the SOS response never waits on Twilio or a push service, and an SOS that rolls back notifies nobody. Each (event, incident, channel, recipient) is sent once (duplicates are logged as *Not sent*). Transient failures (network, 429/5xx) retry with backoff (30 s, 2 min, 8 min; 3 attempts) via a scheduler tick; permanent ones (expired subscription → deactivated, invalid number) don't. Everything is visible in **Admin → Alerts** with a Retry button.
+
+**Safety rules.** The console fallback is labelled *Simulated*, never *Sent*. SMS is never sent for simulated (`SIM-`) tourists. A silent SOS never pushes to the tourist's own screen and tells every recipient not to call. Phone numbers are stored encrypted and shown masked.
+
+**Not built:** Firebase Cloud Messaging (Web Push with VAPID is the standard that FCM itself carries for Chrome, so no Firebase account is needed), native mobile push, and OTP verification of contact phone numbers.
+
+API: `GET /api/notifications/push/public-key`, `POST …/push/subscribe`, `…/push/guardian-subscribe`, and (admin) `GET …/logs`, `GET …/summary`, `POST …/logs/{id}/retry`, `POST …/test`.
+
+---
+
 ## Live Demo Mode
 
 With the backend running, drive fake tourists around the map and trigger scripted
@@ -276,7 +353,8 @@ auto-dispatch (step 26). Keep the admin **Live Dashboard** open to watch alerts 
 All three models train on **reproducible synthetic data** (`app/ml/generate_data.py`,
 fixed seed) and are saved with joblib. The API loads them lazily and degrades to
 rule-based fallbacks if an artifact is missing, so a demo never crashes.
-Re-run everything and regenerate metrics with `python -m app.ml.train_all`.
+Re-run everything and regenerate metrics with `python -m app.ml.train_all --crime-index-source ncrb`.
+The full published evaluation is in [docs/ML_EVALUATION.md](docs/ML_EVALUATION.md).
 
 ### 1) Isolation Forest — Anomaly Detection *(unsupervised)*
 
@@ -300,7 +378,8 @@ Re-run everything and regenerate metrics with `python -m app.ml.train_all`.
 
 - **Goal:** a continuous **0–100** safety score (higher = safer), updated live.
 - **Features:** `zone_risk`, `hour` (time of day), `anomaly_score`, `crime_index`
-  (mock), `weather_risk` (mock).
+  (NCRB-calibrated with `--crime-index-source ncrb`, otherwise synthetic), `weather_risk`
+  (live OpenWeatherMap at inference when a key is set; synthetic in the training data).
 - **Target:** a weighted risk formula (+ noise); the forest learns and generalises it,
   matching the brief's "weighted model" while remaining a trainable ML artifact.
 - **Evaluation (25% hold-out):** **R² = 0.899**, **MAE = 3.68** points.
@@ -374,6 +453,26 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 
 ---
 
+## Demo fallbacks (what is real vs. mocked without API keys)
+
+Every external dependency degrades to a fallback so the app runs fully offline, and any
+response built from a fallback is flagged `demo: true` in its payload. Nothing is silently
+passed off as live.
+
+| Capability | With a key / source configured | Without (default) |
+|---|---|---|
+| Geocoding & maps (`GOOGLE_MAPS_API_KEY`) | Google | OpenStreetMap (Nominatim) lookups; final offline fallback is a small built-in table, `demo: true` |
+| Translation (`GOOGLE_TRANSLATE_API_KEY`) | Google Cloud Translation | MyMemory (free, no key); if unreachable the original text is returned with `demo: true` |
+| Weather (`OPENWEATHER_API_KEY`) | Live OpenWeatherMap | Deterministic function of lat/lng |
+| Disaster advisories | **No CAP feed URL is set by default.** Set `DISASTER_FEED_PROVIDER=cap` and `DISASTER_FEED_URL=<a CAP 1.2 feed>` | A deterministic **simulator** generates advisories (`source: "simulated"`) |
+| Public holidays (`CALENDARIFIC_API_KEY`) | Real national holidays | Holiday signals are absent, never fabricated |
+| Hash-chain anchoring (`ANCHOR_TARGET`) | External anchor service | `local` — appended to a local file; tamper-evident but not independently witnessed |
+| Emergency live GPS | Device GPS pings | The simulator's random-walk pings are marked `demo: true` |
+| CCTV (`CCTV_PROVIDER`) | Live provider feed | Database-registered cameras only |
+| LLM copilot | OpenAI / Anthropic / Ollama key | Rule-based intent router |
+
+---
+
 ## Demo Accounts
 
 | Role | Email | Password |
@@ -383,7 +482,7 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 | **Responder** | `responder@tourism.gov.in` | `responder123` |
 | Tourist | `emma@example.com` / `rohan@…` / `sofia@…` / `kenji@…` | `tourist123` |
 
-> These passwords apply when the seed is run with the `SEED_*_PASSWORD` variables shown in [Setup & Run](#setup--run); otherwise they are randomly generated and printed.
+> Production refuses weak passwords like these. They apply only when the seed is run with the `SEED_*_PASSWORD` variables shown in [Setup & Run](#setup--run); otherwise they are randomly generated and printed.
 
 ---
 

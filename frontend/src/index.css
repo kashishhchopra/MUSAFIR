@@ -181,3 +181,9 @@ html.dark body { background: #0f172a; color: #e2e8f0; }
 @media (prefers-reduced-motion: reduce) {
   .voice-bar, .voice-listening-ring, .voice-speaking-ring, .sos-pulse { animation: none; }
 }
+
+/* Simulation Control Room: dark-tinted base map to match the control-room look.
+   Only the tile pane is filtered, so markers/zones keep their true colours. */
+.sim-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.55);
+}

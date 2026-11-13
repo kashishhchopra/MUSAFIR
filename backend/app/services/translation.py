@@ -315,7 +315,7 @@ def _looks_garbled(text: str) -> bool:
     return not stripped
 
 
-def _mymemory_translate(text: str, target_lang: str, source_lang: str) -> str | None:
+def _mymemory_translate(text: str, target_lang: str, source_lang: str | None) -> str | None:
     """Free-tier fallback (no key/signup needed) so real translation works
     out of the box, e.g. for the Two-Way Voice Translator, even before
     anyone configures GOOGLE_TRANSLATE_API_KEY. Returns None (never a
@@ -333,7 +333,7 @@ def _mymemory_translate(text: str, target_lang: str, source_lang: str) -> str | 
     try:
         resp = httpx.get(
             "https://api.mymemory.translated.net/get",
-            params={"q": text, "langpair": f"{source_lang}|{target_lang}"},
+            params={"q": text, "langpair": f"{source_lang or 'Autodetect'}|{target_lang}"},
             timeout=6.0,
         )
         resp.raise_for_status()
@@ -366,14 +366,16 @@ def translate_text(text: str, target_lang: str, source_lang: str | None = None) 
     of the box. Only if both are unreachable is the text returned unmodified
     and clearly marked `demo: True` -- fabricating a translation would be
     worse than admitting the capability isn't available."""
-    src = source_lang or "en"
+    # No source given -> let the engine auto-detect rather than assuming English
+    # (which mistranslates any non-English input).
+    src = source_lang or None
 
     if settings.GOOGLE_TRANSLATE_API_KEY:
         try:
             resp = httpx.post(
                 "https://translation.googleapis.com/language/translate/v2",
                 params={"key": settings.GOOGLE_TRANSLATE_API_KEY},
-                json={"q": text, "target": target_lang, "source": src},
+                json={"q": text, "target": target_lang, **({"source": src} if src else {})},
                 timeout=5.0,
             )
             resp.raise_for_status()

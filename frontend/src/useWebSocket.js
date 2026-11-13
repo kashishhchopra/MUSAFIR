@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getAccessToken, refreshAccessToken } from './api'
-import { WS_PATH } from './config'
+import { WS_ORIGIN, WS_PATH } from './config'
 
 const RECONNECT_DELAY_MS = 3000
 
@@ -21,7 +21,8 @@ export default function useWebSocket(onEvent, path = WS_PATH) {
     const connectWith = (token) => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws'
       // Token passed as a query param so the server can authorize the socket.
-      const url = `${proto}://${location.host}${path}?token=${encodeURIComponent(token)}`
+      const origin = WS_ORIGIN || `${proto}://${location.host}`
+      const url = `${origin}${path}?token=${encodeURIComponent(token)}`
       const ws = new WebSocket(url)
       wsRef.current = ws
 

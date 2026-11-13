@@ -1,0 +1,50 @@
+# Backend on a long-running host (Render). Vercel serverless can't hold the
+# /ws/alerts WebSocket or run the APScheduler jobs (escalation, missed
+# check-ins, retention purge, disaster feed), so only the frontend lives there.
+services:
+  - type: web
+    name: musafir-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    plan: starter            # free tier sleeps -> scheduler + sockets stop; use an always-on plan
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase: { name: musafir-db, property: connectionString }
+      - key: CORS_ORIGINS
+        sync: false          # your Vercel URL, e.g. https://musafir.vercel.app
+      - key: ALLOWED_HOSTS
+        sync: false          # e.g. musafir-api.onrender.com
+      - key: REFRESH_COOKIE_SECURE
+        value: "true"
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"           # in-memory WS manager + rate limiter are per-process
+      # ---- Push & SMS alerts (set in the Render dashboard; secrets are never committed) ----
+      - key: PUBLIC_BASE_URL
+        sync: false          # your Vercel URL, used for deep links in push/SMS text
+      - key: VAPID_PUBLIC_KEY
+        sync: false          # python -m app.scripts.generate_vapid_keys
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:alerts@example.com   # change to a real contact address
+      - key: NOTIFICATION_CHANNEL
+        value: twilio        # "console" = demo, nothing is texted
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: ML_CRIME_INDEX_SOURCE
+        value: ncrb
+databases:
+  - name: musafir-db
+    plan: basic-256mb

@@ -10,7 +10,9 @@ export default defineConfig({
       // Only build/register the service worker for `vite build` — during
       // `vite dev` it would intercept requests to the Vite dev server itself
       // and make hot-reload/proxying behave unpredictably.
-      devOptions: { enabled: false },
+      // Set VITE_DEV_SW=true to exercise the service worker (and Web Push) under
+      // `vite dev`; otherwise test push against `npm run build && npm run preview`.
+      devOptions: { enabled: process.env.VITE_DEV_SW === 'true', type: 'classic' },
       manifest: {
         name: 'MUSAFIR',
         short_name: 'MUSAFIR',
@@ -26,6 +28,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Push + notification-click handlers (public/push-sw.js), appended to the generated worker.
+        importScripts: ['push-sw.js'],
         // App shell (JS/CSS/HTML/icons) is precached automatically by the
         // plugin. Runtime caching below covers API calls specifically:
         runtimeCaching: [
@@ -63,6 +67,13 @@ export default defineConfig({
       },
     }),
   ],
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': 'http://127.0.0.1:8001',
+      '/ws': { target: 'ws://127.0.0.1:8001', ws: true },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

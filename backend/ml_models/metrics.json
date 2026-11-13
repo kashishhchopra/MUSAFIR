@@ -87,7 +87,7 @@
         "tpr": 1.0
       }
     ],
-    "version": 5
+    "version": 6
   },
   "safety": {
     "model": "RandomForestRegressor",
@@ -101,626 +101,626 @@
     ],
     "n_train": 4500,
     "n_test": 1500,
-    "r2": 0.8989,
-    "mae": 3.6805,
-    "baseline_mae": 11.8816,
+    "r2": 0.8806,
+    "mae": 3.7152,
+    "baseline_mae": 10.9978,
     "feature_importances": {
-      "zone_risk": 0.3713,
-      "hour": 0.0565,
-      "anomaly_score": 0.2732,
-      "crime_index": 0.2477,
-      "weather_risk": 0.0514
+      "zone_risk": 0.4472,
+      "hour": 0.0646,
+      "anomaly_score": 0.3189,
+      "crime_index": 0.1064,
+      "weather_risk": 0.0629
     },
     "predicted_vs_actual": [
       {
-        "actual": 38.35,
-        "predicted": 42.55
+        "actual": 53.45,
+        "predicted": 51.33
       },
       {
-        "actual": 19.94,
-        "predicted": 28.24
+        "actual": 40.09,
+        "predicted": 39.4
       },
       {
-        "actual": 23.27,
-        "predicted": 28.89
+        "actual": 31.04,
+        "predicted": 37.67
       },
       {
-        "actual": 54.53,
-        "predicted": 56.53
-      },
-      {
-        "actual": 36.0,
-        "predicted": 40.18
-      },
-      {
-        "actual": 54.65,
-        "predicted": 53.48
-      },
-      {
-        "actual": 78.14,
-        "predicted": 70.72
-      },
-      {
-        "actual": 49.14,
-        "predicted": 45.53
-      },
-      {
-        "actual": 27.34,
-        "predicted": 29.07
-      },
-      {
-        "actual": 46.48,
-        "predicted": 40.71
-      },
-      {
-        "actual": 54.67,
-        "predicted": 53.31
-      },
-      {
-        "actual": 56.21,
-        "predicted": 60.65
-      },
-      {
-        "actual": 35.52,
-        "predicted": 41.87
-      },
-      {
-        "actual": 40.59,
-        "predicted": 38.96
-      },
-      {
-        "actual": 51.48,
-        "predicted": 50.83
-      },
-      {
-        "actual": 63.23,
-        "predicted": 55.73
-      },
-      {
-        "actual": 48.69,
-        "predicted": 46.56
-      },
-      {
-        "actual": 56.37,
-        "predicted": 64.21
-      },
-      {
-        "actual": 61.87,
-        "predicted": 62.43
-      },
-      {
-        "actual": 41.2,
-        "predicted": 35.87
-      },
-      {
-        "actual": 70.36,
-        "predicted": 76.23
-      },
-      {
-        "actual": 43.83,
-        "predicted": 45.74
-      },
-      {
-        "actual": 52.79,
-        "predicted": 50.69
-      },
-      {
-        "actual": 59.26,
-        "predicted": 59.41
-      },
-      {
-        "actual": 65.7,
-        "predicted": 59.23
-      },
-      {
-        "actual": 23.81,
-        "predicted": 25.2
-      },
-      {
-        "actual": 72.77,
-        "predicted": 71.06
-      },
-      {
-        "actual": 49.87,
-        "predicted": 46.43
-      },
-      {
-        "actual": 47.99,
-        "predicted": 42.21
-      },
-      {
-        "actual": 53.28,
+        "actual": 54.35,
         "predicted": 56.15
       },
       {
-        "actual": 71.17,
-        "predicted": 67.77
+        "actual": 41.48,
+        "predicted": 45.12
       },
       {
-        "actual": 49.39,
-        "predicted": 51.9
+        "actual": 53.59,
+        "predicted": 55.4
       },
       {
-        "actual": 46.66,
-        "predicted": 46.08
+        "actual": 72.86,
+        "predicted": 78.74
       },
       {
-        "actual": 33.95,
-        "predicted": 41.39
+        "actual": 58.33,
+        "predicted": 53.66
       },
       {
-        "actual": 65.26,
-        "predicted": 60.69
+        "actual": 40.91,
+        "predicted": 40.22
       },
       {
-        "actual": 29.81,
-        "predicted": 31.32
-      },
-      {
-        "actual": 56.79,
-        "predicted": 57.22
-      },
-      {
-        "actual": 78.91,
-        "predicted": 71.63
-      },
-      {
-        "actual": 38.5,
-        "predicted": 35.53
-      },
-      {
-        "actual": 59.42,
-        "predicted": 55.03
-      },
-      {
-        "actual": 75.39,
-        "predicted": 70.43
-      },
-      {
-        "actual": 71.7,
-        "predicted": 67.7
-      },
-      {
-        "actual": 47.99,
-        "predicted": 46.43
-      },
-      {
-        "actual": 55.68,
-        "predicted": 51.03
-      },
-      {
-        "actual": 50.64,
-        "predicted": 54.76
-      },
-      {
-        "actual": 62.66,
-        "predicted": 58.27
-      },
-      {
-        "actual": 39.49,
-        "predicted": 44.39
-      },
-      {
-        "actual": 50.88,
-        "predicted": 51.78
-      },
-      {
-        "actual": 58.06,
-        "predicted": 54.01
-      },
-      {
-        "actual": 52.57,
-        "predicted": 52.66
-      },
-      {
-        "actual": 51.08,
-        "predicted": 57.7
-      },
-      {
-        "actual": 59.72,
-        "predicted": 57.69
-      },
-      {
-        "actual": 64.55,
-        "predicted": 64.4
-      },
-      {
-        "actual": 55.0,
-        "predicted": 54.13
-      },
-      {
-        "actual": 53.24,
-        "predicted": 58.04
-      },
-      {
-        "actual": 77.33,
-        "predicted": 79.82
-      },
-      {
-        "actual": 22.52,
-        "predicted": 27.09
-      },
-      {
-        "actual": 55.34,
-        "predicted": 56.73
-      },
-      {
-        "actual": 46.26,
-        "predicted": 46.42
-      },
-      {
-        "actual": 57.06,
-        "predicted": 47.94
-      },
-      {
-        "actual": 40.17,
-        "predicted": 35.16
-      },
-      {
-        "actual": 39.15,
-        "predicted": 42.11
-      },
-      {
-        "actual": 41.24,
-        "predicted": 40.6
-      },
-      {
-        "actual": 18.73,
-        "predicted": 23.13
-      },
-      {
-        "actual": 41.63,
-        "predicted": 38.68
-      },
-      {
-        "actual": 39.35,
-        "predicted": 41.37
-      },
-      {
-        "actual": 62.83,
-        "predicted": 59.58
-      },
-      {
-        "actual": 77.35,
-        "predicted": 69.15
-      },
-      {
-        "actual": 63.64,
-        "predicted": 66.9
-      },
-      {
-        "actual": 59.25,
-        "predicted": 56.94
-      },
-      {
-        "actual": 49.23,
-        "predicted": 50.67
-      },
-      {
-        "actual": 19.27,
-        "predicted": 25.81
-      },
-      {
-        "actual": 55.2,
-        "predicted": 52.53
-      },
-      {
-        "actual": 49.53,
-        "predicted": 48.49
-      },
-      {
-        "actual": 28.92,
-        "predicted": 25.7
-      },
-      {
-        "actual": 42.6,
-        "predicted": 40.16
-      },
-      {
-        "actual": 45.52,
-        "predicted": 47.59
-      },
-      {
-        "actual": 68.23,
-        "predicted": 68.35
-      },
-      {
-        "actual": 41.58,
-        "predicted": 42.29
-      },
-      {
-        "actual": 27.59,
-        "predicted": 37.08
-      },
-      {
-        "actual": 23.8,
-        "predicted": 31.79
-      },
-      {
-        "actual": 22.55,
-        "predicted": 27.13
-      },
-      {
-        "actual": 37.92,
-        "predicted": 29.01
-      },
-      {
-        "actual": 38.19,
-        "predicted": 32.58
-      },
-      {
-        "actual": 36.68,
-        "predicted": 39.54
-      },
-      {
-        "actual": 40.31,
-        "predicted": 42.62
-      },
-      {
-        "actual": 63.22,
-        "predicted": 64.77
-      },
-      {
-        "actual": 50.0,
-        "predicted": 47.69
-      },
-      {
-        "actual": 37.82,
-        "predicted": 32.21
-      },
-      {
-        "actual": 76.51,
-        "predicted": 73.04
-      },
-      {
-        "actual": 57.28,
-        "predicted": 54.9
-      },
-      {
-        "actual": 49.7,
-        "predicted": 50.06
-      },
-      {
-        "actual": 74.87,
-        "predicted": 78.84
-      },
-      {
-        "actual": 36.93,
-        "predicted": 43.37
-      },
-      {
-        "actual": 65.37,
-        "predicted": 62.39
-      },
-      {
-        "actual": 64.63,
-        "predicted": 62.42
-      },
-      {
-        "actual": 46.6,
-        "predicted": 51.84
-      },
-      {
-        "actual": 24.6,
-        "predicted": 29.1
-      },
-      {
-        "actual": 57.69,
-        "predicted": 52.04
-      },
-      {
-        "actual": 31.02,
-        "predicted": 30.93
-      },
-      {
-        "actual": 48.16,
-        "predicted": 37.48
-      },
-      {
-        "actual": 36.17,
-        "predicted": 29.72
-      },
-      {
-        "actual": 61.32,
-        "predicted": 51.79
-      },
-      {
-        "actual": 43.65,
-        "predicted": 41.36
-      },
-      {
-        "actual": 36.51,
-        "predicted": 37.02
-      },
-      {
-        "actual": 59.53,
-        "predicted": 61.39
-      },
-      {
-        "actual": 40.36,
-        "predicted": 37.14
-      },
-      {
-        "actual": 43.32,
-        "predicted": 45.47
-      },
-      {
-        "actual": 57.34,
-        "predicted": 55.58
-      },
-      {
-        "actual": 43.92,
-        "predicted": 49.46
-      },
-      {
-        "actual": 46.1,
-        "predicted": 45.47
-      },
-      {
-        "actual": 45.57,
-        "predicted": 43.33
-      },
-      {
-        "actual": 38.41,
-        "predicted": 45.32
-      },
-      {
-        "actual": 29.42,
-        "predicted": 27.58
-      },
-      {
-        "actual": 31.49,
-        "predicted": 31.94
-      },
-      {
-        "actual": 32.84,
-        "predicted": 36.81
+        "actual": 52.84,
+        "predicted": 47.25
       },
       {
         "actual": 43.25,
-        "predicted": 47.07
+        "predicted": 57.2
       },
       {
-        "actual": 58.96,
-        "predicted": 64.88
+        "actual": 61.22,
+        "predicted": 60.81
       },
       {
-        "actual": 56.21,
-        "predicted": 54.14
+        "actual": 57.89,
+        "predicted": 50.15
       },
       {
-        "actual": 60.16,
-        "predicted": 58.93
+        "actual": 52.37,
+        "predicted": 54.07
       },
       {
-        "actual": 67.98,
-        "predicted": 66.08
+        "actual": 63.44,
+        "predicted": 60.37
       },
       {
-        "actual": 65.26,
-        "predicted": 67.0
+        "actual": 61.75,
+        "predicted": 59.41
       },
       {
-        "actual": 34.39,
-        "predicted": 47.21
+        "actual": 47.86,
+        "predicted": 50.26
       },
       {
-        "actual": 46.72,
-        "predicted": 51.67
+        "actual": 69.87,
+        "predicted": 68.28
       },
       {
-        "actual": 66.14,
-        "predicted": 68.19
+        "actual": 57.75,
+        "predicted": 55.9
       },
       {
-        "actual": 54.83,
-        "predicted": 46.28
+        "actual": 37.06,
+        "predicted": 35.82
       },
       {
-        "actual": 35.26,
-        "predicted": 39.56
+        "actual": 65.67,
+        "predicted": 71.63
       },
       {
-        "actual": 41.2,
-        "predicted": 45.36
+        "actual": 51.27,
+        "predicted": 49.5
       },
       {
-        "actual": 49.36,
-        "predicted": 49.3
+        "actual": 53.33,
+        "predicted": 60.17
       },
       {
-        "actual": 19.45,
-        "predicted": 21.36
+        "actual": 73.84,
+        "predicted": 63.09
       },
       {
-        "actual": 34.95,
-        "predicted": 34.69
+        "actual": 57.67,
+        "predicted": 58.05
       },
       {
-        "actual": 38.59,
-        "predicted": 36.42
+        "actual": 28.94,
+        "predicted": 28.73
       },
       {
-        "actual": 51.21,
-        "predicted": 48.28
+        "actual": 71.05,
+        "predicted": 69.59
       },
       {
-        "actual": 32.09,
-        "predicted": 32.65
+        "actual": 54.04,
+        "predicted": 48.71
       },
       {
-        "actual": 58.75,
-        "predicted": 52.27
+        "actual": 53.27,
+        "predicted": 51.13
       },
       {
-        "actual": 74.85,
-        "predicted": 68.7
+        "actual": 46.92,
+        "predicted": 51.3
       },
       {
-        "actual": 33.15,
-        "predicted": 37.75
+        "actual": 67.03,
+        "predicted": 66.63
       },
       {
-        "actual": 47.17,
-        "predicted": 46.6
+        "actual": 43.01,
+        "predicted": 51.59
       },
       {
-        "actual": 51.67,
-        "predicted": 50.8
+        "actual": 50.26,
+        "predicted": 51.9
       },
       {
-        "actual": 26.09,
-        "predicted": 35.61
+        "actual": 45.45,
+        "predicted": 51.7
       },
       {
-        "actual": 59.08,
-        "predicted": 54.98
+        "actual": 70.52,
+        "predicted": 72.23
       },
       {
-        "actual": 46.13,
-        "predicted": 52.45
+        "actual": 44.76,
+        "predicted": 41.12
       },
       {
-        "actual": 58.79,
-        "predicted": 58.36
+        "actual": 69.46,
+        "predicted": 60.68
       },
       {
-        "actual": 72.87,
-        "predicted": 70.39
+        "actual": 77.9,
+        "predicted": 73.94
       },
       {
-        "actual": 65.22,
-        "predicted": 67.83
+        "actual": 42.43,
+        "predicted": 47.29
       },
       {
-        "actual": 47.78,
-        "predicted": 45.64
+        "actual": 55.26,
+        "predicted": 51.35
       },
       {
-        "actual": 36.61,
-        "predicted": 36.37
+        "actual": 90.09,
+        "predicted": 80.99
       },
       {
-        "actual": 39.55,
-        "predicted": 44.58
+        "actual": 65.31,
+        "predicted": 64.48
       },
       {
-        "actual": 36.23,
-        "predicted": 34.01
+        "actual": 38.63,
+        "predicted": 48.94
       },
       {
-        "actual": 53.22,
-        "predicted": 51.73
+        "actual": 63.13,
+        "predicted": 63.65
+      },
+      {
+        "actual": 54.4,
+        "predicted": 48.58
+      },
+      {
+        "actual": 65.39,
+        "predicted": 66.28
+      },
+      {
+        "actual": 44.09,
+        "predicted": 44.9
+      },
+      {
+        "actual": 45.6,
+        "predicted": 50.95
+      },
+      {
+        "actual": 65.48,
+        "predicted": 56.34
+      },
+      {
+        "actual": 59.72,
+        "predicted": 58.07
+      },
+      {
+        "actual": 65.25,
+        "predicted": 65.65
+      },
+      {
+        "actual": 53.73,
+        "predicted": 57.51
+      },
+      {
+        "actual": 60.83,
+        "predicted": 61.15
+      },
+      {
+        "actual": 52.11,
+        "predicted": 58.27
+      },
+      {
+        "actual": 61.65,
+        "predicted": 62.45
+      },
+      {
+        "actual": 75.0,
+        "predicted": 73.62
+      },
+      {
+        "actual": 41.53,
+        "predicted": 34.3
+      },
+      {
+        "actual": 46.94,
+        "predicted": 58.49
+      },
+      {
+        "actual": 58.43,
+        "predicted": 56.31
+      },
+      {
+        "actual": 62.08,
+        "predicted": 58.31
+      },
+      {
+        "actual": 35.07,
+        "predicted": 34.22
+      },
+      {
+        "actual": 40.17,
+        "predicted": 47.02
+      },
+      {
+        "actual": 24.92,
+        "predicted": 35.3
+      },
+      {
+        "actual": 31.59,
+        "predicted": 30.12
+      },
+      {
+        "actual": 59.81,
+        "predicted": 50.18
+      },
+      {
+        "actual": 38.07,
+        "predicted": 42.63
+      },
+      {
+        "actual": 74.93,
+        "predicted": 71.72
+      },
+      {
+        "actual": 64.12,
+        "predicted": 62.85
+      },
+      {
+        "actual": 67.79,
+        "predicted": 66.87
+      },
+      {
+        "actual": 55.0,
+        "predicted": 60.23
+      },
+      {
+        "actual": 51.31,
+        "predicted": 55.56
+      },
+      {
+        "actual": 19.19,
+        "predicted": 30.0
+      },
+      {
+        "actual": 67.72,
+        "predicted": 63.13
+      },
+      {
+        "actual": 54.7,
+        "predicted": 52.9
+      },
+      {
+        "actual": 40.94,
+        "predicted": 42.98
+      },
+      {
+        "actual": 42.52,
+        "predicted": 50.2
+      },
+      {
+        "actual": 51.5,
+        "predicted": 61.61
+      },
+      {
+        "actual": 81.78,
+        "predicted": 77.52
+      },
+      {
+        "actual": 38.76,
+        "predicted": 36.94
+      },
+      {
+        "actual": 29.39,
+        "predicted": 35.32
+      },
+      {
+        "actual": 33.26,
+        "predicted": 37.41
+      },
+      {
+        "actual": 33.91,
+        "predicted": 29.97
+      },
+      {
+        "actual": 20.87,
+        "predicted": 35.23
+      },
+      {
+        "actual": 43.09,
+        "predicted": 41.68
+      },
+      {
+        "actual": 40.38,
+        "predicted": 47.41
+      },
+      {
+        "actual": 52.2,
+        "predicted": 51.47
+      },
+      {
+        "actual": 66.44,
+        "predicted": 67.73
+      },
+      {
+        "actual": 48.49,
+        "predicted": 48.58
+      },
+      {
+        "actual": 38.8,
+        "predicted": 37.92
+      },
+      {
+        "actual": 71.61,
+        "predicted": 72.01
+      },
+      {
+        "actual": 53.68,
+        "predicted": 46.51
+      },
+      {
+        "actual": 48.65,
+        "predicted": 49.7
+      },
+      {
+        "actual": 85.14,
+        "predicted": 81.27
+      },
+      {
+        "actual": 50.79,
+        "predicted": 48.63
+      },
+      {
+        "actual": 68.1,
+        "predicted": 68.23
+      },
+      {
+        "actual": 75.93,
+        "predicted": 75.96
+      },
+      {
+        "actual": 50.81,
+        "predicted": 46.68
+      },
+      {
+        "actual": 40.55,
+        "predicted": 37.68
+      },
+      {
+        "actual": 48.24,
+        "predicted": 46.12
+      },
+      {
+        "actual": 46.16,
+        "predicted": 47.11
+      },
+      {
+        "actual": 35.87,
+        "predicted": 40.42
+      },
+      {
+        "actual": 36.68,
+        "predicted": 36.09
+      },
+      {
+        "actual": 59.93,
+        "predicted": 63.32
+      },
+      {
+        "actual": 44.12,
+        "predicted": 44.68
+      },
+      {
+        "actual": 41.72,
+        "predicted": 43.36
+      },
+      {
+        "actual": 71.91,
+        "predicted": 74.62
+      },
+      {
+        "actual": 52.08,
+        "predicted": 48.23
+      },
+      {
+        "actual": 44.87,
+        "predicted": 47.53
+      },
+      {
+        "actual": 58.3,
+        "predicted": 55.8
+      },
+      {
+        "actual": 50.5,
+        "predicted": 53.2
+      },
+      {
+        "actual": 62.21,
+        "predicted": 56.74
+      },
+      {
+        "actual": 56.38,
+        "predicted": 53.45
+      },
+      {
+        "actual": 62.99,
+        "predicted": 59.31
+      },
+      {
+        "actual": 33.56,
+        "predicted": 42.73
+      },
+      {
+        "actual": 42.05,
+        "predicted": 44.44
+      },
+      {
+        "actual": 31.42,
+        "predicted": 41.39
+      },
+      {
+        "actual": 51.81,
+        "predicted": 60.42
+      },
+      {
+        "actual": 61.38,
+        "predicted": 62.27
+      },
+      {
+        "actual": 62.2,
+        "predicted": 52.22
+      },
+      {
+        "actual": 60.4,
+        "predicted": 59.98
+      },
+      {
+        "actual": 70.5,
+        "predicted": 65.34
+      },
+      {
+        "actual": 72.7,
+        "predicted": 69.68
+      },
+      {
+        "actual": 52.3,
+        "predicted": 59.37
+      },
+      {
+        "actual": 64.38,
+        "predicted": 57.74
+      },
+      {
+        "actual": 72.04,
+        "predicted": 73.15
+      },
+      {
+        "actual": 62.8,
+        "predicted": 52.46
+      },
+      {
+        "actual": 36.81,
+        "predicted": 41.89
+      },
+      {
+        "actual": 53.92,
+        "predicted": 51.77
+      },
+      {
+        "actual": 43.75,
+        "predicted": 43.15
+      },
+      {
+        "actual": 25.22,
+        "predicted": 27.5
+      },
+      {
+        "actual": 37.76,
+        "predicted": 38.37
+      },
+      {
+        "actual": 46.32,
+        "predicted": 45.09
+      },
+      {
+        "actual": 47.03,
+        "predicted": 56.65
+      },
+      {
+        "actual": 35.46,
+        "predicted": 30.64
+      },
+      {
+        "actual": 54.31,
+        "predicted": 48.2
+      },
+      {
+        "actual": 77.43,
+        "predicted": 70.96
+      },
+      {
+        "actual": 42.68,
+        "predicted": 42.71
+      },
+      {
+        "actual": 42.33,
+        "predicted": 46.13
+      },
+      {
+        "actual": 63.76,
+        "predicted": 62.98
+      },
+      {
+        "actual": 28.47,
+        "predicted": 38.22
+      },
+      {
+        "actual": 59.99,
+        "predicted": 55.61
+      },
+      {
+        "actual": 64.45,
+        "predicted": 60.03
+      },
+      {
+        "actual": 60.47,
+        "predicted": 59.68
+      },
+      {
+        "actual": 62.79,
+        "predicted": 60.44
+      },
+      {
+        "actual": 67.01,
+        "predicted": 67.03
+      },
+      {
+        "actual": 45.83,
+        "predicted": 41.89
+      },
+      {
+        "actual": 41.45,
+        "predicted": 44.12
+      },
+      {
+        "actual": 58.33,
+        "predicted": 53.58
+      },
+      {
+        "actual": 31.57,
+        "predicted": 36.14
+      },
+      {
+        "actual": 58.87,
+        "predicted": 51.61
       }
     ],
     "data_provenance": {
       "zone_risk": "synthetic",
       "hour": "synthetic",
       "anomaly_score": "synthetic",
-      "crime_index": "synthetic (uniform 0-100)",
+      "crime_index": "NCRB Chapter 13A national series 2014-2021 (pre-COVID mean), tier-calibrated -- see app/services/crime_index.py",
       "weather_risk": "synthetic"
     },
-    "version": 6
+    "version": 7
   },
   "zones": {
     "model": "DBSCAN",
@@ -729,9 +729,9 @@
     "min_samples": 12,
     "n_points": 720,
     "n_clusters": 4,
-    "n_noise": 64,
-    "silhouette": 0.8782,
-    "hotzones_file": "ml_models\\hotzones.json",
-    "version": 5
+    "n_noise": 70,
+    "silhouette": 0.8764,
+    "hotzones_file": "ml_models/hotzones.json",
+    "version": 6
   }
 }

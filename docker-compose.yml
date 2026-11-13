@@ -25,20 +25,33 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tourist}:${POSTGRES_PASSWORD:-tourist_pass}@db:5432/${POSTGRES_DB:-tourist_safety}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
-      SEED_ON_START: ${SEED_ON_START:-true}
-      # This compose file is the one-command demo/eval deployment described in
-      # the README, so seeding is force-enabled and defaults to the documented
-      # demo credentials -- override all four in .env for any real deployment.
-      SEED_FORCE: ${SEED_FORCE:-true}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
-      SEED_TOURIST_PASSWORD: ${SEED_TOURIST_PASSWORD:-tourist123}
-      SEED_RESPONDER_PASSWORD: ${SEED_RESPONDER_PASSWORD:-responder123}
+      # Seeding is OFF by default. The seed script refuses to run against
+      # ENVIRONMENT=production unless SEED_FORCE=true, and no password has a
+      # default here: leave SEED_*_PASSWORD empty and strong random ones are
+      # generated and printed once to the backend logs. The backend refuses to
+      # start in production if any of them is a known weak/demo password.
+      SEED_ON_START: ${SEED_ON_START:-false}
+      SEED_FORCE: ${SEED_FORCE:-false}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_TOURIST_PASSWORD: ${SEED_TOURIST_PASSWORD:-}
+      SEED_RESPONDER_PASSWORD: ${SEED_RESPONDER_PASSWORD:-}
       WEB_CONCURRENCY: 1
       # Lets the tourist copilot (services/llm.py) answer open-ended
       # questions the intent router doesn't cover. OPENAI_BASE_URL lets an
       # OpenAI-compatible free provider (Groq, OpenRouter, ...) stand in for
       # OpenAI itself -- set OPENAI_API_KEY (+ OPENAI_MODEL/OPENAI_BASE_URL
       # if not using OpenAI directly) in .env to enable it.
+      # Push & SMS alerts (README: "Push & SMS Alerts"). Generate VAPID keys with
+      #   docker compose run --rm backend python -m app.scripts.generate_vapid_keys
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@musafir.example}
+      NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-console}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      SMS_ALLOWLIST: ${SMS_ALLOWLIST:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-250}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

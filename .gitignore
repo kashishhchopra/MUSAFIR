@@ -42,3 +42,6 @@ frontend/coverage/
 
 # External Hash-Chain Anchoring's local ledger stand-in (services/anchoring.py)
 backend/anchor_ledger.jsonl
+backend/evaluation_reports/
+.vapid_keys.json
+backend/.vapid_keys.json

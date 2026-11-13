@@ -149,7 +149,7 @@ def list_topics() -> list[str]:
 def get_topic(topic: str, lang: str) -> dict:
     entry = _TOPICS.get(topic)
     if entry is None:
-        return {"title": None, "text": None, "demo": True, "error": f"Unknown etiquette topic: {topic}"}
+        raise KeyError(topic)
     available = lang in entry
     content = entry.get(lang, entry["en"])
     return {"title": content["title"], "text": content["text"], "demo": not available, "topic": topic, "lang": lang}
