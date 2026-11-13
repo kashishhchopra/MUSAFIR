@@ -16,6 +16,8 @@ import PoliceNetwork from './pages/admin/PoliceNetwork.jsx'
 import LiveEmergencies from './pages/admin/LiveEmergencies.jsx'
 import Analytics from './pages/admin/Analytics.jsx'
 import Devices from './pages/admin/Devices.jsx'
+import Simulation from './pages/admin/Simulation.jsx'
+import Notifications from './pages/admin/Notifications.jsx'
 import AuditLog from './pages/admin/AuditLog.jsx'
 import TouristApp from './pages/tourist/TouristApp.jsx'
 import ResponderLayout from './pages/responder/ResponderLayout.jsx'
@@ -81,6 +83,8 @@ export default function App() {
         <Route path="live-emergencies" element={<LiveEmergencies />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="devices" element={<Devices />} />
+        <Route path="simulation" element={<Simulation />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="audit" element={<AuditLog />} />
       </Route>
 

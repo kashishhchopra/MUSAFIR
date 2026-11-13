@@ -46,7 +46,7 @@ def score_at(db: Session, lat: float, lng: float, hour: int, anomaly_score: floa
     tourist's live position) and `app.services.forecast` (predicted future
     positions) so the scoring logic lives in exactly one place."""
     zones = db.query(Zone).all()
-    inside = zones_containing_point(lat, lng, zones) if (lat or lng) else []
+    inside = zones_containing_point(lat, lng, zones) if (lat is not None and lng is not None) else []
     if inside:
         worst = max(inside, key=lambda z: _RISK_WEIGHT.get(z.risk_level, 50))
         zone_risk = _RISK_WEIGHT.get(worst.risk_level, 50) * zone_time_multiplier(worst, hour)

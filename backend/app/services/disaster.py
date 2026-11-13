@@ -234,6 +234,16 @@ def tick_disaster_feed(db: Session) -> dict[str, list[int]]:
     # -- independent real data, not an either/or with CAP/simulator. A no-op
     # when OPENWEATHER_API_KEY isn't configured.
     candidates = candidates + weather_condition_advisories(zones)
+    # Several sources (CAP/simulator + weather) can emit the same zone+hazard;
+    # keep one candidate per key so a single run can't create duplicate advisories.
+    _seen: set[tuple] = set()
+    _unique = []
+    for c in candidates:
+        k = (c["zone_id"], c["hazard_type"])
+        if k not in _seen:
+            _seen.add(k)
+            _unique.append(c)
+    candidates = _unique
     candidate_keys = {(c["zone_id"], c["hazard_type"]) for c in candidates}
 
     active = db.query(DisasterAdvisory).filter(DisasterAdvisory.active.is_(True)).all()

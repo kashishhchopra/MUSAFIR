@@ -90,7 +90,9 @@ export default function ResponderConsole() {
         {incidents.map((inc) => {
           const tourist = inc.tourist_id != null ? tourists[inc.tourist_id] : null
           return (
-            <div key={inc.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
+            <div key={inc.id} id={`incident-${inc.id}`}
+              ref={(el) => { if (el && String(inc.id) === new URLSearchParams(window.location.search).get('incident') && !el.dataset.seen) { el.dataset.seen = '1'; el.scrollIntoView?.({ block: 'center' }) } }}
+              className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 ${String(inc.id) === new URLSearchParams(window.location.search).get('incident') ? 'ring-2 ring-red-500' : ''}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">#{inc.id}</span>

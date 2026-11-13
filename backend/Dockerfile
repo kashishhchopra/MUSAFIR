@@ -19,7 +19,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 # Train ML models at build time so the image ships ready-to-serve artifacts.
-RUN python -m app.ml.train_all
+RUN python -m app.ml.train_all --crime-index-source ncrb --report-path ""
 
 # Non-root runtime user
 RUN useradd -m appuser && chown -R appuser /app

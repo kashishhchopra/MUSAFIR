@@ -5,12 +5,21 @@ the app refuses to start unless a strong SECRET_KEY is provided.
 """
 from __future__ import annotations
 
+import os
 import secrets
 import warnings
 from pathlib import Path
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_SEED_PASSWORD_VARS = ("SEED_ADMIN_PASSWORD", "SEED_TOURIST_PASSWORD", "SEED_RESPONDER_PASSWORD")
+# Demo/default credentials that must never be live in production.
+KNOWN_WEAK_PASSWORDS = frozenset({
+    "admin123", "tourist123", "responder123", "password", "password123",
+    "admin", "123456", "12345678", "changeme", "change_this_strong_password",
+})
 
 
 class Settings(BaseSettings):
@@ -71,7 +80,35 @@ class Settings(BaseSettings):
     # ---- notifications ----
     # "console" logs instead of sending (default -- no external service
     # needed). See app/services/notifications.py for the extension point.
-    NOTIFICATION_CHANNEL: str = "console"
+    NOTIFICATION_CHANNEL: str = "console"   # console | twilio (SMS)
+    # Public origin of the frontend, used for deep links inside push/SMS text.
+    PUBLIC_BASE_URL: str = "http://localhost:5173"
+
+    # ---- Web Push (VAPID) -- services/notifications.py ----
+    # Generate once:  python -m app.scripts.generate_vapid_keys
+    # Left empty in development the server creates (and persists) a key pair
+    # automatically so push works locally; in production push stays disabled
+    # until real keys are configured.
+    PUSH_ENABLED: bool = True
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:alerts@musafir.example"
+
+    # ---- Twilio SMS -- used when NOTIFICATION_CHANNEL=twilio ----
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""             # E.164, e.g. +15551234567
+    TWILIO_MESSAGING_SERVICE_SID: str = ""   # alternative to FROM_NUMBER
+    SMS_DEFAULT_COUNTRY_CODE: str = "+91"    # for numbers stored without a +country prefix
+    # Comma-separated E.164 numbers. When set, SMS is sent ONLY to these (use it
+    # while testing so a seeded/demo contact number can never be texted).
+    SMS_ALLOWLIST: str = ""
+
+    # ---- delivery pipeline ----
+    NOTIFICATIONS_SYNC: bool = False         # send inline instead of on a worker thread (tests set this)
+    NOTIFICATION_MAX_ATTEMPTS: int = 3
+    NOTIFICATION_RETRY_BASE_SECONDS: int = 30   # backoff: 30s, 120s, 480s ...
+    NOTIFICATION_RETRY_TICK_SECONDS: int = 15
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # ---- Fair Price: local transport fare rate card (services/fare.py) ----
@@ -98,6 +135,12 @@ class Settings(BaseSettings):
     # date table. Empty = that signal is simply absent (never a fabricated
     # holiday) -- get a free key at https://calendarific.com/signup.
     # ISO 3166-1 alpha-2; India by default.
+    # Simulation Core (services/simulation.py): admin-only virtual tourists +
+    # scripted events for demos. Single-process (in-memory clock) -- run with
+    # WEB_CONCURRENCY=1. Set false to disable the endpoints entirely.
+    SIMULATION_ENABLED: bool = True
+    # Where AI/ML Evaluation Dashboard runs are stored (services/evaluation.py).
+    EVALUATION_DIR: str = "evaluation_reports"
     CALENDARIFIC_API_KEY: str = ""
     HOLIDAYS_COUNTRY_CODE: str = "IN"
     HOLIDAYS_API_TIMEOUT_SECONDS: float = 4.0
@@ -324,6 +367,16 @@ class Settings(BaseSettings):
     def is_test(self) -> bool:
         return self.ENVIRONMENT.lower() == "test"
 
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalise_db_url(cls, v: str) -> str:
+        # Managed hosts (Render, Heroku, Railway) hand out postgres:// or
+        # postgresql:// URLs; SQLAlchemy needs the psycopg (v3) driver spelled out.
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
     @field_validator("ENVIRONMENT")
     @classmethod
     def _valid_env(cls, v: str) -> str:
@@ -358,6 +411,18 @@ class Settings(BaseSettings):
                     )
         elif len(self.SECRET_KEY) < 32 and self.is_production:
             raise RuntimeError("SECRET_KEY is too short for production (need >= 32 chars).")
+
+        if self.is_production:
+            weak = [
+                name for name in _SEED_PASSWORD_VARS
+                if os.environ.get(name, "").strip().lower() in KNOWN_WEAK_PASSWORDS
+            ]
+            if weak:
+                raise RuntimeError(
+                    f"Refusing to start in production with known weak/demo passwords in: "
+                    f"{', '.join(weak)}. Unset them (random passwords are generated) or "
+                    f"choose strong ones."
+                )
 
         if self.is_production and "*" in self.allowed_hosts_list:
             warnings.warn("ALLOWED_HOSTS='*' in production is insecure — set explicit hosts.",

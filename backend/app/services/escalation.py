@@ -56,10 +56,10 @@ def tick_escalations(db: Session) -> list[int]:
         if nxt is None:
             continue
 
-        if nxt == "emergency_contact":
-            _notify_emergency_contacts(db, inc)
-        elif nxt == "responder_dispatch":
+        if nxt == "responder_dispatch":
             _ensure_unit_assigned(db, inc)
+        if nxt in ("emergency_contact", "responder_dispatch"):
+            _notify_escalation(db, inc, nxt)
 
         inc.escalation_stage = nxt
         inc.escalation_deadline = (
@@ -78,22 +78,14 @@ def tick_escalations(db: Session) -> list[int]:
     return advanced
 
 
-def _notify_emergency_contacts(db: Session, inc: Incident) -> None:
+def _notify_escalation(db: Session, inc: Incident, stage: str) -> None:
+    """Emergency contacts (SMS, at the emergency_contact stage) plus the control
+    room / assigned responders (push) -- see services/notifications.py."""
     if not inc.tourist_id:
         return
     tourist = db.get(Tourist, inc.tourist_id)
-    if not tourist:
-        return
-    contacts = json.loads(tourist.emergency_contacts or "[]")
-    for contact in contacts:
-        notifications.get_channel().send(
-            to=contact.get("phone", ""),
-            subject=f"Unacknowledged incident for {tourist.full_name}",
-            body=(
-                f"Incident #{inc.id} for {tourist.full_name} has not been "
-                f"acknowledged by the control room. Escalating."
-            ),
-        )
+    if tourist:
+        notifications.notify_escalation(db, inc, tourist, stage)
 
 
 def _ensure_unit_assigned(db: Session, inc: Incident) -> None:

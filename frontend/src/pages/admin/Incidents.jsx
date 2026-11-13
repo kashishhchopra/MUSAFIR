@@ -18,12 +18,18 @@ const SORTERS = {
     (b.response_time_seconds ?? -1) - (a.response_time_seconds ?? -1),
 }
 
+// A push/SMS deep link (/admin/incidents?incident=ID) opens straight to that case.
+const linkedIncident = () => {
+  const v = new URLSearchParams(window.location.search).get('incident')
+  return v && /^\d+$/.test(v) ? Number(v) : null
+}
+
 export default function Incidents() {
   const [incidents, setIncidents] = useState([])
   const [statusFilter, setStatusFilter] = useState('')
   const [severityFilter, setSeverityFilter] = useState('')
   const [sortBy, setSortBy] = useState('newest')
-  const [expanded, setExpanded] = useState(null)
+  const [expanded, setExpanded] = useState(linkedIncident)
   const [expandedTab, setExpandedTab] = useState('dispatch')
 
   const load = () => {
@@ -102,7 +108,8 @@ export default function Incidents() {
       <div className="space-y-3">
         {visible.length === 0 && <Card><div className="text-slate-400 text-sm">No incidents match this filter.</div></Card>}
         {visible.map((inc) => (
-          <div key={inc.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
+          <div key={inc.id} id={`incident-${inc.id}`} ref={(el) => { if (el && inc.id === linkedIncident() && !el.dataset.seen) { el.dataset.seen = '1'; el.scrollIntoView?.({ block: 'center' }) } }}
+            className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4 ${inc.id === linkedIncident() ? 'ring-2 ring-red-500' : ''}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold">#{inc.id}</span>

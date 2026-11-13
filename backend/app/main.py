@@ -19,6 +19,7 @@ from app.api import (
     discovery,
     emergency,
     etiquette,
+    evaluation,
     fare,
     festivals,
     guardian,
@@ -26,9 +27,11 @@ from app.api import (
     itinerary,
     maps,
     ml,
+    notifications,
     permits,
     police_network,
     safety_reports,
+    simulation,
     tourist_id,
     tourists,
     translate,
@@ -84,6 +87,12 @@ def _anchor_tick_job() -> None:
     _locked("anchor_tick", publish_anchor)
 
 
+def _notification_retry_tick_job() -> None:
+    from app.services.notifications import retry_due
+
+    _locked("notification_retry_tick", retry_due)
+
+
 def _token_purge_tick_job() -> None:
     from app.api.auth import purge_expired_revocations
 
@@ -97,6 +106,12 @@ async def lifespan(app: FastAPI):
     from app.websocket.manager import manager
 
     init_db()
+    from app.ml.train_all import artifacts_present
+    if not artifacts_present(settings.ML_MODELS_DIR):
+        import logging
+        logging.getLogger(__name__).warning(
+            "ML model artifacts missing in %s -- run `python -m app.ml.train_all` "
+            "(anomaly/safety scoring will fall back to rules until then).", settings.ML_MODELS_DIR)
     manager.bind_loop(asyncio.get_running_loop())
     if settings.SCHEDULER_ENABLED:
         job_scheduler.start()
@@ -133,6 +148,13 @@ async def lifespan(app: FastAPI):
             "interval",
             seconds=settings.ANCHOR_TICK_SECONDS,
             id="anchor_tick",
+            replace_existing=True,
+        )
+        job_scheduler.scheduler.add_job(
+            _notification_retry_tick_job,
+            "interval",
+            seconds=settings.NOTIFICATION_RETRY_TICK_SECONDS,
+            id="notification_retry_tick",
             replace_existing=True,
         )
         job_scheduler.scheduler.add_job(
@@ -229,6 +251,9 @@ app.include_router(safety_reports.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(fare.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(etiquette.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(currency.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(simulation.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(evaluation.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(notifications.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(ws.router)  # websocket at /ws/alerts (auth via token query param)
 
 # /api/metrics — Prometheus scrape target. Excluded from request logging noise

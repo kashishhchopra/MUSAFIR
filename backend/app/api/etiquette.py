@@ -1,5 +1,5 @@
 """Cultural Etiquette Guide API. See services/etiquette.py."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -15,4 +15,7 @@ def list_topics(_: User = Depends(get_current_user)):
 
 @router.get("/{topic}")
 def get_topic(topic: str, lang: str = Query("en", max_length=10), _: User = Depends(get_current_user)):
-    return etiquette.get_topic(topic, lang)
+    try:
+        return etiquette.get_topic(topic, lang)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown etiquette topic: {topic}")

@@ -10,6 +10,7 @@ import { downloadCSV } from '../../lib/csv'
 import { getCctvNetwork } from '../../lib/cctvService'
 import HeatmapLayer from '../../components/HeatmapLayer.jsx'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
+import MlEvaluation from './MlEvaluation.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 // Validated categorical order (dataviz reference palette) — assigned by fixed order, never cycled.
@@ -91,7 +92,7 @@ const GRANULARITIES = [
   { key: 'month', label: 'Monthly' },
 ]
 
-export default function Analytics() {
+function OperationsAnalytics() {
   const [summary, setSummary] = useState(null)
   const [overTime, setOverTime] = useState([])
   const [granularity, setGranularity] = useState('day')
@@ -435,6 +436,33 @@ export default function Analytics() {
         {cctv?.summary.unavailable ? `, ${cctv.summary.unavailable} publishing an unavailable notice` : ''}.
         {' '}AI inference mode: {mlStatus?.inference_mode || '—'}.
       </div>
+    </div>
+  )
+}
+
+const TABS = [
+  { key: 'ops', label: 'Operations & Incidents' },
+  { key: 'ml', label: 'AI/ML Evaluation' },
+]
+
+// Analytics has two tabs: the existing operational reporting, and the AI/ML
+// Evaluation dashboard (detection rate, false alarms, calibration, fairness...).
+export default function Analytics() {
+  const [tab, setTab] = useState('ops')
+  return (
+    <div className="space-y-4">
+      <div role="tablist" aria-label="Analytics sections"
+        className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+        {TABS.map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`px-4 py-2 text-sm font-semibold -mb-px border-b-2 ${tab === t.key
+              ? 'border-sky-600 text-sky-700 dark:text-sky-300'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+            {t.key === 'ml' ? '🧠 ' : '📊 '}{t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'ops' ? <OperationsAnalytics /> : <MlEvaluation />}
     </div>
   )
 }

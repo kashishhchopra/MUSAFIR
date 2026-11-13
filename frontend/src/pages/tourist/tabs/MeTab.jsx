@@ -5,6 +5,7 @@ import TabHero from '../../../components/TabHero.jsx'
 import SafetyPassportCard from '../../../components/SafetyPassportCard.jsx'
 import DigitalIdCard from '../../../components/DigitalIdCard.jsx'
 import TripGuardianCard from '../../../components/TripGuardianCard.jsx'
+import PushToggle from '../../../components/PushToggle.jsx'
 import PrivacyCard from '../../../components/PrivacyCard.jsx'
 import { DuressPinSettings } from '../../../components/DuressLock.jsx'
 import LanguageSwitcher from '../../../components/LanguageSwitcher.jsx'
@@ -50,6 +51,17 @@ export default function MeTab({ data }) {
             {t('tracking.unsupported')}
           </div>
         )}
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-[var(--theme-radius)] shadow-[var(--theme-shadow)] p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="w-9 h-9 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-base shrink-0">🔔</span>
+          <div>
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Emergency alerts on this phone</div>
+            <div className="text-xs text-slate-500">Get SOS confirmations and updates even when MUSAFIR is closed.</div>
+          </div>
+        </div>
+        <PushToggle />
       </div>
 
       <TripGuardianCard touristId={tid} />

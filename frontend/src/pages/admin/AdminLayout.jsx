@@ -12,6 +12,8 @@ const links = [
   { to: '/admin/live-emergencies', label: 'Live Emergencies', icon: '🚨' },
   { to: '/admin/analytics', label: 'Analytics', icon: '📊' },
   { to: '/admin/devices', label: 'Devices', icon: '⌚' },
+  { to: '/admin/simulation', label: 'Simulation', icon: '🎮' },
+  { to: '/admin/notifications', label: 'Alerts', icon: '🔔' },
   { to: '/admin/audit', label: 'Audit Log', icon: '🔐' },
 ]
 
@@ -21,11 +23,11 @@ export default function AdminLayout() {
   return (
     <div data-role-theme="admin" className="theme-surface min-h-screen flex flex-col">
       <header className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-sky-900/60">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-xl">🛡️</span>
           <span className="font-bold tracking-tight">MUSAFIR Control Room</span>
         </div>
-        <nav className="hidden md:flex gap-1 overflow-x-auto min-w-0">
+        <nav className="hidden md:flex gap-1 overflow-x-auto min-w-0 flex-1 mx-3">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end}
               className={({ isActive }) =>
@@ -34,7 +36,7 @@ export default function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-3 text-sm shrink-0">
           <span className="text-slate-300 hidden sm:inline">{user?.full_name}</span>
           <ThemeToggle />
           <button onClick={() => { logout(); nav('/login') }}

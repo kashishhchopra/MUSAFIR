@@ -73,6 +73,7 @@ def _open_incident(db: Session, tourist: Tourist, itype, severity, description, 
     # a responsible station -- see services/police_network.py.
     station = police_network.assign_station(db, inc)
     db.flush()
+    notifications.notify_incident_opened(db, inc, tourist)
     broadcast_sync({
         "event": "incident",
         "id": inc.id,
@@ -87,9 +88,15 @@ def _open_incident(db: Session, tourist: Tourist, itype, severity, description, 
 
 
 def process_ping(db: Session, tourist: Tourist, lat: float, lng: float,
-                 speed_kmh: float = 0.0) -> dict:
-    """Process one GPS ping. Returns a summary dict for the caller/API."""
-    now = utc_now()
+                 speed_kmh: float = 0.0, now=None) -> dict:
+    """Process one GPS ping. Returns a summary dict for the caller/API.
+
+    `now` lets the Simulation Core (services/simulation.py) stamp a ping with
+    *simulated* time, so the time-based features (inactivity, speed from
+    consecutive pings, trajectory extrapolation) stay physically consistent
+    when the simulation runs at 1x-60x. Real callers leave it None.
+    """
+    now = now or utc_now()
 
     # distance/time from previous ping
     prev = (
@@ -146,7 +153,9 @@ def process_ping(db: Session, tourist: Tourist, lat: float, lng: float,
                 Incident.type == "anomaly",
                 Incident.status != "resolved",
                 Incident.detected_at
-                >= now - timedelta(minutes=settings.ANOMALY_INCIDENT_DEDUPE_MINUTES),
+                # Incident.detected_at is stamped with the real clock, so the
+                # dedupe window must use it too (not a simulated `now`).
+                >= utc_now() - timedelta(minutes=settings.ANOMALY_INCIDENT_DEDUPE_MINUTES),
             )
             .first()
         )
@@ -327,31 +336,17 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: 
                   f"🚨 SOS from {tourist.full_name}", lat, lng, notify_self=not silent)
 
     contacts = json.loads(tourist.emergency_contacts or "[]")
-    for contact in contacts:
-        notifications.get_channel().send(
-            to=contact.get("phone", ""),
-            subject=f"SOS alert from {tourist.full_name}",
-            body=(
-                f"{tourist.full_name} has triggered an SOS. Last known location: "
-                f"{lat:.5f}, {lng:.5f}. Message: {message}"
-            ),
-        )
 
-    # Trip Guardian: any family member with an active share link is notified
-    # too, the same way an emergency contact is -- see app/api/guardian.py.
-    from app.models.guardian import TripGuardian
-    guardians = db.query(TripGuardian).filter(
-        TripGuardian.tourist_id == tourist.id, TripGuardian.revoked.is_(False)
-    ).all()
-    for g in guardians:
-        notifications.get_channel().send(
-            to=g.guardian_contact or g.guardian_name,
-            subject=f"SOS alert -- {tourist.full_name}",
-            body=(
-                f"{tourist.full_name}, whose trip you're following, has triggered an "
-                f"SOS. Last known location: {lat:.5f}, {lng:.5f}."
-            ),
-        )
+    # Push + SMS fan-out (tourist, guardians, assigned responders, control room,
+    # emergency contacts). Rows are written in THIS transaction and delivered
+    # only after the commit below, off the request thread -- see
+    # services/notifications.py. Emergency contacts and guardians with an active
+    # share link (app/api/guardian.py) are reached by SMS; guardians who
+    # subscribed from their share page are also pushed.
+    notifications.notify_sos(
+        db, inc, tourist, message=message, silent=silent, lat=lat, lng=lng,
+        unit_name=nearest.name if nearest else None,
+    )
     db.commit()
     db.refresh(inc)
 
@@ -388,8 +383,9 @@ def escalate_safety_report(db: Session, tourist: Tourist, report) -> Incident | 
         return None
 
     description = f"Safety report from {tourist.full_name} (sentiment: {report.sentiment_label}): {report.text}"
-    inc = _open_incident(db, tourist, "safety_report", "high", description,
-                         report.lat or tourist.last_lat, report.lng or tourist.last_lng)
+    lat = report.lat if report.lat is not None else tourist.last_lat
+    lng = report.lng if report.lng is not None else tourist.last_lng
+    inc = _open_incident(db, tourist, "safety_report", "high", description, lat, lng)
     inc.sentiment_label = report.sentiment_label
     inc.sentiment_score = report.sentiment_score
     inc.distress_detected = True
