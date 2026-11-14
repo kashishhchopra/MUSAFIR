@@ -1,20 +1,44 @@
 import { useCallback, useRef, useState } from 'react'
+import { SpeechRecognition as NativeSpeech } from '@capacitor-community/speech-recognition'
+import { isNativeApp } from '../lib/platform'
 
 // Thin wrapper over the Web Speech API for voice-driven emergency reporting.
 // Browser support is inconsistent (no Firefox, prefixed in Chrome/Safari), so
 // callers must check `supported` and fall back to a text input when false --
 // this is a progressive enhancement, never the only way to send an SOS.
+// Android WebView has no Web Speech API, so the app uses the phone's own
+// recognizer through a Capacitor plugin, behind the same interface.
 export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState(null)
   const recognitionRef = useRef(null)
+  const native = isNativeApp()
 
   const SpeechRecognitionCtor =
     typeof window !== 'undefined'
       ? window.SpeechRecognition || window.webkitSpeechRecognition
       : null
-  const supported = Boolean(SpeechRecognitionCtor)
+  const supported = native || Boolean(SpeechRecognitionCtor)
+
+  const startNative = useCallback(async () => {
+    setListening(true)
+    try {
+      const { speechRecognition } = await NativeSpeech.requestPermissions()
+      if (speechRecognition !== 'granted') {
+        setError('not-allowed')
+        return
+      }
+      const { matches } = await NativeSpeech.start({
+        language: lang, maxResults: 1, partialResults: false, popup: false,
+      })
+      setTranscript((matches?.[0] || '').trim())
+    } catch (e) {
+      setError(e?.message || 'speech-recognition-error')
+    } finally {
+      setListening(false)
+    }
+  }, [lang])
 
   const beginRecognition = useCallback(() => {
     const recognition = new SpeechRecognitionCtor()
@@ -55,6 +79,10 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   const start = useCallback(() => {
     if (!supported || listening) return
     setError(null)
+    if (native) {
+      startNative()
+      return
+    }
 
     // SpeechRecognition is supposed to trigger the browser's own mic
     // permission prompt on first use, but that path has proven unreliable
@@ -78,11 +106,15 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       return
     }
     beginRecognition()
-  }, [supported, listening, beginRecognition])
+  }, [supported, listening, native, startNative, beginRecognition])
 
   const stop = useCallback(() => {
+    if (native) {
+      NativeSpeech.stop().catch(() => {})
+      return
+    }
     recognitionRef.current?.stop()
-  }, [])
+  }, [native])
 
   const reset = useCallback(() => setTranscript(''), [])
 

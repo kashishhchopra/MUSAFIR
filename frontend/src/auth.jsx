@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api, { refreshAccessToken, setAccessToken } from './api'
+import { isNativeApp } from './lib/platform'
+import { clearRefreshToken, loadRefreshToken, saveRefreshToken } from './lib/nativeSession'
 
 const AuthContext = createContext(null)
 
@@ -48,6 +50,7 @@ export function AuthProvider({ children }) {
     form.append('username', email)
     form.append('password', password)
     const { data } = await api.post('/auth/login', form)
+    if (isNativeApp()) await saveRefreshToken(data.refresh_token)
     setAccessToken(data.access_token)
     const u = {
       role: data.role,
@@ -63,10 +66,17 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     // Best-effort revocation -- fire and forget. The refresh-token cookie is
-    // sent automatically (withCredentials); local state is cleared
-    // regardless of whether this call succeeds, since the user is leaving
-    // either way.
-    api.post('/auth/logout', {}).catch(() => {})
+    // sent automatically (withCredentials); the Android app sends its stored
+    // token instead. Local state is cleared regardless of whether this call
+    // succeeds, since the user is leaving either way.
+    if (isNativeApp()) {
+      loadRefreshToken()
+        .then((refresh_token) => api.post('/auth/logout', { refresh_token }))
+        .catch(() => {})
+        .finally(() => clearRefreshToken().catch(() => {}))
+    } else {
+      api.post('/auth/logout', {}).catch(() => {})
+    }
     setAccessToken(null)
     localStorage.removeItem('user')
     setUser(null)

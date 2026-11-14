@@ -5,6 +5,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-tourist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tourist_pass}
@@ -19,6 +20,7 @@ services:
 
   backend:
     build: ./backend
+    restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?set a strong SECRET_KEY in .env}
@@ -47,6 +49,10 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@musafir.example}
+      # Push to the Android app: put the Firebase service-account key in ./secrets
+      # and set FCM_CREDENTIALS_FILE=/app/secrets/firebase.json (README: "Android app").
+      FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
       NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-console}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
@@ -58,6 +64,8 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./secrets:/app/secrets:ro
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +74,7 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:

@@ -1,0 +1,8 @@
+{
+  "appId": "com.musafir.app",
+  "appName": "MUSAFIR",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

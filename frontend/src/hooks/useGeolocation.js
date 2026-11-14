@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { registerPlugin } from '@capacitor/core'
+import { isNativeApp } from '../lib/platform'
+
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation')
 
 // Wraps navigator.geolocation.watchPosition with permission-state handling.
 // `enabled` gates the whole thing (the app also has its own tracking toggle,
 // which now controls this hook instead of a fake random walk).
+// In the Android app, watchPosition stops when the screen locks, so it uses
+// the background-geolocation plugin instead: a foreground service with a
+// persistent notification keeps fixes coming while the phone is in a pocket.
 export default function useGeolocation({ enabled = true } = {}) {
   const [position, setPosition] = useState(null)
   const [error, setError] = useState(null)
@@ -10,6 +17,46 @@ export default function useGeolocation({ enabled = true } = {}) {
   const watchIdRef = useRef(null)
 
   useEffect(() => {
+    if (!isNativeApp() || !enabled) return
+    let watcherId = null
+    let cancelled = false
+    BackgroundGeolocation.addWatcher(
+      {
+        backgroundTitle: 'MUSAFIR is protecting you',
+        backgroundMessage: 'Sharing your location for your safety.',
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 25,
+      },
+      (loc, err) => {
+        if (err) {
+          setError(err.message)
+          if (err.code === 'NOT_AUTHORIZED') setPermissionState('denied')
+          return
+        }
+        setError(null)
+        setPermissionState('granted')
+        setPosition({
+          lat: loc.latitude,
+          lng: loc.longitude,
+          accuracy: loc.accuracy,
+          speedKmh: loc.speed != null ? Math.max(0, loc.speed) * 3.6 : 0,
+          heading: loc.bearing ?? null,
+          timestamp: loc.time,
+        })
+      },
+    ).then((id) => {
+      if (cancelled) BackgroundGeolocation.removeWatcher({ id })
+      else watcherId = id
+    })
+    return () => {
+      cancelled = true
+      if (watcherId != null) BackgroundGeolocation.removeWatcher({ id: watcherId })
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    if (isNativeApp()) return
     if (!('geolocation' in navigator)) {
       setPermissionState('unsupported')
       return

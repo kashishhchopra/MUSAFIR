@@ -10,16 +10,21 @@ from app.db.session import Base
 
 
 class PushSubscription(Base):
-    """One browser/device registered for Web Push. Belongs to a logged-in user
+    """One browser/device registered for push. Belongs to a logged-in user
     (tourist / responder / admin) or -- for a family member with only a share
-    link and no account -- to a TripGuardian."""
+    link and no account -- to a TripGuardian.
+
+    kind "webpush": a browser subscription; `endpoint` is the push-service URL
+    and p256dh/auth are its encryption keys. kind "fcm": the Android app;
+    `endpoint` holds the FCM registration token and the keys are unused."""
 
     __tablename__ = "push_subscriptions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String, default="webpush", server_default="webpush")
     endpoint: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
-    p256dh: Mapped[str] = mapped_column(String, nullable=False)
-    auth: Mapped[str] = mapped_column(String, nullable=False)
+    p256dh: Mapped[str | None] = mapped_column(String, nullable=True)
+    auth: Mapped[str | None] = mapped_column(String, nullable=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     guardian_id: Mapped[int | None] = mapped_column(ForeignKey("trip_guardians.id"), index=True, nullable=True)
     role: Mapped[str] = mapped_column(String, default="tourist")      # tourist|responder|admin|guardian
