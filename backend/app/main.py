@@ -20,6 +20,7 @@ from app.api import (
     emergency,
     etiquette,
     evaluation,
+    fall_detection,
     fare,
     festivals,
     guardian,
@@ -36,6 +37,8 @@ from app.api import (
     tourists,
     translate,
     trip_planner,
+    response,
+    walk_home,
     ws,
     zones,
 )
@@ -60,13 +63,37 @@ def _locked(job_id: str, fn) -> None:
 def _escalation_tick_job() -> None:
     from app.services.escalation import tick_escalations
 
-    _locked("escalation_tick", tick_escalations)
+    # Not the shared 120 s TTL: it would throttle this 30 s tick to ~2 minutes,
+    # far longer than a 60 s critical response target. A TTL just under one tick
+    # still stops workers escalating together, and every transition in
+    # tick_escalations is a conditional UPDATE, so an overlap is harmless anyway.
+    run_locked(SessionLocal, "escalation_tick",
+               max(1, settings.ESCALATION_TICK_SECONDS - 1), tick_escalations)
+
+
+def _fall_event_tick_job() -> None:
+    from app.services.fall_detection import tick_fall_events
+
+    # NOT `_locked`: job locks are never released, only expire after their TTL,
+    # and the shared JOB_LOCK_TTL_SECONDS (120 s) is far longer than this job's
+    # few-second tick -- the sweep would effectively run every two minutes and a
+    # countdown could expire ~2 min before anyone is alerted. A TTL just under
+    # one tick still keeps workers from sweeping concurrently (and the sweep is
+    # idempotent anyway: each event is claimed with one atomic UPDATE).
+    run_locked(SessionLocal, "fall_event_tick",
+               max(1, settings.FALL_SWEEP_TICK_SECONDS - 1), tick_fall_events)
 
 
 def _checkin_tick_job() -> None:
     from app.services.checkin import tick_checkins
 
-    _locked("checkin_tick", tick_checkins)
+    # Same reasoning as _fall_event_tick_job: the shared 120 s lock TTL would
+    # throttle this 30 s tick to about every two minutes, so a missed Walk-Me-Home
+    # check-in could sit unflagged for ~2 min. A TTL just under one tick still
+    # stops workers sweeping together, and every transition in tick_checkins is
+    # a conditional UPDATE, so an overlap would be harmless anyway.
+    run_locked(SessionLocal, "checkin_tick",
+               max(1, settings.CHECKIN_TICK_SECONDS - 1), tick_checkins)
 
 
 def _retention_purge_tick_job() -> None:
@@ -120,6 +147,13 @@ async def lifespan(app: FastAPI):
             "interval",
             seconds=settings.ESCALATION_TICK_SECONDS,
             id="escalation_tick",
+            replace_existing=True,
+        )
+        job_scheduler.scheduler.add_job(
+            _fall_event_tick_job,
+            "interval",
+            seconds=settings.FALL_SWEEP_TICK_SECONDS,
+            id="fall_event_tick",
             replace_existing=True,
         )
         job_scheduler.scheduler.add_job(
@@ -229,6 +263,7 @@ app.include_router(zones.router, prefix=PREFIX, dependencies=_rl)
 # rather than ever falling through to this router.
 app.include_router(emergency.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(incidents.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(response.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(police_network.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(cctv.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(tourist_id.router, prefix=PREFIX, dependencies=_rl)
@@ -238,6 +273,8 @@ app.include_router(translate.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(analytics.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(ml.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(devices.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(fall_detection.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(walk_home.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(guardian.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(copilot.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(disaster.router, prefix=PREFIX, dependencies=_rl)

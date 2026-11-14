@@ -52,6 +52,24 @@ class IncidentOut(BaseModel):
     distress_detected: bool = False
     escalation_stage: str
     escalation_deadline: datetime | None
+    # Intelligent response management (services/severity_classifier.py,
+    # escalation.py, response_metrics.py). All optional: incidents that
+    # pre-date it simply have no response target.
+    baseline_severity: str | None = None
+    classification_reason: str = ""
+    needs_review: bool = False
+    response_target_seconds: int | None = None
+    response_deadline: datetime | None = None
+    assigned_at: datetime | None = None
+    acknowledged_by: int | None = None
+    acknowledgment_seconds: float | None = None
+    slo_met: bool | None = None
+    response_stage: int = 1
+    response_stage_deadline: datetime | None = None
+    global_timeout_deadline: datetime | None = None
+    escalation_status: str = "none"
+    # the server clock when this row was read -- anchors the countdowns
+    server_time: datetime | None = None
     detected_at: datetime
     acknowledged_at: datetime | None
     dispatched_at: datetime | None

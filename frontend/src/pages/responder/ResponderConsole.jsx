@@ -6,6 +6,7 @@ import { sosIcon, missingIcon, policeIcon } from '../../components/mapIcons'
 import { SeverityBadge, StatusBadge, Card } from '../../components/ui.jsx'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
 import TouristIdScanner from '../../components/TouristIdScanner.jsx'
+import ResponseChip from '../../components/ResponseChip.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
 // A responder's worklist: incidents assigned to the unit they represent.
@@ -38,7 +39,7 @@ export default function ResponderConsole() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useWebSocket((ev) => { if (ev.event === 'incident') load() })
+  useWebSocket((ev) => { if (ev.event === 'incident' || ev.event === 'incident_response') load() })
 
   const acknowledge = async (id) => {
     await api.post(`/incidents/${id}/acknowledge`)
@@ -100,6 +101,7 @@ export default function ResponderConsole() {
                   <SeverityBadge severity={inc.severity} />
                   <StatusBadge status={inc.status} />
                   {inc.escalation_stage && <StatusBadge status={inc.escalation_stage} />}
+                  <ResponseChip inc={inc} />
                 </div>
                 <div className="flex items-center gap-2">
                   {inc.status !== 'resolved' && inc.escalation_stage !== 'acknowledged' && (
@@ -117,6 +119,11 @@ export default function ResponderConsole() {
                 </div>
               </div>
               <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">{inc.description}</div>
+              {inc.classification_reason && (
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1" data-testid="classification-reason">
+                  Why {inc.severity}: {inc.classification_reason}
+                </div>
+              )}
               {tourist && (
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Tourist: <b>{tourist.full_name}</b> · {tourist.phone} · ID {tourist.digital_id}

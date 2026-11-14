@@ -31,6 +31,20 @@ export const TRACK_INTERVAL_MS = Number(import.meta.env.VITE_TRACK_INTERVAL_MS |
 // build sets VITE_SIMULATE_GPS=false to use navigator.geolocation instead.
 export const SIMULATE_GPS = (import.meta.env.VITE_SIMULATE_GPS ?? 'true') !== 'false'
 
+// Fall & crash detection (hooks/useFallDetection.js). The detector's thresholds
+// and the countdown length come from the backend; these only describe how this
+// browser feeds it.
+// How far back GPS speed counts as "was moving" when an impact is seen (after a
+// crash the reading drops to ~0 at once, so the pre-impact peak is what matters).
+export const FALL_SPEED_WINDOW_MS = Number(import.meta.env.VITE_FALL_SPEED_WINDOW_MS || 10_000)
+// How long to wait for the first real accelerometer reading before calling the
+// sensor "unavailable" (desktop browsers fire devicemotion once with nulls).
+export const FALL_SENSOR_PROBE_MS = Number(import.meta.env.VITE_FALL_SENSOR_PROBE_MS || 4_000)
+// How long a GPS fix may be before its speed is ignored for crash classification.
+export const FALL_SPEED_MAX_AGE_MS = Number(import.meta.env.VITE_FALL_SPEED_MAX_AGE_MS || 15_000)
+// Pause between retries of a countdown request that could not reach the server.
+export const FALL_RETRY_MS = Number(import.meta.env.VITE_FALL_RETRY_MS || 3_000)
+
 export const DEFAULT_MAP = {
   center: [
     Number(import.meta.env.VITE_MAP_CENTER_LAT || 26.1445),

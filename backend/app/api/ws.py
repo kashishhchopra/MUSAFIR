@@ -62,3 +62,31 @@ async def tourist_ws(ws: WebSocket, tourist_id: int, token: str | None = Query(d
         await manager.disconnect_tourist(ws, tourist_id)
     except Exception:
         await manager.disconnect_tourist(ws, tourist_id)
+
+
+@router.websocket("/ws/guardian/{token}")
+async def guardian_ws(ws: WebSocket, token: str, db: Session = Depends(get_db)):
+    """A guardian's live Walk-Me-Home channel. A guardian has a share link, not
+    a login, so the link token is the credential (same trust model as
+    GET /guardian/{token}); a revoked or unknown token is refused. What flows
+    over it is only ever a journey the tourist selected this guardian for
+    (services/walk_home.py:_push), and it carries no location once that journey
+    ends."""
+    from app.models.guardian import TripGuardian
+
+    g = db.query(TripGuardian).filter(TripGuardian.token == token).first()
+    if g is None or g.revoked:
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    gid = g.id
+    db.close()  # do not hold a DB connection for the life of the socket
+
+    await manager.connect_guardian(ws, gid)
+    try:
+        await ws.send_json({"event": "connected", "message": "live feed established"})
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        await manager.disconnect_guardian(ws, gid)
+    except Exception:
+        await manager.disconnect_guardian(ws, gid)

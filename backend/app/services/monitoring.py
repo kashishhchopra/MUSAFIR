@@ -58,8 +58,13 @@ def _create_alert(db: Session, tourist_id, atype, severity, message, lat, lng,
     return alert
 
 
-def _open_incident(db: Session, tourist: Tourist, itype, severity, description, lat, lng) -> Incident:
-    from app.services import police_network
+def _open_incident(db: Session, tourist: Tourist, itype, severity, description, lat, lng,
+                   evidence: dict | None = None) -> Incident:
+    """Open an incident. `severity` is what the producing module declares;
+    `evidence` is what it knows (no_response, peak_g, missed_checkins ...). Both
+    feed services/severity_classifier.py via escalation.open_workflow, which also
+    assigns the response target BEFORE anything is notified."""
+    from app.services import escalation, police_network
 
     inc = Incident(
         tourist_id=tourist.id, type=itype, severity=severity,
@@ -73,13 +78,16 @@ def _open_incident(db: Session, tourist: Tourist, itype, severity, description, 
     # a responsible station -- see services/police_network.py.
     station = police_network.assign_station(db, inc)
     db.flush()
+    # classify -> response target -> stage 1 (services/escalation.py). Runs before
+    # the notifications below so they carry the FINAL severity.
+    escalation.open_workflow(db, inc, tourist, evidence=evidence)
     notifications.notify_incident_opened(db, inc, tourist)
     broadcast_sync({
         "event": "incident",
         "id": inc.id,
         "tourist_id": tourist.id,
         "type": itype,
-        "severity": severity,
+        "severity": inc.severity,
         "status": "detected",
         "lat": lat, "lng": lng,
         "station_id": station.id if station else None,
@@ -260,7 +268,8 @@ def process_device_telemetry(
         _create_alert(db, tourist.id, "fall_detected", "critical",
                       "Fall detected by wearable device", lat, lng)
         _open_incident(db, tourist, "fall_detected", "critical",
-                       f"Possible fall detected by {tourist.full_name}'s band", lat, lng)
+                       f"Possible fall detected by {tourist.full_name}'s band", lat, lng,
+                       evidence={"source": "wearable"})
         alerts_raised.append("fall_detected")
 
     if heart_rate_bpm is not None and not (_HR_LOW_BPM <= heart_rate_bpm <= _HR_HIGH_BPM):
@@ -275,6 +284,55 @@ def process_device_telemetry(
                                     "SOS button pressed on wearable device")
 
     return result
+
+
+_MOTION_LABEL = {"fall": "Fall", "crash": "Crash"}
+
+
+def raise_motion_incident(
+    db: Session, tourist: Tourist, event_type: str, lat: float | None, lng: float | None,
+    *, source: str, simulated: bool = False, detail: str = "", evidence: dict | None = None,
+) -> Incident:
+    """Open the critical incident for a fall/crash whose "Are you OK?"
+    countdown ran out (services/fall_detection.py is the only caller).
+
+    This is the same alert + incident pair `process_device_telemetry` raises
+    for a wearable's fall flag above, routed through the very same helpers --
+    `_create_alert` (control-room feed + tourist channel) and `_open_incident`
+    (station routing, push to the control room, WebSocket broadcast) -- so the
+    result appears in the existing Incidents page, Live Dashboard, alert feed
+    and escalation workflow with no parallel code path. Type is
+    `fall_detected` / `crash_detected`; severity is always critical.
+
+    `lat`/`lng` may be None (no GPS at all): the incident is still opened, just
+    without a location or station assignment. Caller owns the commit.
+    """
+    itype = f"{event_type}_detected"
+    label = _MOTION_LABEL.get(event_type, event_type.title())
+    tag = "[SIMULATED] " if simulated else ""
+    where = "" if lat is not None else " Location unavailable."
+    description = (
+        f"{tag}{label} detected for {tourist.full_name} via {source.replace('_', ' ')}; "
+        f"no response to the safety countdown.{where}"
+        + (f" {detail}" if detail else "")
+    )
+    _create_alert(db, tourist.id, itype, "critical",
+                  f"{tag}🚨 {label} detected - {tourist.full_name} did not respond",
+                  lat, lng)
+    # The countdown ran out with no response, so no_response is real evidence
+    # here; peak_g (when the detector sent it) lets the classifier judge strength.
+    ev = {"no_response": True, "source": source, "simulated": simulated, **(evidence or {})}
+    inc = _open_incident(db, tourist, itype, "critical", description, lat, lng, evidence=ev)
+    # Same unattended-incident clock an SOS gets, so the existing escalation
+    # job (services/escalation.py) takes over if nobody acknowledges it.
+    inc.escalation_deadline = utc_now() + timedelta(
+        seconds=settings.ESCALATION_STAGE_TIMEOUT_SECONDS
+    )
+    # Reach guardians and emergency contacts too, not only the control room
+    # (which _open_incident already pushed).
+    notifications.notify_motion_incident(db, inc, tourist, event_type=event_type,
+                                         lat=lat, lng=lng, simulated=simulated)
+    return inc
 
 
 def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: str,
@@ -329,6 +387,7 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: 
         inc.assigned_unit_id = nearest.id
         inc.status = "dispatched"
         inc.dispatched_at = utc_now()
+        inc.assigned_at = inc.assigned_at or inc.dispatched_at
         db.add(IncidentEvent(incident_id=inc.id, status="dispatched",
                              note=f"Auto-dispatched to {nearest.name} ({nearest.station})"))
 
@@ -385,7 +444,8 @@ def escalate_safety_report(db: Session, tourist: Tourist, report) -> Incident | 
     description = f"Safety report from {tourist.full_name} (sentiment: {report.sentiment_label}): {report.text}"
     lat = report.lat if report.lat is not None else tourist.last_lat
     lng = report.lng if report.lng is not None else tourist.last_lng
-    inc = _open_incident(db, tourist, "safety_report", "high", description, lat, lng)
+    inc = _open_incident(db, tourist, "safety_report", "high", description, lat, lng,
+                         evidence={"user_urgency": report.urgency, "distress": True})
     inc.sentiment_label = report.sentiment_label
     inc.sentiment_score = report.sentiment_score
     inc.distress_detected = True

@@ -6,6 +6,7 @@ import ConsularCard from '../../../components/ConsularCard.jsx'
 import NearbyPlacesCard from '../../../components/NearbyPlacesCard.jsx'
 import TranslateCard from '../../../components/TranslateCard.jsx'
 import WomensSafetyCard from '../../../components/WomensSafetyCard.jsx'
+import FallDetectionCard from '../../../components/FallDetectionCard.jsx'
 
 // Everything a tourist reaches for in a moment of trouble that isn't the SOS
 // button itself: offline emergency numbers, nearby police/hospital/pharmacy/
@@ -25,6 +26,7 @@ export default function HelpTab({ data, onAskAI }) {
       <NearbyPlacesCard touristId={data.tid} />
       <TranslateCard />
       <WomensSafetyCard touristId={data.tid} posRef={posRef} />
+      {data.fall && <FallDetectionCard fall={data.fall} />}
 
       <Card title={t('police.title')} icon="👮" iconColor="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
         <ul className="space-y-2">

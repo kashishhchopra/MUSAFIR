@@ -26,6 +26,9 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active: list[WebSocket] = []
         self.tourist_conns: dict[int, list[WebSocket]] = defaultdict(list)
+        # Walk-Me-Home: a guardian's own page, keyed by TripGuardian id (a
+        # guardian has a share link, not a login -- see api/ws.py).
+        self.guardian_conns: dict[int, list[WebSocket]] = defaultdict(list)
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -84,6 +87,35 @@ class ConnectionManager:
             await self.disconnect_tourist(ws, tourist_id)
 
 
+    # ---------------------------------------------------------------- per-guardian channel
+    async def connect_guardian(self, ws: WebSocket, guardian_id: int) -> None:
+        await ws.accept()
+        async with self._lock:
+            self.guardian_conns[guardian_id].append(ws)
+
+    async def disconnect_guardian(self, ws: WebSocket, guardian_id: int) -> None:
+        async with self._lock:
+            conns = self.guardian_conns.get(guardian_id)
+            if conns and ws in conns:
+                conns.remove(ws)
+                if not conns:
+                    del self.guardian_conns[guardian_id]
+
+    async def notify_guardian(self, guardian_id: int, message: dict[str, Any]) -> None:
+        conns = list(self.guardian_conns.get(guardian_id, ()))
+        if not conns:
+            return
+        payload = json.dumps(message, default=str)
+        dead: list[WebSocket] = []
+        for ws in conns:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            await self.disconnect_guardian(ws, guardian_id)
+
+
 manager = ConnectionManager()
 
 
@@ -109,3 +141,14 @@ def notify_tourist_sync(tourist_id: int | None, message: dict[str, Any]) -> None
         return
     with contextlib.suppress(RuntimeError):
         asyncio.run_coroutine_threadsafe(manager.notify_tourist(tourist_id, message), loop)
+
+
+def notify_guardian_sync(guardian_id: int | None, message: dict[str, Any]) -> None:
+    """Fire-and-forget push to one guardian's page(s)."""
+    if guardian_id is None:
+        return
+    loop = manager._loop
+    if loop is None or not manager.guardian_conns.get(guardian_id):
+        return
+    with contextlib.suppress(RuntimeError):
+        asyncio.run_coroutine_threadsafe(manager.notify_guardian(guardian_id, message), loop)

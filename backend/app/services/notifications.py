@@ -478,6 +478,101 @@ def notify_incident_opened(db: Session, inc: Incident, tourist: Tourist | None) 
                  url_for=lambda s: _admin_url(inc), severity="critical", incident=inc, tourist=tourist)
 
 
+def notify_motion_incident(db: Session, inc: Incident, tourist: Tourist, *, event_type: str,
+                           lat: float | None, lng: float | None, simulated: bool = False) -> None:
+    """A fall/crash whose "Are you OK?" countdown expired -> family fan-out.
+
+    The control room is already pushed by `notify_incident_opened` (called from
+    monitoring._open_incident); this adds the guardians (push, plus SMS when
+    their contact is a number) and the tourist's emergency contacts (SMS), the
+    same recipients and helpers `notify_sos` uses. A *simulated* detection never
+    reaches family: demo data must not text real people.
+    """
+    if simulated:
+        return
+    label = "fall" if event_type == "fall" else "crash"
+    place = _place(db, lat, lng)
+    maps = f" ({'https://maps.google.com/?q=' + format(lat, '.5f') + ',' + format(lng, '.5f')})" if lat is not None and lng is not None else ""
+    common = dict(severity="critical", incident=inc, tourist=tourist)
+
+    for g in _guardians(db, tourist.id):
+        link = f"/guardian/{g.token}"
+        _push_fanout(db, _push_subs(db, guardian_id=g.id), event_name="motion_incident", rtype="guardian",
+                     title=f"🚨 Possible {label} — {tourist.full_name}",
+                     body=(f"{tourist.full_name}, whose trip you follow, may have had a {label} and did not "
+                           f"respond to the safety check. Location: {place}."),
+                     url_for=lambda s, link=link: link, **common)
+        if (g.guardian_contact or "").strip():
+            _enqueue_sms(db, event_name="motion_incident", rtype="guardian", label=f"Guardian {g.guardian_name}",
+                         phone=g.guardian_contact, title="MUSAFIR alert", severity="critical",
+                         body=(f"MUSAFIR: {tourist.full_name} may have had a {label} and did not respond to the "
+                               f"safety check. Location: {place}. Live status: {_abs(link)}"),
+                         incident=inc, tourist=tourist, url=link)
+
+    for c in _contacts(tourist):
+        _enqueue_sms(db, event_name="motion_incident", rtype="emergency_contact",
+                     label=c.get("name") or "Emergency contact", phone=c["phone"],
+                     title="MUSAFIR alert", severity="critical",
+                     body=(f"MUSAFIR: {tourist.full_name} may have had a {label} and did not respond to the "
+                           f"safety check. Last known location: {place}{maps}. Authorities have been alerted."),
+                     incident=inc, tourist=tourist)
+
+
+_WALK_TEXT = {
+    # stage -> (title, body). {who} tourist, {dest} destination, {place} last location.
+    "started": ("Walk-Me-Home started",
+                "{who} started a monitored journey to {dest} and chose you to follow it. "
+                "You will be told if they miss a check-in."),
+    "missed": ("⚠ Missed check-in",
+               "{who} missed a safety check-in on the way to {dest} and has {grace} min to respond. "
+               "Last known location: {place}."),
+    "escalated": ("🚨 No response — authorities alerted",
+                  "{who} did not respond to the check-in for {dest}. The control room has been alerted. "
+                  "Last known location: {place}."),
+    "recovered": ("Checked in safely",
+                  "{who} has checked in after the missed check-in on the way to {dest}."),
+    "completed": ("Arrived safely",
+                  "{who}'s journey to {dest} has ended — they marked it complete. Live sharing has stopped."),
+    "cancelled": ("Journey cancelled",
+                  "{who} cancelled their monitored journey to {dest}. Live sharing has stopped."),
+}
+
+
+def notify_walk_home(db: Session, c, tourist: Tourist, stage: str, guardians: list[TripGuardian],
+                     inc: Incident | None = None) -> None:
+    """Walk-Me-Home -> the guardians the tourist SELECTED for this journey (push
+    always, SMS when their contact is a number). On `escalated` the tourist's
+    emergency contacts are texted too; the control room is already pushed by
+    `notify_incident_opened` (called from monitoring._open_incident).
+
+    The event name carries the journey id (and, for `missed`, how many check-ins
+    came before it) so the de-duplication key can suppress a retry of THIS
+    message without ever swallowing the next journey's or the next miss's."""
+    title, body = _WALK_TEXT[stage]
+    place = _place(db, c.last_lat, c.last_lng) if c.last_lat is not None else "not shared"
+    text = body.format(who=tourist.full_name, dest=c.destination_name, place=place,
+                       grace=c.grace_minutes if c.grace_minutes is not None else settings.CHECKIN_GRACE_MINUTES)
+    severity = {"missed": "high", "escalated": "critical"}.get(stage, "info")
+    event = f"walk_home:{stage}:{c.id}:{c.checkin_count if stage in ('missed', 'recovered') else 0}"
+    common = dict(severity=severity, incident=inc, tourist=tourist)
+
+    for g in guardians:
+        link = f"/guardian/{g.token}"
+        _push_fanout(db, _push_subs(db, guardian_id=g.id), event_name=event, rtype="guardian",
+                     title=title, body=text, url_for=lambda s, link=link: link, **common)
+        if (g.guardian_contact or "").strip():
+            _enqueue_sms(db, event_name=event, rtype="guardian", label=f"Guardian {g.guardian_name}",
+                         phone=g.guardian_contact, title="MUSAFIR", severity=severity,
+                         body=f"MUSAFIR: {text} Live status: {_abs(link)}", incident=inc, tourist=tourist, url=link)
+
+    if stage == "escalated":
+        for ct in _contacts(tourist):
+            _enqueue_sms(db, event_name=event, rtype="emergency_contact",
+                         label=ct.get("name") or "Emergency contact", phone=ct["phone"],
+                         title="MUSAFIR alert", severity="critical",
+                         body=f"MUSAFIR: {text} Authorities have been alerted.", incident=inc, tourist=tourist)
+
+
 def notify_escalation(db: Session, inc: Incident, tourist: Tourist, stage: str) -> None:
     """The control room did not acknowledge in time -> contacts get an SMS (the
     original behaviour) and the control room / responders are pushed again."""
@@ -496,6 +591,44 @@ def notify_escalation(db: Session, inc: Incident, tourist: Tourist, stage: str) 
         _push_fanout(db, _push_subs(db, user_roles=["responder"], unit_id=inc.assigned_unit_id),
                      event_name=ev, rtype="responder", title=title, body=text,
                      url_for=lambda s: _responder_url(inc), severity="critical", incident=inc, tourist=tourist)
+
+
+def notify_response(db: Session, inc: Incident, tourist: Tourist | None, *, kind: str, key: str,
+                    audience: list[str], title: str, body: str, severity: str | None = None,
+                    exclude_user_id: int | None = None) -> int:
+    """Intelligent response management -> staff push (services/escalation.py).
+
+    `audience` tokens: `assigned_unit` (that unit's responders; every responder
+    when the incident has none), `responders`, `admins`. One row per
+    (incident, kind, key, subscription), so a replayed tick or a second worker
+    cannot notify the same person twice -- `_enqueue` records a suppressed row
+    instead. Rows join the caller's transaction, so a delivery failure (handled
+    by the existing retry job) can never lose the escalation event itself.
+    Returns how many subscriptions were queued."""
+    subs: dict[int, tuple[PushSubscription, str, str]] = {}
+    for token in audience:
+        if token == "admins":
+            found, rtype = _push_subs(db, user_roles=["admin"]), "admin"
+        elif token == "responders":
+            found, rtype = _push_subs(db, user_roles=["responder"]), "responder"
+        elif token == "assigned_unit":
+            found = (_push_subs(db, user_roles=["responder"], unit_id=inc.assigned_unit_id)
+                     if inc.assigned_unit_id else _push_subs(db, user_roles=["responder"]))
+            rtype = "responder"
+        else:
+            continue
+        for sub, label in found:
+            if exclude_user_id is not None and sub.user_id == exclude_user_id:
+                continue  # the person who just acted is not re-notified of their own action
+            subs.setdefault(sub.id, (sub, label, rtype))
+    event = f"response:{kind}:{key}"
+    sev = severity or inc.severity
+    for sub, label, rtype in subs.values():
+        url = _admin_url(inc) if rtype == "admin" else _responder_url(inc)
+        _enqueue(db, event_name=event, channel="push", rtype=rtype, label=label, key=f"s{sub.id}",
+                 title=title, body=body, url=url, severity=sev, sub=sub, incident=inc, tourist=tourist,
+                 payload={"incident_id": inc.id, "kind": kind})
+    return len(subs)
 
 
 def send_test(db: Session, user: User, channel: str, to: str | None = None) -> list[NotificationLog]:

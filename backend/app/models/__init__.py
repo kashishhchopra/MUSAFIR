@@ -7,6 +7,7 @@ from app.models.device import Device
 from app.models.disaster import DisasterAdvisory
 from app.models.efir import EFIR
 from app.models.emergency_location import EmergencyLocationPing
+from app.models.fall_event import FallEvent
 from app.models.fare_check import FareCheck
 from app.models.festival import Festival
 from app.models.guardian import TripGuardian
@@ -20,6 +21,7 @@ from app.models.password_reset import PasswordResetToken
 from app.models.permit import Permit
 from app.models.place import PointOfInterest
 from app.models.police import Camera, PoliceStation, PoliceUnit
+from app.models.response import EscalationEvent, ResponseSetting, SeverityClassification
 from app.models.revoked_token import RevokedToken
 from app.models.safety_report import SafetyReport
 from app.models.tourist import IdBlock, LocationPing, Tourist
@@ -62,4 +64,8 @@ __all__ = [
     "Permit",
     "SafetyReport",
     "FareCheck",
+    "FallEvent",
+    "SeverityClassification",
+    "EscalationEvent",
+    "ResponseSetting",
 ]

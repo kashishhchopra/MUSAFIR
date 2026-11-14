@@ -5,6 +5,10 @@ distress signal, well before an SOS is ever pressed.
 synchronous, DB-session-in/out, callable directly in tests and wrapped by a
 periodic APScheduler job for the real background tick (see app/main.py).
 
+A Walk-Me-Home journey (services/walk_home.py) is the same row with
+`kind == "walk_home"` and runs through this very tick -- there is no second
+escalation engine; only the wording, grace length and notifications differ.
+
 Lifecycle: planned -> checked_in (on time, the happy path)
            planned -> missed (deadline passed, no check-in yet -- an alert
                                is raised, this is the "gentle" first stage)
@@ -76,6 +80,18 @@ def _tick_visa_expiry(db: Session) -> list[int]:
 
 
 def tick_checkins(db: Session) -> dict[str, list[int]]:
+    """Advance planned outings AND Walk-Me-Home journeys (CheckIn.kind) one stage.
+
+    Each transition is claimed with a single conditional UPDATE that also pins
+    the deadline we looked at, so a tourist checking in (which moves the
+    deadline) or ending the journey while this tick runs makes the claim match
+    zero rows and the tick simply skips it -- a check-in racing the escalation
+    can never be overwritten. For an escalation the incident is opened in the
+    same transaction as the claim: if anything fails the claim rolls back and
+    the next tick retries, so a journey is never marked escalated with no
+    incident, nor an incident opened twice."""
+    from app.services import walk_home
+
     now = utc_now()
     newly_missed: list[int] = []
     newly_escalated: list[int] = []
@@ -87,36 +103,57 @@ def tick_checkins(db: Session) -> dict[str, list[int]]:
         .all()
     )
     for c in overdue:
-        c.status = "missed"
+        claimed = (
+            db.query(CheckIn)
+            .filter(CheckIn.id == c.id, CheckIn.status == "planned",
+                    CheckIn.expected_return_at == c.expected_return_at)
+            .update({"status": "missed", "missed_at": now}, synchronize_session=False)
+        )
+        if not claimed:
+            continue
+        db.refresh(c)  # the bulk UPDATE bypassed the ORM; reload the new status
         tourist = db.get(Tourist, c.tourist_id)
         if tourist:
-            _create_alert(
-                db, tourist.id, "missed_checkin", "medium",
-                f"{tourist.full_name} missed their expected check-in for "
-                f"\"{c.destination_name}\"",
-                c.dest_lat, c.dest_lng,
-            )
+            if c.kind == walk_home.KIND:
+                walk_home.on_missed(db, c, tourist)
+            else:
+                _create_alert(
+                    db, tourist.id, "missed_checkin", "medium",
+                    f"{tourist.full_name} missed their expected check-in for "
+                    f"\"{c.destination_name}\"",
+                    c.dest_lat, c.dest_lng,
+                )
         newly_missed.append(c.id)
-        logger.warning("checkin_missed", checkin_id=c.id, tourist_id=c.tourist_id)
+        logger.warning("checkin_missed", checkin_id=c.id, tourist_id=c.tourist_id, kind=c.kind)
 
-    grace_cutoff = now - timedelta(minutes=settings.CHECKIN_GRACE_MINUTES)
-    still_missed = (
-        db.query(CheckIn)
-        .filter(CheckIn.status == "missed", CheckIn.expected_return_at <= grace_cutoff)
-        .all()
-    )
-    for c in still_missed:
-        c.status = "escalated"
+    # The grace period is per journey (a walk is shorter than an outing); NULL
+    # means the global CHECKIN_GRACE_MINUTES, so outings behave exactly as before.
+    for c in db.query(CheckIn).filter(CheckIn.status == "missed").all():
+        grace = c.grace_minutes if c.grace_minutes is not None else settings.CHECKIN_GRACE_MINUTES
+        if c.expected_return_at > now - timedelta(minutes=grace):
+            continue
+        claimed = (
+            db.query(CheckIn)
+            .filter(CheckIn.id == c.id, CheckIn.status == "missed",
+                    CheckIn.expected_return_at == c.expected_return_at)
+            .update({"status": "escalated"}, synchronize_session=False)
+        )
+        if not claimed:
+            continue
+        db.refresh(c)  # the bulk UPDATE bypassed the ORM; reload the new status
         tourist = db.get(Tourist, c.tourist_id)
         if tourist:
-            _open_incident(
-                db, tourist, "missed_checkin", "high",
-                f"{tourist.full_name} has not checked in for \"{c.destination_name}\" "
-                f"since {settings.CHECKIN_GRACE_MINUTES} minutes past the expected return time",
-                c.dest_lat, c.dest_lng,
-            )
+            if c.kind == walk_home.KIND:
+                walk_home.on_escalated(db, c, tourist)
+            else:
+                _open_incident(
+                    db, tourist, "missed_checkin", "high",
+                    f"{tourist.full_name} has not checked in for \"{c.destination_name}\" "
+                    f"since {settings.CHECKIN_GRACE_MINUTES} minutes past the expected return time",
+                    c.dest_lat, c.dest_lng,
+                )
         newly_escalated.append(c.id)
-        logger.warning("checkin_escalated", checkin_id=c.id, tourist_id=c.tourist_id)
+        logger.warning("checkin_escalated", checkin_id=c.id, tourist_id=c.tourist_id, kind=c.kind)
 
     if newly_missed or newly_escalated:
         db.commit()

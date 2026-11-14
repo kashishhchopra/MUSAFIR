@@ -63,6 +63,41 @@ class Incident(Base):
     dispatched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # ---- Intelligent response management (services/severity_classifier.py,
+    # escalation.py, response_metrics.py) -----------------------------------
+    # Every column is nullable / defaulted, so incidents created before this
+    # feature (and by seed/import scripts) are untouched and simply have no
+    # response target. `severity` above stays THE severity; these explain it.
+    #
+    # classification: why `severity` is what it is (full rule trace in
+    # severity_classifications).
+    baseline_severity: Mapped[str | None] = mapped_column(String, nullable=True)
+    classification_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    classified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Evidence was uncertain or conflicting: a human should look. Never used to
+    # silently downgrade.
+    needs_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # response target: how fast a responder should ACKNOWLEDGE. The deadline is
+    # stored (server-authoritative); `acknowledged_at` above is the other end.
+    response_target_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    acknowledged_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # acknowledged_at - detected_at, seconds; slo_met = acknowledged within deadline.
+    acknowledgment_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    slo_met: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # staged escalation (responder authority chain). 1 primary, 2 supervisor,
+    # 3 higher authority. Distinct from the legacy `escalation_stage` string
+    # above (tourist-side outreach), which is unchanged.
+    response_stage: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    response_stage_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    escalation_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Fixed upper bound for the whole lifecycle; never moved once set.
+    global_timeout_deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    global_timeout_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # none | active | acknowledged | exhausted (global timeout hit) | closed (resolved)
+    escalation_status: Mapped[str] = mapped_column(String, default="none", server_default="none", index=True)
+
     events: Mapped[list["IncidentEvent"]] = relationship(
         back_populates="incident", cascade="all, delete-orphan"
     )
