@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { API_BASE } from './config'
+import { isNativeApp } from './lib/platform'
+import { clearRefreshToken, loadRefreshToken, saveRefreshToken } from './lib/nativeSession'
 
 // The access token lives in memory only, never localStorage -- an XSS bug
 // can no longer walk out with a long-lived credential. It's lost on a hard
@@ -27,6 +29,7 @@ export const bare = axios.create({ baseURL: API_BASE, withCredentials: true })
 function clearSessionAndRedirect() {
   setAccessToken(null)
   localStorage.removeItem('user')
+  if (isNativeApp()) clearRefreshToken().catch(() => {})
   if (!location.pathname.startsWith('/login')) location.href = '/login'
 }
 
@@ -36,13 +39,18 @@ let refreshPromise = null
 
 export function refreshAccessToken() {
   if (!refreshPromise) {
-    // No body: the refresh token travels as the httpOnly cookie, not JS-
-    // readable state. `bare.post` still works with an empty body since the
-    // backend's RefreshRequest is optional (kept for a back-compat client).
-    refreshPromise = bare.post('/auth/refresh', {}).then(({ data }) => {
+    // Browser: no body, the refresh token travels as the httpOnly cookie, not
+    // JS-readable state. Android app: the cookie can't reach it (see
+    // lib/nativeSession.js), so it sends its stored token in the body and
+    // saves the rotated one the server hands back.
+    refreshPromise = (async () => {
+      const native = isNativeApp()
+      const body = native ? { refresh_token: await loadRefreshToken() } : {}
+      const { data } = await bare.post('/auth/refresh', body)
+      if (native) await saveRefreshToken(data.refresh_token)
       setAccessToken(data.access_token)
       return data.access_token
-    }).finally(() => { refreshPromise = null })
+    })().finally(() => { refreshPromise = null })
   }
   return refreshPromise
 }

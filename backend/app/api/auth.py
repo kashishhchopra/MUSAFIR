@@ -86,9 +86,9 @@ def _issue_pair(response: Response, user: User) -> Token:
         subject=user.email, role=user.role, tourist_id=user.tourist_id
     )
     _set_refresh_cookie(response, refresh)
-    # The body still carries refresh_token for one release: existing/mobile
-    # clients that store it themselves keep working, while the frontend now
-    # relies on the cookie and never reads this field. See RefreshRequest.
+    # The body also carries refresh_token for the Android app: its WebView is a
+    # different origin, so the SameSite=strict cookie never reaches it and it
+    # stores the token itself. The browser frontend ignores this field.
     return Token(
         access_token=access, refresh_token=refresh, role=user.role,
         tourist_id=user.tourist_id, full_name=user.full_name,
@@ -114,8 +114,8 @@ def refresh(request: Request, response: Response,
             payload: RefreshRequest | None = None, db: Session = Depends(get_db)):
     """Trade a refresh token for a new access+refresh pair.
 
-    The token comes from the httpOnly cookie if present, falling back to the
-    request body for one release (see RefreshRequest). Refresh tokens are
+    The token comes from the httpOnly cookie if present (browser), falling back
+    to the request body (Android app, see RefreshRequest). Refresh tokens are
     rotated on every use (the presented one is revoked and a new one issued)
     rather than reused: if a refresh token is ever stolen, the legitimate
     client's next refresh attempt will fail because the token it's holding

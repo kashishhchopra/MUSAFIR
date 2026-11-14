@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = "mailto:alerts@musafir.example"
+    # ---- Firebase Cloud Messaging -- push to the Android app ----
+    # Path to a Firebase service-account JSON key (Firebase console -> Project
+    # settings -> Service accounts). Empty = the Android app gets no push.
+    FCM_CREDENTIALS_FILE: str = ""
 
     # ---- Twilio SMS -- used when NOTIFICATION_CHANNEL=twilio ----
     TWILIO_ACCOUNT_SID: str = ""
