@@ -179,6 +179,84 @@ class Settings(BaseSettings):
     # to the next one if nobody has acknowledged it.
     ESCALATION_STAGE_TIMEOUT_SECONDS: int = 120
 
+    # ---- intelligent response management ----
+    # severity_classifier.py -> response_policy.py -> escalation.py ->
+    # response_metrics.py. Everything below is a DEMONSTRATION default, not an
+    # emergency-service standard. Response targets, stage timing and the global
+    # timeout can also be changed at runtime by an admin (PUT /response/config);
+    # a stored override wins over these values.
+    #
+    # Master switch: when false no incident is classified, no response target
+    # is set and nothing escalates by this engine (incidents behave as before).
+    RESPONSE_MANAGEMENT_ENABLED: bool = True
+    # Seconds a responder has to ACKNOWLEDGE, by severity (illustrative).
+    RESPONSE_TARGET_CRITICAL_SECONDS: int = 60
+    RESPONSE_TARGET_HIGH_SECONDS: int = 180
+    RESPONSE_TARGET_MEDIUM_SECONDS: int = 300
+    RESPONSE_TARGET_LOW_SECONDS: int = 600
+    # Stage 1 (primary responder) lasts until the response deadline above.
+    # Stage 2 (supervisor) then lasts this long before stage 3 (higher authority).
+    RESPONSE_STAGE2_SECONDS: int = 120
+    # One fixed upper bound for the whole escalation lifecycle, measured from
+    # when the workflow started. Never reset when a stage advances.
+    RESPONSE_GLOBAL_TIMEOUT_SECONDS: int = 1800
+    # Who is notified at each stage / at global timeout. Tokens: assigned_unit
+    # (responders of the incident's unit; all responders when none is assigned),
+    # responders (every responder account), admins. MUSAFIR has no separate
+    # supervisor role, so stage 2 reaches the responder pool and stage 3 the
+    # admin control room.
+    RESPONSE_STAGE1_AUDIENCE: str = "assigned_unit"
+    RESPONSE_STAGE2_AUDIENCE: str = "responders"
+    RESPONSE_STAGE3_AUDIENCE: str = "admins"
+    RESPONSE_GLOBAL_TIMEOUT_AUDIENCE: str = "admins"
+    RESPONSE_STAGE_LABELS: str = "Primary responder,Supervisor,Higher authority"
+    # Incident types whose own notification fan-out already reaches the
+    # stage-1 audience (SOS pushes the dispatched unit): skip the extra
+    # "assigned" push for them so responders are not notified twice.
+    RESPONSE_SKIP_ASSIGNED_NOTIFY_TYPES: str = "sos"
+    # Push a "deadline approaching" notice this many seconds before the
+    # response deadline. 0 disables it.
+    RESPONSE_WARNING_SECONDS: int = 0
+    # A tightened deadline after an UPGRADE is min(old deadline, change time +
+    # new target); it can never give a responder more time. A downgrade (admin
+    # only) recomputes from detection time.
+    # Re-evaluation: look at the tourist's other incidents this far back.
+    SEVERITY_PRIOR_INCIDENT_WINDOW_MINUTES: int = 60
+    # How recent a safe check-in must be to count as conflicting evidence.
+    SEVERITY_SAFE_SIGNAL_WINDOW_SECONDS: int = 120
+    # tourist.safety_score (0-100, higher = safer; bands in services/safety.py:
+    # 75 safe, 50 caution, 25 risky) at or below this adds one risk indicator.
+    SEVERITY_LOW_SAFETY_SCORE: float = 25.0
+    # Each full group of this many corroborating indicators raises the
+    # baseline by one level (max +2).
+    SEVERITY_POINTS_PER_LEVEL: int = 2
+    SEVERITY_MAX_LEVEL_BUMP: int = 2
+    # When true a producer's declared severity is a FLOOR: the classifier may
+    # raise it but never silently lowers it (only an admin override can).
+    SEVERITY_SOURCE_FLOOR_ENABLED: bool = True
+    # Baseline severity by incident type (JSON). Unlisted types use the default.
+    SEVERITY_BASELINE_BY_TYPE: str = (
+        '{"sos":"critical","missing_person":"critical","fall_detected":"high",'
+        '"crash_detected":"high","anomaly":"high","missed_checkin":"medium",'
+        '"geofence":"medium","safety_report":"medium","field_report":"medium",'
+        '"route_deviation":"low","gps_signal_lost":"low"}'
+    )
+    SEVERITY_DEFAULT_BASELINE: str = "medium"
+    # Tourist-reported urgency -> severity (JSON); the higher of this and the
+    # baseline is used.
+    SEVERITY_URGENCY_MAP: str = '{"critical":"critical","high":"high","medium":"medium","low":"low"}'
+    # Incident types detected by a motion sensor: they can never reach
+    # CRITICAL on sensor evidence alone (see severity_classifier.py).
+    SEVERITY_SENSOR_TYPES: str = "fall_detected,crash_detected"
+    # Types whose escalation reflects an unanswered safety check (no_response).
+    SEVERITY_UNRESPONSIVE_TYPES: str = "fall_detected,crash_detected,missed_checkin"
+
+    # ---- SLO reporting (services/response_metrics.py) ----
+    SLO_DEFAULT_RANGE_DAYS: int = 30
+    SLO_MAX_RANGE_DAYS: int = 366
+    # Upper edges (seconds) of the acknowledgment-time histogram buckets.
+    SLO_DISTRIBUTION_BUCKETS_SECONDS: str = "30,60,120,300,600,1800"
+
     # ---- SOS live location sharing (see services/emergency_location.py) ----
     # A ping older than this is still "recent enough" to call LIVE; older
     # than OFFLINE and the police dashboard must not claim it's live at all.
@@ -197,6 +275,87 @@ class Settings(BaseSettings):
     # Grace period after a missed check-in deadline before it escalates from
     # an alert to an incident -- "well before an SOS is ever pressed."
     CHECKIN_GRACE_MINUTES: int = 30
+
+    # ---- Walk-Me-Home (services/walk_home.py) ----
+    # A monitored journey reuses the check-in engine above; these only bound
+    # what a tourist may ask for and are served to the app (GET /walk-home/config),
+    # so the browser carries no hardcoded values.
+    WALKHOME_ENABLED: bool = True
+    WALKHOME_MIN_DURATION_MINUTES: int = 2
+    WALKHOME_MAX_DURATION_MINUTES: int = 720
+    WALKHOME_DEFAULT_DURATION_MINUTES: int = 30
+    WALKHOME_MIN_INTERVAL_MINUTES: int = 1
+    WALKHOME_MAX_INTERVAL_MINUTES: int = 120
+    WALKHOME_DEFAULT_INTERVAL_MINUTES: int = 10
+    # Grace after a missed check-in before an incident is opened. Shorter than
+    # the 30 min an outing gets: someone walking home alone should not wait that long.
+    WALKHOME_DEFAULT_GRACE_MINUTES: int = 5
+    WALKHOME_MIN_GRACE_MINUTES: int = 1
+    WALKHOME_MAX_GRACE_MINUTES: int = 30
+    WALKHOME_MAX_EXTENSIONS: int = 3
+    WALKHOME_MAX_EXTENSION_MINUTES: int = 60
+    # Quick-pick buttons in the setup form (comma-separated minutes).
+    WALKHOME_DURATION_PRESETS: str = "15,30,45,60,120"
+    WALKHOME_INTERVAL_PRESETS: str = "5,10,15,30"
+    # How often the open app sends its position while a journey is active, and
+    # how old a fix may get before guardians are told it is stale, not live.
+    WALKHOME_LOCATION_INTERVAL_SECONDS: int = 15
+    WALKHOME_LOCATION_STALE_SECONDS: int = 120
+    WALKHOME_MAX_FIX_AGE_SECONDS: int = 300
+    WALKHOME_MAX_GUARDIANS: int = 10
+    # critical so the control room is pushed (notifications.notify_incident_opened).
+    WALKHOME_ESCALATION_SEVERITY: str = "critical"
+
+    # ---- fall & crash detection (services/fall_detection.py) ----
+    # Master switch. When false every fall-detection endpoint answers 404 and
+    # the tourist app hides the feature (the client reads this from
+    # GET /fall-detection/config).
+    FALL_DETECTION_ENABLED: bool = True
+    # The "Are you OK?" window. The SERVER owns the clock: the deadline is
+    # detected_at + this, so a closed/crashed/offline app still escalates.
+    FALL_COUNTDOWN_SECONDS: int = 30
+    # Extra time the background sweep waits past the deadline before it raises
+    # the incident itself, so a "I AM SAFE" tap that is still in flight when
+    # the countdown ends is not beaten by the sweep. (A client confirm at the
+    # deadline does not wait for this.)
+    FALL_CONFIRM_GRACE_SECONDS: int = 5
+    FALL_SWEEP_TICK_SECONDS: int = 5
+    # While a detection is pending, or after one raised an incident inside
+    # this window, a further detection for the same tourist is folded into it
+    # instead of creating a second incident.
+    FALL_DEDUPE_WINDOW_SECONDS: int = 120
+    # A detection timestamped further back than this is not trusted as the
+    # start of a countdown (clock skew / replayed request): it is clamped.
+    FALL_MAX_EVENT_AGE_SECONDS: int = 120
+    # Demo mode. Simulated detections are accepted, labelled "[SIMULATED]" on
+    # the incident/alert, and never presented as sensor-based. Turn off in a
+    # production deployment.
+    FALL_SIMULATION_ENABLED: bool = True
+    FALL_HISTORY_LIMIT: int = 20
+    # ---- on-device detector thresholds (served to the client, see
+    # GET /fall-detection/config; the browser has no hardcoded values) ----
+    # Accelerometer magnitude in g (1 g = resting). Free-fall: magnitude stays
+    # below FREEFALL_G for at least FREEFALL_MIN_MS.
+    FALL_FREEFALL_G: float = 0.4
+    FALL_FREEFALL_MIN_MS: int = 80
+    # A fall = free-fall followed, within FREEFALL_IMPACT_WINDOW_MS, by an
+    # impact of at least IMPACT_G.
+    FALL_IMPACT_G: float = 2.5
+    FALL_FREEFALL_IMPACT_WINDOW_MS: int = 600
+    # A crash = a hard impact of at least CRASH_IMPACT_G while the GPS speed
+    # was at least CRASH_MIN_SPEED_KMH (needs a real speed reading).
+    FALL_CRASH_IMPACT_G: float = 4.0
+    FALL_CRASH_MIN_SPEED_KMH: float = 20.0
+    # After an impact the phone must then be (nearly) motionless: magnitude
+    # within STILLNESS_DEV_G of 1 g and rotation below STILLNESS_GYRO_DPS,
+    # continuously for STILLNESS_MS, observed for at most OBSERVE_MS. A phone
+    # that keeps moving (walking, picked up again) is not an emergency.
+    FALL_STILLNESS_DEV_G: float = 0.15
+    FALL_STILLNESS_GYRO_DPS: float = 40.0
+    FALL_STILLNESS_MS: int = 2000
+    FALL_POST_IMPACT_OBSERVE_MS: int = 8000
+    # Minimum gap between two on-device detections.
+    FALL_DETECTOR_COOLDOWN_SECONDS: int = 60
 
     # ---- privacy & consent ----
     # How often the background job purges location history past its

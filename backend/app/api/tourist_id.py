@@ -157,6 +157,10 @@ def report_incident_from_scan(payload: ReportIncidentFromScan, request: Request,
         note=f"Filed by {user.email} from a Digital Tourist ID scan: {payload.description}",
     ))
     station = police_network.assign_station(db, inc)
+    db.flush()
+    # same classify -> response target -> stage 1 pipeline every incident gets
+    from app.services import escalation
+    escalation.open_workflow(db, inc, t)
     db.commit()
     audit.record(db, "incident_from_scan", actor=user.email, target=t.digital_id,
                 detail=payload.description, request=request)

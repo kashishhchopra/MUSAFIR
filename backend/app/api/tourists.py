@@ -466,7 +466,9 @@ def list_checkins(tourist_id: int, db: Session = Depends(get_db),
                   _: User = Depends(require_self_or_admin)):
     return (
         db.query(CheckIn)
-        .filter(CheckIn.tourist_id == tourist_id)
+        # Walk-Me-Home journeys are rows in the same table but have their own
+        # screen and endpoints (/walk-home); keep them out of the outing list.
+        .filter(CheckIn.tourist_id == tourist_id, CheckIn.kind != "walk_home")
         .order_by(CheckIn.expected_return_at.desc())
         .all()
     )
@@ -478,7 +480,7 @@ def mark_checked_in(tourist_id: int, checkin_id: int, db: Session = Depends(get_
     """The tourist confirming they're safely back -- clears the check-in
     before it can ever be flagged as missed. See services/checkin.py."""
     c = db.query(CheckIn).filter(CheckIn.id == checkin_id, CheckIn.tourist_id == tourist_id).first()
-    if not c:
+    if not c or c.kind == "walk_home":  # a journey is checked in via /walk-home
         raise HTTPException(status_code=404, detail="Check-in not found")
     if c.status not in ("planned", "missed"):
         raise HTTPException(status_code=400, detail=f"Check-in already {c.status}")

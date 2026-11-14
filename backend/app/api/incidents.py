@@ -37,6 +37,7 @@ from app.services import (
     audit,
     dispatch,
     emergency_location,
+    escalation,
     notifications,
     police_network,
 )
@@ -136,7 +137,13 @@ def _hydrate_tourist_info(db: Session, incidents: list[Incident]) -> list[Incide
     real columns on Incident, just read once here and set as plain instance
     attributes (IncidentOut.from_attributes picks them up via getattr) so
     the admin incidents list shows whose case each row is without a second
-    round trip per row."""
+    round trip per row.
+
+    Also stamps `server_time`, so the dashboards' response countdowns are
+    anchored to the server's clock, not the browser's."""
+    now = utc_now()
+    for inc in incidents:
+        inc.server_time = now
     tourist_ids = {i.tourist_id for i in incidents if i.tourist_id is not None}
     if not tourist_ids:
         return incidents
@@ -278,13 +285,18 @@ def update_incident(incident_id: int, payload: IncidentStatusUpdate,
     inc = _get_incident_or_404(incident_id, db)
     _assert_can_update(inc, user)
     now = utc_now()
+    # Any human status action means a person has the incident: record the
+    # acknowledgment (once, race-safe) before changing the status. Resolution
+    # is separate and closes the response workflow below.
+    escalation.acknowledge(db, inc, user, now=now)
     inc.status = payload.status
     if payload.status == "acknowledged":
-        inc.acknowledged_at = now
+        inc.acknowledged_at = inc.acknowledged_at or now
     elif payload.status == "dispatched":
         inc.dispatched_at = now
     elif payload.status == "resolved":
         inc.resolved_at = now
+        escalation.close_workflow(db, inc, now)
         # A closed case has nothing left to track -- see the
         # live_tracking_active field's docstring on the Incident model.
         emergency_location.stop_tracking(db, inc, "incident resolved")
@@ -306,12 +318,14 @@ def acknowledge_incident(incident_id: int, db: Session = Depends(get_db),
     """Human acknowledgement: stops the escalation clock (see services/escalation.py)."""
     inc = _get_incident_or_404(incident_id, db)
     _assert_can_update(inc, user)
+    # Records who/when/within-target exactly once even if two responders race.
+    escalation.acknowledge(db, inc, user)
     inc.escalation_stage = "acknowledged"
     inc.escalation_deadline = None
     was_detected = inc.status == "detected"
     if inc.status == "detected":
         inc.status = "acknowledged"
-        inc.acknowledged_at = utc_now()
+        inc.acknowledged_at = inc.acknowledged_at or utc_now()
     db.add(IncidentEvent(incident_id=inc.id, status="acknowledged",
                          note=f"Acknowledged by {user.email}"))
     if was_detected:
@@ -348,6 +362,7 @@ def mark_missing(tourist_id: int, request: Request, db: Session = Depends(get_db
     db.add(IncidentEvent(incident_id=inc.id, status="detected", note="Marked missing"))
     police_network.assign_station(db, inc)
     db.flush()
+    escalation.open_workflow(db, inc, t)
 
     efir = file_efir(db, inc, t)
     db.commit()

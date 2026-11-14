@@ -14,6 +14,11 @@ import ReportSheet from './tabs/ReportSheet.jsx'
 import CopilotChat from '../../components/CopilotChat.jsx'
 import VoiceAssistantButton from '../../components/VoiceAssistantButton.jsx'
 import EmergencyModeCard from '../../components/EmergencyModeCard.jsx'
+import FallCountdownModal from '../../components/FallCountdownModal.jsx'
+import { FallStatusPill } from '../../components/FallDetectionCard.jsx'
+import useFallDetection from '../../hooks/useFallDetection.js'
+import WalkHomeBanner from '../../components/WalkHomeBanner.jsx'
+import useWalkHome from '../../hooks/useWalkHome.js'
 
 const TAB_COMPONENTS = { home: HomeTab, plan: PlanTab, explore: ExploreTab, help: HelpTab, me: MeTab }
 
@@ -32,6 +37,15 @@ export default function TouristApp() {
   const voiceRef = useRef(null)
   const data = useTouristData(tid)
   const { sendSOS } = data
+  // Fall & crash detection lives up here (not in a tab) so its countdown keeps
+  // running whichever tab is open. An immediate SOS from the countdown hands its
+  // result to the same state the SOS button uses, so Emergency Mode just works.
+  const fall = useFallDetection({
+    tid, posRef: data.posRef, geo: data.geo, onSosTriggered: data.setSosSent,
+  })
+  // Walk-Me-Home is mounted here too: a running journey keeps sharing its
+  // location and showing its timer on every tab. Deadlines are the server's.
+  const walk = useWalkHome({ tid })
 
   // Voice action router: only commands the app itself must *carry out*
   // (switch tab, raise a real SOS) are handled here -- everything else,
@@ -85,7 +99,7 @@ export default function TouristApp() {
         tid={tid}
         posRef={data.posRef}
       >
-        <ActiveTab data={{ ...data, tid }} onAskAI={() => copilotRef.current?.open()}
+        <ActiveTab data={{ ...data, tid, fall, walk }} onAskAI={() => copilotRef.current?.open()}
           onVoice={() => voiceRef.current?.open()} onNavigateTab={setActiveTab} />
       </TouristShell>
 
@@ -101,6 +115,13 @@ export default function TouristApp() {
       {/* SOS live-location sharing: visible on any tab while an emergency
           is active (never for a silent/duress SOS -- see the component). */}
       <EmergencyModeCard sosSent={data.sosSent} tid={tid} posRef={data.posRef} />
+
+      {/* Fall & crash detection: status reminder + the "Are you OK?" countdown. */}
+      <FallStatusPill fall={fall} />
+      <FallCountdownModal fall={fall} />
+
+      {/* Walk-Me-Home: live journey strip (timer + check-in) on every tab. */}
+      <WalkHomeBanner walk={walk} onOpen={() => setActiveTab('home')} />
 
       {/* Always-available voice assistant: one tap to speak, on any tab. */}
       <VoiceAssistantButton ref={voiceRef} touristId={tid} lang={i18n.resolvedLanguage || i18n.language}

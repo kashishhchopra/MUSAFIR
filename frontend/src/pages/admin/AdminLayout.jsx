@@ -11,6 +11,7 @@ const links = [
   { to: '/admin/police-network', label: 'Police Network', icon: '🚓' },
   { to: '/admin/live-emergencies', label: 'Live Emergencies', icon: '🚨' },
   { to: '/admin/analytics', label: 'Analytics', icon: '📊' },
+  { to: '/admin/response', label: 'Response & SLO', icon: '⏱️' },
   { to: '/admin/devices', label: 'Devices', icon: '⌚' },
   { to: '/admin/simulation', label: 'Simulation', icon: '🎮' },
   { to: '/admin/notifications', label: 'Alerts', icon: '🔔' },

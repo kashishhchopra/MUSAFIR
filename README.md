@@ -51,6 +51,9 @@ and a responsive tourist mobile view.
 | 18 | **Simulation Core** | Admin → **Simulation**. Spawns up to 100 virtual tourists (`SIM-xxxx`) that walk real Guwahati routes, with **Play/Pause and 1x–60x speed**, a one-click **scripted scenario** (off-route → danger zone → inactivity → abduction jump → SOS) and per-tourist **event triggers**. Events only move the virtual tourist — the real ML anomaly model, geofencing, route-deviation and SOS/incident workflow decide what gets raised. Live map, tourist queue, alert stream and event log. |
 | 19 | **AI/ML Evaluation Dashboard** | Admin → Analytics → **AI/ML Evaluation** tab. Generates labelled scenarios (safe vs suspicious) with the Simulation Core, runs the production detectors over them and reports **detection rate, false-alarm rate, precision/recall/F1, ROC & PR curves, confusion matrix, calibration (Brier/ECE), detection delay, response time, a Fairlearn fairness audit, SHAP attributions, drift and the model registry**. |
 | 20 | **Push & SMS Alerts** | When a tourist triggers SOS, **Web Push** (VAPID; works with the PWA closed) goes to the tourist, their guardians, the assigned unit's responders and the control room, and **SMS** (Twilio) goes to emergency contacts and guardians. Also incident updates (acknowledged / dispatched / resolved), critical incidents and escalations. Admin **Alerts** page: delivery status, retries, history, tests. Click a notification → the incident. |
+| 21 | **Fall & Crash Detection** | The phone's motion sensors (or a wearable, or a clearly-labelled simulation) spot a possible fall/crash → a full-screen **30 s "I AM SAFE – CANCEL ALERT" countdown** (or **Send SOS now**). Cancel and nothing is raised; let it run out and **one critical incident** (`fall_detected` / `crash_detected`) is opened through the existing monitoring pipeline — same Incidents page, alerts, push/SMS and escalation as any other emergency. The server owns the clock, so a closed app still escalates. |
+| 22 | **Walk-Me-Home** | A tourist walking alone starts a **monitored journey** (destination, duration, check-in interval, chosen guardians). Guardians follow the timer and last location on their private link; **I AM SAFE – CHECK IN** resets the deadline. Miss one and a warning + grace period start; if the grace runs out the **existing check-in engine opens a critical incident** for the police/admin dashboard. Deadlines are server-owned, so a closed app still escalates. |
+| 23 | **Intelligent Response Management** | Every incident — SOS, fall/crash, Walk-Me-Home, anomaly, missing person, field report — is **classified CRITICAL / HIGH / MEDIUM / LOW by transparent rules** (with a stored explanation), given a **backend response deadline** from its severity, and **auto-escalated** primary responder → supervisor → higher authority if nobody acknowledges it, up to one fixed **global timeout** (the incident stays open). Admin **Response & SLO** page: live countdowns, severity override with a mandatory reason, SLO compliance from real timestamps, charts and settings. |
 
 All seven live in the tourist app's new **Explore** tab (🌍). None of them touch any existing feature's data or routes — they're additive, reusing the existing itinerary, zone, weather, translation, and POI infrastructure wherever possible. Two external, free-tier data sources back them: OpenStreetMap's **Overpass API** (Discovery + indoor alternatives — no key needed) and **Calendarific** (public holidays — free key needed, see `backend/.env.example` / `CALENDARIFIC_API_KEY`). With no Calendarific key, holiday-driven signals are simply absent, never fabricated.
 
@@ -331,6 +334,234 @@ API: `GET /api/notifications/push/public-key`, `POST …/push/subscribe`, `…/p
 
 ---
 
+## Fall & Crash Detection
+
+Automatic "Are you OK?" for treks, two-wheelers and solo travel. Detects a possible fall or crash, gives the tourist **30 seconds to say they are safe**, and — only if they don't — raises a **critical incident through the existing pipeline** (`monitoring._create_alert` + `_open_incident`, the same helpers behind the wearable fall flag and SOS). There is no separate alert system.
+
+```
+phone motion sensor ─► on-device detector ─┐
+wearable (device key) ─────────────────────┼─► fall_event (pending, server-side deadline)
+simulation (labelled) ─────────────────────┘          │
+        ┌───────────── I AM SAFE ─────────────────────┤ → cancelled     (no incident, ever)
+        ├───────────── SEND SOS NOW ──────────────────┤ → sos_triggered (existing SOS workflow)
+        └───────────── 30 s pass ─────────────────────┘ → confirmed      (1 critical incident)
+```
+
+**How it behaves**
+- **Detection (on the phone).** `frontend/src/lib/fallDetector.js` reads the accelerometer + gyroscope: *fall* = free-fall → impact → stillness; *crash* = hard impact while GPS speed was recently high → stillness. Walking, jogging, bumps, and a dropped-then-picked-up phone are ignored (no stillness afterwards). **All thresholds come from the server** (`FALL_*` below) — the browser has nothing hardcoded. A crash needs a real GPS speed reading; without one a hard impact is classed as a fall, never a crash.
+- **Privacy.** Monitoring is opt-in (**Help → Fall & crash detection → Turn on motion monitoring**), a "Fall detection on" pill shows on every screen while it runs, raw sensor readings never leave the phone, and only a small summary (peak g, free-fall/stillness ms, speed) is sent when something is detected. Unknown fields are rejected by the API.
+- **Countdown.** The deadline is fixed **server-side** when the event starts. The app shows it (anchored on the server's `seconds_remaining`, so re-renders, background tabs and a wrong phone clock cannot change it) and calls `confirm` at zero. If the app is closed, the phone dies or the network drops, a backend sweep (`FALL_SWEEP_TICK_SECONDS`) still raises the incident after the deadline plus a short grace.
+- **No race, no duplicates.** The only way out of `pending` is one conditional `UPDATE … WHERE status='pending'`: "I AM SAFE" and expiry can't both win, and the incident is created in the same transaction as the winning update. A retried request (same `client_event_id`) returns the same event; a second detection while one is pending, or right after an incident, is folded into it; a database index allows one pending event per tourist.
+- **Missing GPS.** The event's fix → the tourist's last known location → an incident without a location (flagged "Location unavailable"). It never errors.
+- **Notifications.** The control room is pushed and the incident broadcast on the live WebSocket feed, exactly like other critical incidents; guardians and emergency contacts also get push/SMS ("may have had a fall…"); the existing escalation clock starts. See [Push & SMS Alerts](#push--sms-alerts) for provider setup.
+- **Wearables.** A band authenticated with its device key calls `POST /api/devices/{device_id}/fall-event` and enters the **same** countdown (the tourist's phone shows it over the live channel and can cancel; the band can cancel with `…/fall-event/{id}/cancel`). Nothing is shown unless a band actually sends an event. *(The older `fall_detected` flag in `/devices/{id}/telemetry` is unchanged and still opens an incident immediately.)*
+- **Not a guarantee.** It cannot detect every fall or crash and can fire by mistake (e.g. a phone tossed on a bed) — which is why a detection only ever starts a cancellable countdown. The UI says so.
+
+**Configuration** (all env vars, see `backend/app/core/config.py`)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FALL_DETECTION_ENABLED` | `true` | Master switch (endpoints 404, app hides the card) |
+| `FALL_COUNTDOWN_SECONDS` | `30` | The cancellation window |
+| `FALL_CONFIRM_GRACE_SECONDS` | `5` | Extra time before the sweep raises the incident (lets an in-flight cancel win) |
+| `FALL_SWEEP_TICK_SECONDS` | `5` | How often expired countdowns are swept |
+| `FALL_DEDUPE_WINDOW_SECONDS` | `120` | Detections within this window of a pending/raised event are folded into it |
+| `FALL_MAX_EVENT_AGE_SECONDS` | `120` | Cap on how stale a delayed (offline-retried) detection may be |
+| `FALL_SIMULATION_ENABLED` | `true` | Demo mode (**set `false` in production**) |
+| `FALL_FREEFALL_G`, `FALL_FREEFALL_MIN_MS`, `FALL_IMPACT_G`, `FALL_FREEFALL_IMPACT_WINDOW_MS`, `FALL_CRASH_IMPACT_G`, `FALL_CRASH_MIN_SPEED_KMH`, `FALL_STILLNESS_DEV_G`, `FALL_STILLNESS_GYRO_DPS`, `FALL_STILLNESS_MS`, `FALL_POST_IMPACT_OBSERVE_MS`, `FALL_DETECTOR_COOLDOWN_SECONDS` | see config | Detector thresholds, served to the client |
+
+Frontend (optional, `frontend/.env`): `VITE_FALL_SPEED_WINDOW_MS`, `VITE_FALL_SENSOR_PROBE_MS`, `VITE_FALL_SPEED_MAX_AGE_MS`, `VITE_FALL_RETRY_MS`.
+
+**Set up.** Run `alembic upgrade head` (adds the `fall_events` table). No new dependencies. Real sensor detection needs a **phone** and **HTTPS** (browsers hide motion data on plain HTTP; `localhost` counts as secure); iOS Safari shows a motion-permission prompt when you tap *Turn on motion monitoring*.
+
+### How to test it
+
+**A. Simulation mode (any laptop — no sensor needed)**
+1. Start the API and frontend as in [Setup & Run](#setup--run); sign in as a tourist (e.g. `aarav@example.com`). In another window sign in as admin and open **Incidents**.
+2. Tourist app → **Help** tab → **Fall & crash detection** → under **Simulation mode** tap **Simulate a fall**.
+3. A red full-screen alert appears, badged **SIMULATION — not a real sensor detection**, counting down from 30.
+   - **Cancel path:** tap **I AM SAFE – CANCEL ALERT** → "Alert cancelled". Admin Incidents shows nothing new; the card's history shows *Cancelled — you were safe*.
+   - **Expiry path:** do nothing for 30 s → "Emergency raised · Incident #N". On the admin **Incidents** page a **critical `fall_detected`** incident appears live (tagged `[SIMULATED]`), with a timeline entry "Raised from fall_event…". Try **Simulate a crash** for `crash_detected`.
+   - **Immediate SOS:** tap **SEND SOS NOW** → a normal SOS incident, nearest unit dispatched, Emergency Mode screen opens.
+   - **Closed-app guarantee:** start a simulated fall, then close the tab within the 30 s. After the deadline (+ grace) the incident appears anyway.
+4. Simulated events notify the control room only — never real contacts or guardians by SMS.
+
+**B. Real phone sensors**
+1. Serve the frontend over HTTPS (a deploy, or an HTTPS tunnel to `npm run dev`) and open it on a phone; sign in; set `VITE_SIMULATE_GPS=false` so GPS speed is real.
+2. **Help → Fall & crash detection → Turn on motion monitoring** (allow motion access). The status reads **Monitoring active** and the green pill appears. If it says *Sensor not sending data* or *No motion sensor*, the device isn't providing readings and nothing is being monitored.
+3. Test over a soft surface (a bed or cushion, ~30 cm): drop the phone and let it lie still ~2 s → the countdown starts. Walking or shaking it must **not** trigger anything (tune with the `FALL_*` variables if needed). **Don't drop your phone onto a hard floor, and never test while driving.**
+
+**C. Wearable (curl)**
+```bash
+# register a band as admin (returns its one-time key), then:
+curl -X POST http://127.0.0.1:8001/api/devices/BAND-1/fall-event \
+  -H "X-Device-Key: <key>" -H "Content-Type: application/json" \
+  -d '{"event_type":"fall","lat":26.14,"lng":91.73}'
+```
+The tourist's phone shows the countdown immediately; cancel it there, or `POST …/fall-event/{id}/cancel`, or leave it to raise the incident.
+
+**D. Automated tests**
+```bash
+cd backend  && python -m pytest tests/test_fall_detection.py
+cd frontend && npx vitest run src/lib/fallDetector.test.js src/components/FallDetection.test.jsx
+```
+
+**Limitations.** Detection runs only while the page is open and the screen is on (browsers suspend sensors in the background; wrapping the PWA with Capacitor is the fix). The server sweep protects an *already-started* countdown, not a detection that was never made. Copy is English-only for now — other languages fall back to it (see `frontend/src/lib/fallDetectionStrings.js`).
+
+API: `GET /api/fall-detection/config`; `POST/GET /api/tourists/{id}/fall-events`, `GET …/fall-events/active`, `POST …/fall-events/{eid}/cancel|confirm|sos`; `POST /api/devices/{device_id}/fall-event` (+ `/{eid}/cancel`); admin/responder `GET /api/fall-events`.
+
+---
+
+## Walk-Me-Home
+
+A tourist walking somewhere alone starts a **monitored journey**: destination, how long it should take, how often they will check in, and which trusted guardians may follow it. The guardians see the timer and the latest location. If a check-in is missed, the tourist and guardians are warned; if the tourist still doesn't respond after a **grace period**, a **critical incident** is opened for the police/admin team.
+
+**It is not a second emergency system.** A journey is a row of the existing check-in table (`checkins`, `kind = 'walk_home'`) and is advanced by the *same* background job as planned outings — `services/checkin.py:tick_checkins()`:
+
+```
+planned ──(deadline passes)──► missed ──(grace passes)──► escalated ──► incident (monitoring._open_incident)
+   ▲  │                          │                                          └► control-room push, WebSocket feed,
+   │  └─ "I AM SAFE" moves the ──┘ late "I AM SAFE" during grace              existing escalation clock, Incidents page
+   │     deadline forward           returns the journey to planned
+   └─ End journey ► completed · Cancel ► cancelled   (both stop sharing and end every guardian's access)
+```
+
+**How it behaves**
+- **Start (Home tab → Walk-Me-Home).** Destination (optionally pinned through the existing geocoder — never a guessed location), duration, check-in interval, grace period and guardians are chosen, then reviewed before **Start journey**. Presets, defaults and limits come from the server (`WALKHOME_*`); nothing is hardcoded in the browser. One live journey per tourist (enforced by a database unique index, so two simultaneous starts can't both succeed).
+- **Timer & check-ins.** The **server owns every deadline**. The app shows them (anchored on the server's clock, so a wrong phone clock or a refresh can't move them) and a strip with the timer and **I AM SAFE – CHECK IN** stays on every tab. Closing the app changes nothing: the background job still escalates. A check-in sets the next deadline one interval away (never later than the expected arrival while that's still ahead). **Add time** extends the journey within server limits.
+- **Missed check-in.** The journey becomes `missed`; the existing `missed_checkin` alert reaches the control-room feed and the tourist's own channel, selected guardians get a push/SMS, and the app shows a clear warning with the **grace countdown**. A late check-in during grace resumes the journey and tells the guardians.
+- **Grace expiry.** `tick_checkins` opens **one** incident (type `missed_checkin`, severity `WALKHOME_ESCALATION_SEVERITY`, default `critical`) containing the destination, last known coordinates and how old that fix is, check-ins completed and the journey number; the journey stores the `incident_id`. Guardians and emergency contacts are notified, and the incident follows the normal acknowledge → dispatch → resolve workflow (the tourist "ending" the journey after that only adds a note — responders close incidents).
+- **No duplicates, no races.** Every transition is one conditional `UPDATE … WHERE status=… [AND expected_return_at=<seen>]`: a check-in racing the escalation, two check-ins at once, or *end* racing *cancel* can't both win, and the incident is created in the same transaction as the escalation claim (a failure rolls it back; the next tick retries).
+- **Guardians.** They are the tourist's existing **Trip Guardian** records (Me tab). A guardian has a private link, not an account, so the link token is the credential — exactly as for the existing Trip Guardian page. `GET /api/guardian/{token}/journey` returns a journey **only if the tourist selected that guardian for it, the link isn't revoked, and the journey is live**; it carries no incident id, phone, document number or other guardians. Ending/cancelling a journey or revoking a guardian ends access immediately. The guardian page (`/guardian/<token>`) updates over `/ws/guardian/{token}` with a 10 s poll as fallback.
+- **Location.** Only while a journey is live, the open app reads the browser Geolocation API (permission is requested by the browser) and sends a fix every `WALKHOME_LOCATION_INTERVAL_SECONDS`. It stops the moment the journey ends. Duplicate or out-of-order fixes are ignored; each fix is stored with its age (relative, so a wrong phone clock can't back-date it). With no fix, nothing is sent — no placeholder location is ever shown. A fix older than `WALKHOME_LOCATION_STALE_SECONDS` is labelled **STALE — not live** and drawn grey. Denied permission, no GPS and being offline each have their own message; the journey and its deadlines keep working.
+
+**Configuration** (env vars, see `backend/app/core/config.py` and `.env.example`)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `WALKHOME_ENABLED` | `true` | Master switch (endpoints 404, the app hides the card) |
+| `WALKHOME_DEFAULT_DURATION_MINUTES` / `_MIN_` / `_MAX_` | `30` / `2` / `720` | Journey length |
+| `WALKHOME_DEFAULT_INTERVAL_MINUTES` / `_MIN_` / `_MAX_` | `10` / `1` / `120` | Check-in interval |
+| `WALKHOME_DEFAULT_GRACE_MINUTES` / `_MIN_` / `_MAX_` | `5` / `1` / `30` | Time to respond after a missed check-in (outings keep `CHECKIN_GRACE_MINUTES`) |
+| `WALKHOME_MAX_EXTENSIONS`, `WALKHOME_MAX_EXTENSION_MINUTES` | `3`, `60` | "Add time" allowance |
+| `WALKHOME_LOCATION_INTERVAL_SECONDS` | `15` | How often the open app shares a fix |
+| `WALKHOME_LOCATION_STALE_SECONDS` | `120` | Age after which guardians see "stale" |
+| `WALKHOME_ESCALATION_SEVERITY` | `critical` | Severity of the incident |
+| `CHECKIN_TICK_SECONDS` | `30` | How often journeys are checked — this is also the worst-case delay for a missed-check-in alert |
+
+**Set up.** Run `alembic upgrade head` (adds columns and one unique index to `checkins`; existing outings are untouched). No new dependencies. The scheduler must be running (`SCHEDULER_ENABLED=true`, the default) — it is what escalates a journey when the app is closed. Real SMS/push use the providers described under [Push & SMS Alerts](#push--sms-alerts); without them messages are recorded as *simulated*.
+
+### How to test it
+
+1. **Run it.** Start the API and frontend as in [Setup & Run](#setup--run). To see a miss within a minute, start the API with short timings, e.g. `CHECKIN_TICK_SECONDS=5` (and the form allows 1-minute intervals and grace).
+2. **Tourist window:** sign in as a tourist (e.g. `aarav@example.com`). On **Me → Trip Guardian** add a guardian ("Mum") and copy her link. In **Home → Walk-Me-Home** enter a destination, press **Find on map**, set *journey 15 min · check in every 1 min · grace 1 min*, tick **Mum**, **Review journey → Start journey** (allow location if asked).
+3. **Guardian window** (private/incognito, no login): open Mum's link. The journey appears with the destination, timer, last check-in and the map; a fix older than 2 min reads **STALE**.
+4. **Happy path:** tap **I AM SAFE – CHECK IN** before the timer ends — the timer resets, "Last check-in" updates (guardian page too). **Add time** extends it. **I have arrived — end journey** stops sharing; the guardian page shows the journey ended and no location.
+5. **Missed check-in → grace → incident:** start another journey and do nothing. At the deadline the app turns amber ("You missed a check-in", grace countdown) and the guardian page shows the alert; a **late check-in** during grace returns to normal. Let the grace run out as well: the app shows *Alert raised · Incident #N*, the guardian sees the escalation, and **Admin → Incidents** shows a **critical `missed_checkin`** incident with the destination, last coordinates and journey number. Close the tourist tab first to prove the server does it alone.
+6. **Cancel:** **Cancel journey** (confirm) — no incident, sharing stops, the guardian link shows nothing.
+7. **Permission denied / offline:** deny location (the journey still runs; the card says guardians see no position), or go offline (the card says it will resend).
+8. **Automated:**
+```bash
+cd backend  && python -m pytest tests/test_walk_home.py tests/test_checkin.py tests/test_guardian.py
+cd frontend && npx vitest run src/components/WalkHome.test.jsx
+```
+
+**Limitations.** Location is only read while the page is open — browsers suspend background tabs, and wrapping the PWA with Capacitor is the fix. When that happens the guardian sees the *last known* position with its age, never a fake live dot; deadlines and escalation are unaffected because the server enforces them. A missed check-in is flagged within `CHECKIN_TICK_SECONDS` of the deadline. Guardians authenticate by private link (as for Trip Guardian), so anyone given the link can follow a journey shared with that guardian until it ends or the link is revoked. Copy is English-only for now — other languages fall back to it (`frontend/src/lib/walkHomeStrings.js`).
+
+API: `GET /api/walk-home/config`; `POST/GET /api/tourists/{id}/walk-home`, `GET …/walk-home/active`, `POST …/walk-home/{sid}/checkin|location|extend|end|cancel`; public `GET /api/guardian/{token}/journey`; WebSocket `/ws/guardian/{token}`.
+
+---
+
+## Intelligent Response Management
+
+One pipeline for **every** incident, so SOS, fall/crash, Walk-Me-Home and the rest share one set of rules, one clock and one escalation:
+
+```
+ detection ─▶ evidence ─▶ SEVERITY CLASSIFIER ─▶ response target + deadlines ─▶ stage 1 (primary responder)
+                          severity_classifier.py   response_policy.py / escalation.py
+   ─▶ live countdown ─▶ acknowledgment? ──yes──▶ SLO recorded (response_metrics.py); incident stays OPEN
+                              │ no
+                              ▼
+   deadline missed ─▶ stage 2 (supervisor) ─▶ stage 3 (higher authority) ─▶ GLOBAL TIMEOUT (still open, admins told)
+```
+
+Order matters and is enforced in code: `monitoring._open_incident` calls `escalation.open_workflow`, which **classifies first**, only then sets the deadline from the final severity, and only then notifies.
+
+| Module | Responsibility |
+|---|---|
+| `services/severity_classifier.py` | Severity + the reason why; history, re-evaluation, admin override |
+| `services/response_policy.py` | Response targets and escalation timing (config defaults + admin overrides) |
+| `services/escalation.py` | Staged escalation, global timeout, acknowledgment claim (the original outreach chain in the same file is unchanged) |
+| `services/response_metrics.py` | Acknowledgment timing, countdown view, SLO |
+| `api/response.py` | Endpoints (authorisation only) |
+
+### Severity rules (deterministic, configurable, auditable)
+
+Everything numeric lives in `SEVERITY_*` settings; nothing is random or learned.
+
+1. **Baseline from type** (`SEVERITY_BASELINE_BY_TYPE`): `sos` / `missing_person` critical; `fall_detected` / `crash_detected` / `anomaly` high; `missed_checkin` / `geofence` / `safety_report` / `field_report` medium; `route_deviation` / `gps_signal_lost` low; unlisted types → medium. Raised to any tourist-reported urgency.
+2. **Corroborating indicators** (each counts one): no response to the safety confirmation (fall/crash/missed check-in), a strong sensor reading (peak acceleration at or above the existing detector threshold), repeated missed check-ins, other recent incidents for the tourist, location in a high-risk zone, the existing `safety_score` at or below `SEVERITY_LOW_SAFETY_SCORE` (0-100, higher = safer), distress language, tourist already in SOS. Every `SEVERITY_POINTS_PER_LEVEL` (2) indicators raise one level (max +2).
+3. **Safety rules:** an explicit SOS is always CRITICAL and never waits for evidence · a motion sensor **alone** can never make an incident CRITICAL (held at HIGH and flagged) · the severity a producing module declared is a **floor** — the classifier may raise it but never silently lowers it (`SEVERITY_SOURCE_FLOOR_ENABLED`).
+4. **Honesty:** missing data (no GPS, no sensor reading, no history) adds **nothing** — it is never treated as danger. Weak or conflicting evidence sets **needs review** for a human instead of downgrading. A suspected event is described as "suspected"; the reason never claims confirmation.
+5. **Changes:** automatic re-evaluation (e.g. a new related incident) can only raise severity. An administrator can set any severity via `POST /incidents/{id}/severity` with a **mandatory reason**; it is audited, moves the deadline by the rules below, and is sticky (re-evaluation will not undo a human decision).
+
+Every decision is stored in `severity_classifications`: type, severity, previous and baseline severity, time, the rules that fired, the evidence that existed, the reason text, the risk score (if any), whether it was a manual override, and who/why.
+
+Example reason: *"Classified as CRITICAL because a possible crash was detected (suspected, not confirmed) and the tourist has not responded to the safety confirmation request and the sensor reading is strong."*
+
+> The classification is a project convention, **not** a validated emergency-triage standard.
+
+### Response targets (illustrative demo defaults — not emergency-service standards)
+
+| Severity | Target to **acknowledge** | Setting |
+|---|---|---|
+| CRITICAL | 1 min | `RESPONSE_TARGET_CRITICAL_SECONDS=60` |
+| HIGH | 3 min | `RESPONSE_TARGET_HIGH_SECONDS=180` |
+| MEDIUM | 5 min | `RESPONSE_TARGET_MEDIUM_SECONDS=300` |
+| LOW | 10 min | `RESPONSE_TARGET_LOW_SECONDS=600` |
+
+Admins can change these (and stage 2 / the global timeout) on **Admin → Response & SLO → Targets & escalation**; the server rejects inconsistent sets (critical ≤ high ≤ medium ≤ low; global timeout ≥ longest target). A change applies to *new* incidents.
+
+### Escalation: how the three clocks relate
+
+| Clock | Meaning | Default |
+|---|---|---|
+| Response target | Time a responder has to **acknowledge**; `response_deadline = detected_at + target` | by severity |
+| Stage deadline | When an unacknowledged incident moves up. **Stage 1** (primary responder) ends at the response deadline · **stage 2** (supervisor) lasts `RESPONSE_STAGE2_SECONDS` · **stage 3** (higher authority) lasts until the global timeout | 120 s |
+| Global timeout | **One fixed bound** for the whole lifecycle, from detection; never reset by a stage; no stage deadline is ever later than it | `RESPONSE_GLOBAL_TIMEOUT_SECONDS=1800` |
+
+At the global timeout, ordinary escalation stops, the `RESPONSE_GLOBAL_TIMEOUT_AUDIENCE` is notified, and the incident **stays open** for manual action — it is never auto-closed or resolved. MUSAFIR has no separate supervisor role, so by default stage 1 notifies the assigned unit's responders (all responders if unassigned), stage 2 all responders, and stage 3 and the global timeout the admins (`RESPONSE_STAGE{1,2,3}_AUDIENCE`). An optional "deadline approaching" push is available (`RESPONSE_WARNING_SECONDS`, default off).
+
+A severity **upgrade** sets the deadline to `min(old deadline, now + new target)` (never more time); an admin **downgrade** recomputes from detection; after acknowledgment the decided deadline is left alone. Original timestamps are never changed.
+
+**Reliability:** deadlines and stages are stored on the incident, so escalation continues with the browser closed and resumes after a restart (a long outage gives the next authority a full window; past the global timeout it goes straight to "exhausted"). Every transition is a conditional `UPDATE` claim plus a unique `escalation_events` row, so two workers, a replayed tick, or an acknowledgment racing a stage change cannot duplicate an event or a notification. Notification rows join the same transaction and are delivered and retried by the existing notification job, so a failed push never loses the escalation. The scheduler job's lock TTL is just under one tick (30 s), so a 60 s target is honoured.
+
+### Acknowledgment ≠ resolution
+
+`POST /incidents/{id}/acknowledge` (or any human status change) records who, when, how long it took and whether it met the target — **once**; of two responders acknowledging together exactly one wins. Creation, assignment, acknowledgment, dispatch and resolution keep separate timestamps; an acknowledged, unresolved incident stays open and visible. Resolving closes the workflow.
+
+### SLO methodology
+
+```
+Response SLO compliance (%) = acknowledged within response_deadline ÷ acknowledged eligible incidents × 100
+```
+
+*Eligible* = incidents with a stored response deadline, detected in the chosen period (and matching the severity / type / team filters). The denominator counts **acknowledged** incidents only; unacknowledged and overdue incidents are reported **separately** and never counted as successes. Compliance shows **—** (not 0 % or 100 %) when nothing has been acknowledged yet. Also reported: received, acknowledged, within/after target, unacknowledged, overdue, escalated, global timeouts, average and median acknowledgment time, by severity and by type, a daily trend, escalations over time and an acknowledgment-time histogram (`SLO_DISTRIBUTION_BUCKETS_SECONDS`). All figures come from stored timestamps; incidents created before this feature have no deadline and are excluded.
+
+### Setup, run and test
+
+```bash
+cd backend && alembic upgrade head          # adds incident columns + 3 tables (migration g4b5c6d7e8f9)
+python -m pytest tests/test_response_workflow.py        # 84 tests, controllable clock (no sleeping)
+cd ../frontend && npx vitest run src/components/ResponseManagement.test.jsx
+```
+
+Try it: sign in as **admin** → **Response & SLO**. Trigger an SOS as a tourist (or a simulated fall) and watch the countdown; do nothing and it moves to *Supervisor* and then *Higher authority* (for a quick demo use small values under **Targets & escalation**, e.g. critical 20 s and stage 2 of 20 s — the check runs every `ESCALATION_TICK_SECONDS`). **Acknowledge** it, then open **Response performance (SLO)**. Override a severity from a board card. Set `RESPONSE_MANAGEMENT_ENABLED=false` to switch the whole feature off (incidents then behave exactly as before).
+
+**Limitations:** thresholds and targets are demonstration values, not clinical or emergency-service standards · there is no separate supervisor role (stage 2 is the responder pool) · escalation pushes staff browsers (Web Push); SMS to authorities is not configured · severity re-evaluation is event-driven (a new related incident or the admin button), not continuous · sensor strength is derived only from the stored peak acceleration (the data has no confidence value, and none is invented).
+
+---
+
 ## Live Demo Mode
 
 With the backend running, drive fake tourists around the map and trigger scripted
@@ -449,6 +680,17 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 | GET | `/api/translate/guide/categories` · `/api/translate/guide/{category}` · POST `/api/translate/guide/phrase` | Multilingual Guide phrasebook |
 | GET | `/api/permits/types` · GET/POST `/api/tourists/{id}/permits` · PATCH/POST `…/permits/{id}` · `…/{id}/confirm` | Permit & E-Pass Automation: draft → edit → explicit confirm (never auto-submitted) |
 | GET | `/api/festivals` · `/api/festivals/near` | Festival & Local Event Intelligence |
+| POST | `/api/tourists/{id}/fall-events` · `…/{eid}/cancel` · `…/{eid}/confirm` · `…/{eid}/sos` | Fall & Crash Detection: start the 30 s countdown · "I am safe" · expiry · immediate SOS |
+| POST | `/api/devices/{device_id}/fall-event` | Wearable fall/crash report (device key) → same countdown |
+| POST | `/api/tourists/{id}/walk-home` · `…/{sid}/checkin` · `…/location` · `…/extend` · `…/end` · `…/cancel` | Walk-Me-Home: start a journey · check in · share location · add time · finish · cancel |
+| GET | `/api/guardian/{token}/journey` | Walk-Me-Home: the journey shared with this guardian (public, link-token scoped) |
+| WS | `/ws/guardian/{token}` | Walk-Me-Home live updates for a guardian page |
+| GET/PUT | `/api/response/config` | Response targets, stage-2 duration, global timeout (read: admin/responder · change: admin, validated + audited) |
+| GET | `/api/response/board` | Live response board: open incidents with server-computed remaining time (responders see only their unit) |
+| GET | `/api/response/slo` · `/api/response/slo/by-severity` | SLO report (admin): `from`, `to`, `severity`, `incident_type`, `unit_id` filters |
+| GET | `/api/incidents/{id}/response` · `…/classification` · `…/escalations` | One incident's deadline/stage view · classification history with rules · escalation history |
+| POST | `/api/incidents/{id}/severity` · `…/reclassify` | Admin severity override (reason mandatory, audited) · re-run the rules |
+| POST | `/api/incidents/{id}/acknowledge` | Existing endpoint — now also records who/when/within-target (once, race-safe) |
 | WS | `/ws/alerts?token=…` | Live alert/location/incident stream (admin token required) |
 
 ---

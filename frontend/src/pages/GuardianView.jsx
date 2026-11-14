@@ -5,6 +5,7 @@ import api from '../api'
 import { bandColor, bandLabel } from '../components/ui.jsx'
 import { touristIcon } from '../components/mapIcons'
 import PushToggle from '../components/PushToggle.jsx'
+import WalkHomeGuardianPanel from '../components/WalkHomeGuardianPanel.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../lib/mapConfig"
 
 const POLL_MS = 10000
@@ -53,6 +54,8 @@ export default function GuardianView() {
           <p className="text-xs text-slate-500 mb-2">We’ll notify you right away if {state.tourist_name} triggers an SOS — even if this page is closed.</p>
           <PushToggle guardianToken={token} />
         </div>
+        {/* Walk-Me-Home: only a journey the tourist shared with THIS guardian. */}
+        <WalkHomeGuardianPanel token={token} />
         {state.status === 'sos' && (
           <div className="bg-red-600 text-white rounded-xl p-4 text-center font-bold sos-pulse">
             🚨 {state.tourist_name} has triggered an SOS

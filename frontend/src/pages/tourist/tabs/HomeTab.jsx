@@ -8,6 +8,7 @@ import ScoreExplanation from '../../../components/ScoreExplanation.jsx'
 import TrajectoryOverlay from '../../../components/TrajectoryOverlay.jsx'
 import { RouteLayer } from '../../../components/RoutePicker.jsx'
 import DisasterBanner from '../../../components/DisasterBanner.jsx'
+import WalkHomeCard from '../../../components/WalkHomeCard.jsx'
 import RecommendedPlaces from '../../../components/RecommendedPlaces.jsx'
 import SafetyAssistantCard from '../../../components/SafetyAssistantCard.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../../lib/mapConfig"
@@ -139,6 +140,9 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
 
       <QuickActions onVoice={onVoice} onNavigateTab={onNavigateTab}
         setRoutePickerOpen={setRoutePickerOpen} />
+
+      {/* Walk-Me-Home: monitored journey with live guardian tracking. */}
+      {data.walk && <WalkHomeCard walk={data.walk} />}
 
       <DisasterBanner touristId={tid} />
 

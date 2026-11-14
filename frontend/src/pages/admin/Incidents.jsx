@@ -4,6 +4,7 @@ import useWebSocket from '../../useWebSocket'
 import { SeverityBadge, StatusBadge, Card } from '../../components/ui.jsx'
 import DispatchPanel from '../../components/DispatchPanel.jsx'
 import IncidentTimeline from '../../components/IncidentTimeline.jsx'
+import ResponseChip from '../../components/ResponseChip.jsx'
 import TouristDetailsPanel from '../../components/TouristDetailsPanel.jsx'
 import { downloadCSV } from '../../lib/csv'
 
@@ -37,7 +38,7 @@ export default function Incidents() {
     api.get(url).then((r) => setIncidents(r.data))
   }
   useEffect(load, [statusFilter])
-  useWebSocket((ev) => { if (ev.event === 'incident') load() })
+  useWebSocket((ev) => { if (ev.event === 'incident' || ev.event === 'incident_response') load() })
 
   const advance = async (inc) => {
     const next = NEXT[inc.status]
@@ -120,6 +121,10 @@ export default function Incidents() {
                 <SeverityBadge severity={inc.severity} />
                 <StatusBadge status={inc.status} />
                 {inc.escalation_stage && <StatusBadge status={inc.escalation_stage} />}
+                <ResponseChip inc={inc} />
+                {inc.needs_review && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">needs review</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => { setExpanded(expanded === inc.id ? null : inc.id); setExpandedTab('dispatch') }}
@@ -135,6 +140,11 @@ export default function Incidents() {
               </div>
             </div>
             <div className="text-sm text-slate-600 mt-1">{inc.description}</div>
+            {inc.classification_reason && (
+              <div className="text-xs text-slate-500 mt-1" data-testid="classification-reason">
+                Why {inc.severity}: {inc.classification_reason}
+              </div>
+            )}
             <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-xs text-slate-500">
               <span>Detected: {new Date(inc.detected_at).toLocaleString()}</span>
               <span>Response time: {fmt(inc.response_time_seconds)}</span>

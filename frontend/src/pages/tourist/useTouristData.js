@@ -188,7 +188,7 @@ export default function useTouristData(tid) {
     ready: !!(me && score),
     online, me, score, zones, units, trajectory, riskForecast,
     tracking, toggleTracking, toast,
-    sosSent, sosQueued, pendingCount, sendSOS,
+    sosSent, setSosSent, sosQueued, pendingCount, sendSOS,
     emergencyMessage, setEmergencyMessage,
     posRef, geo, load, pushLocation,
     inZones, riskyZone, nearby,
