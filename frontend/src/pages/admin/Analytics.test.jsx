@@ -77,7 +77,8 @@ describe('Analytics page', () => {
     mockBaseEndpoints()
     const { findByText, container } = render(<Analytics />)
     await findByText('Total Incidents', undefined, { timeout: 4000 })
-    expect(statValue(container, 'Total Incidents')).toBe('5')
+    // the label renders before its value arrives -- wait for the value itself
+    await waitFor(() => expect(statValue(container, 'Total Incidents')).toBe('5'), { timeout: 4000 })
     expect(statValue(container, 'Avg Response Time')).toBe('145s')
   })
 
@@ -85,7 +86,8 @@ describe('Analytics page', () => {
     mockBaseEndpoints()
     const { findByText, container } = render(<Analytics />)
     await findByText('🚨 SOS & Emergency Analytics', undefined, { timeout: 4000 })
-    expect(statValue(container, 'Total SOS Cases')).toBe('2')
+    // the heading is static; the numbers come from /analytics/incident-types afterwards
+    await waitFor(() => expect(statValue(container, 'Total SOS Cases')).toBe('2'), { timeout: 4000 })
     expect(statValue(container, 'Active SOS')).toBe('1')
     expect(statValue(container, 'Resolved SOS')).toBe('1')
   })

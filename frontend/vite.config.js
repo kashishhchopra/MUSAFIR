@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => {
       workbox: {
         // Push + notification-click handlers (public/push-sw.js), appended to the generated worker.
         importScripts: ['push-sw.js'],
+        // The single app bundle passed Workbox's 2 MiB default (2.15 MB), which fails the
+        // build. It must stay precached -- offline SOS/maps need the app shell with no
+        // signal -- so the limit is raised. Follow-up: code-split the admin pages.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // App shell (JS/CSS/HTML/icons) is precached automatically by the
         // plugin. Runtime caching below covers API calls specifically:
         runtimeCaching: [
