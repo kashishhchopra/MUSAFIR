@@ -2,7 +2,7 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.services import audit
-from app.services.notifications import get_channel
+from app.services.notifications import get_email_channel
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -59,8 +59,20 @@ def _token_predates_epoch(claims: dict, user: User) -> bool:
 # Generic response for forgot-password regardless of outcome, so the endpoint
 # cannot be used to enumerate registered email addresses.
 _FORGOT_PASSWORD_ACK = {
-    "message": "If that email is registered, a password reset link has been sent."
+    "message": "If that email is registered, a password reset code has been sent to it."
 }
+
+
+def _reset_email_body(name: str, raw_token: str) -> str:
+    minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    return (
+        f"Hello {name or 'there'},\n\n"
+        "We received a request to reset your MUSAFIR password.\n\n"
+        f"Your reset code: {raw_token}\n\n"
+        f"It is valid for {minutes} minutes and can be used once. In MUSAFIR, open "
+        "\"Forgot password\", paste this code and choose a new password.\n\n"
+        "If you did not ask for this, ignore this email -- your password stays the same.\n"
+    )
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -172,11 +184,13 @@ def logout(request: Request, response: Response,
 
 @router.post("/forgot-password", dependencies=[Depends(login_rate_limit)])
 def forgot_password(payload: ForgotPasswordRequest, request: Request,
-                    db: Session = Depends(get_db)):
+                    background: BackgroundTasks, db: Session = Depends(get_db)):
     """Always returns the same generic acknowledgement -- an attacker probing
     for registered emails learns nothing from the response either way, and
     the same login rate limit that guards brute-force attempts also caps
-    how many reset emails one client can trigger."""
+    how many reset emails one client can trigger. The email is sent after the
+    response, so a slow mail server can't reveal (by timing) that the address
+    exists, nor make the request hang."""
     user = db.query(User).filter(func.lower(User.email) == payload.email.strip().lower()).first()
     if user:
         raw_token = secrets.token_urlsafe(32)
@@ -186,13 +200,11 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request,
             expires_at=utc_now() + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
         ))
         db.commit()
-        get_channel().send(
+        background.add_task(
+            get_email_channel().send,
             to=user.email,
-            subject="Password reset request",
-            body=(
-                f"Use this code to reset your password (valid "
-                f"{settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes): {raw_token}"
-            ),
+            subject="Your MUSAFIR password reset code",
+            body=_reset_email_body(user.full_name, raw_token),
         )
         audit.record(db, "forgot_password", actor=user.email, request=request)
     return _FORGOT_PASSWORD_ACK
