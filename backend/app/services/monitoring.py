@@ -1,6 +1,7 @@
 """Core pipeline: ingest a location ping -> anomaly + geofence checks ->
 alerts, incidents, safety-score refresh, and WebSocket broadcast."""
 import json
+import threading
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
@@ -335,8 +336,73 @@ def raise_motion_incident(
     return inc
 
 
+# A frightened user taps SOS repeatedly. Each tap used to open its own incident and
+# its own write transaction; the extra taps queued behind the first one's database
+# lock and failed with a 500 ("database is locked") -- on the one endpoint that must
+# never fail. Now taps for the same tourist are serialised, and a repeat inside the
+# window returns the incident the first tap already opened (same payload, no 2nd
+# dispatch, no duplicate alerts). A silent/duress SOS is never merged with a visible
+# one. The lock is per process (the app runs one worker); the DB check covers the rest.
+SOS_DEDUPE_SECONDS = 120
+_sos_locks: dict[int, threading.Lock] = {}
+_sos_locks_guard = threading.Lock()
+
+
+def _sos_lock(tourist_id: int) -> threading.Lock:
+    with _sos_locks_guard:
+        return _sos_locks.setdefault(tourist_id, threading.Lock())
+
+
+def _recent_open_sos(db: Session, tourist_id: int, silent: bool) -> Incident | None:
+    cutoff = utc_now() - timedelta(seconds=SOS_DEDUPE_SECONDS)
+    return (
+        db.query(Incident)
+        .filter(Incident.tourist_id == tourist_id, Incident.type == "sos",
+                Incident.status != "resolved", Incident.silent.is_(silent),
+                Incident.detected_at >= cutoff)
+        .order_by(Incident.id.desc())
+        .first()
+    )
+
+
+def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float, lng: float, silent: bool) -> dict:
+    from app.models.police import PoliceStation, PoliceUnit
+    nearest = db.get(PoliceUnit, inc.assigned_unit_id) if inc.assigned_unit_id else None
+    station = db.get(PoliceStation, inc.station_id) if inc.station_id else None
+    return {
+        "incident_id": inc.id,
+        "nearest_unit": {
+            "name": nearest.name, "station": nearest.station,
+            "phone": nearest.phone, "lat": nearest.lat, "lng": nearest.lng,
+            "distance_km": round(haversine_m(lat, lng, nearest.lat, nearest.lng) / 1000, 2),
+        } if nearest else None,
+        "notified_contacts": json.loads(tourist.emergency_contacts or "[]"),
+        # Added for SOS live location sharing (services/emergency_location.py)
+        # -- everything above this point is this function's original,
+        # pre-existing return payload, unchanged.
+        "silent": silent,
+        "status": inc.status,
+        "live_tracking_active": inc.live_tracking_active,
+        "station_id": station.id if station else None,
+        "station_name": station.name if station else None,
+    }
+
+
 def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: str,
                 silent: bool = False) -> dict:
+    """Raise an SOS once per burst of taps -- see the note above. The work itself is
+    `_trigger_sos_unlocked`."""
+    tid = tourist.id
+    with _sos_lock(tid):
+        existing = _recent_open_sos(db, tid, silent)
+        if existing is not None:
+            logger.warning("sos_duplicate_tap_merged", tourist_id=tid, incident_id=existing.id)
+            return _sos_payload(db, existing, tourist, lat, lng, silent)
+        return _trigger_sos_unlocked(db, tourist, lat, lng, message, silent)
+
+
+def _trigger_sos_unlocked(db: Session, tourist: Tourist, lat: float, lng: float, message: str,
+                          silent: bool = False) -> dict:
     """One-tap SOS: mark tourist, find nearest available unit, open critical incident.
 
     `silent` (Silent/Duress SOS) is the same protected payload raised through
@@ -394,8 +460,6 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: 
     _create_alert(db, tourist.id, "sos", "critical",
                   f"🚨 SOS from {tourist.full_name}", lat, lng, notify_self=not silent)
 
-    contacts = json.loads(tourist.emergency_contacts or "[]")
-
     # Push + SMS fan-out (tourist, guardians, assigned responders, control room,
     # emergency contacts). Rows are written in THIS transaction and delivered
     # only after the commit below, off the request thread -- see
@@ -409,25 +473,7 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: 
     db.commit()
     db.refresh(inc)
 
-    from app.models.police import PoliceStation
-    station = db.get(PoliceStation, inc.station_id) if inc.station_id else None
-    return {
-        "incident_id": inc.id,
-        "nearest_unit": {
-            "name": nearest.name, "station": nearest.station,
-            "phone": nearest.phone, "lat": nearest.lat, "lng": nearest.lng,
-            "distance_km": round(haversine_m(lat, lng, nearest.lat, nearest.lng) / 1000, 2),
-        } if nearest else None,
-        "notified_contacts": contacts,
-        # Added for SOS live location sharing (services/emergency_location.py)
-        # -- everything above this point is this function's original,
-        # pre-existing return payload, unchanged.
-        "silent": silent,
-        "status": inc.status,
-        "live_tracking_active": inc.live_tracking_active,
-        "station_id": station.id if station else None,
-        "station_name": station.name if station else None,
-    }
+    return _sos_payload(db, inc, tourist, lat, lng, silent)
 
 
 def escalate_safety_report(db: Session, tourist: Tourist, report) -> Incident | None:

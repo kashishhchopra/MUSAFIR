@@ -145,10 +145,13 @@ def test_duplicates_are_suppressed_not_resent(db, world, push, sms):
 def test_sim_tourists_are_never_texted_and_allowlist_is_honoured(db, world, push, sms, monkeypatch):
     world.tourist.digital_id = "SIM-0001"
     db.commit()
-    trigger_sos(db, world.tourist, 26.1445, 91.7362, "sim sos")
+    first = trigger_sos(db, world.tourist, 26.1445, 91.7362, "sim sos")
     assert sms.sent == []
     assert any("simulated tourist" in (x.last_error or "") for x in _logs(db, channel="sms"))
 
+    # A second, separate emergency: resolve the first, or a repeat SOS inside the dedupe window
+    # would (correctly) be merged into it instead of raising a new one.
+    db.get(Incident, first["incident_id"]).status = "resolved"
     world.tourist.digital_id = "STS-REAL"
     db.commit()
     monkeypatch.setattr(settings, "SMS_ALLOWLIST", "+919000000001")
