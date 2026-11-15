@@ -45,3 +45,4 @@ backend/anchor_ledger.jsonl
 backend/evaluation_reports/
 .vapid_keys.json
 backend/.vapid_keys.json
+.env.production.local

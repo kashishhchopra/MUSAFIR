@@ -83,5 +83,12 @@
 		<string>location</string>
 		<string>remote-notification</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>MUSAFIR connects to the development server on your local network.</string>
 </dict>
 </plist>
