@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { geoSupported, watchPosition } from '../lib/geo'
 
 // Wraps navigator.geolocation.watchPosition with permission-state handling.
 // `enabled` gates the whole thing (the app also has its own tracking toggle,
@@ -10,13 +11,13 @@ export default function useGeolocation({ enabled = true } = {}) {
   const watchIdRef = useRef(null)
 
   useEffect(() => {
-    if (!('geolocation' in navigator)) {
+    if (!geoSupported()) {
       setPermissionState('unsupported')
       return
     }
     if (!enabled) {
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
+      if (watchIdRef.current) {
+        watchIdRef.current()
         watchIdRef.current = null
       }
       return
@@ -35,7 +36,7 @@ export default function useGeolocation({ enabled = true } = {}) {
         .catch(() => {})
     }
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
+    watchIdRef.current = watchPosition(
       (pos) => {
         setError(null)
         setPermissionState('granted')
@@ -56,8 +57,8 @@ export default function useGeolocation({ enabled = true } = {}) {
     )
 
     return () => {
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
+      if (watchIdRef.current) {
+        watchIdRef.current()
         watchIdRef.current = null
       }
     }

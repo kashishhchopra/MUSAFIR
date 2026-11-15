@@ -78,5 +78,10 @@
 	<string>MUSAFIR uses the microphone for the voice translator.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>MUSAFIR uses speech recognition to translate what you say.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

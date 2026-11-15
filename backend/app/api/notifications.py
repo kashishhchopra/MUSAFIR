@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.models.guardian import TripGuardian
 from app.models.notification import NotificationLog, PushSubscription
 from app.models.user import User
-from app.services import audit, notifications
+from app.services import apns, audit, notifications
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -59,6 +59,12 @@ def _upsert(db: Session, payload: SubscribeRequest, *, user: User | None, guardi
     return sub
 
 
+def _require_push(endpoint: str) -> None:
+    ok = apns.configured() if apns.is_apns(endpoint) else notifications.vapid_keys()[0] is not None
+    if not ok:
+        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+
+
 @router.get("/push/public-key")
 def public_key():
     """The VAPID public key a browser needs to subscribe (public by design)."""
@@ -68,8 +74,7 @@ def public_key():
 
 @router.post("/push/subscribe", status_code=201)
 def subscribe(payload: SubscribeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if notifications.vapid_keys()[0] is None:
-        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+    _require_push(payload.endpoint)
     sub = _upsert(db, payload, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}
 
@@ -88,8 +93,7 @@ def unsubscribe(payload: UnsubscribeRequest, db: Session = Depends(get_db), user
 def guardian_subscribe(payload: GuardianSubscribeRequest, db: Session = Depends(get_db)):
     """A guardian (family member) opts in from their share page -- the unguessable
     share token is their credential, exactly like the page itself."""
-    if notifications.vapid_keys()[0] is None:
-        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+    _require_push(payload.endpoint)
     g = db.query(TripGuardian).filter(TripGuardian.token == payload.token, TripGuardian.revoked.is_(False)).first()
     if g is None:
         raise HTTPException(status_code=404, detail="This share link is not valid")
