@@ -39,6 +39,9 @@ class TouristIdToken(Base):
     status: Mapped[str] = mapped_column(String, default="active", nullable=False)
     issued_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     invalidated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Optional token-level lifetime (settings.MEDICAL_QR_TOKEN_TTL_DAYS). NULL =
+    # no token-level expiry; the trip end still expires the ID (id_status).
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     tourist: Mapped["Tourist"] = relationship()  # noqa: F821
 
@@ -63,3 +66,7 @@ class TouristIdScan(Base):
     # JSON list of field names actually returned to the scanner -- makes the
     # audit row prove what was (and wasn't) disclosed, not just that a scan happened.
     accessed_fields: Mapped[str] = mapped_column(Text, default="[]")
+    # Medical-profile access only (method == "medical_qr"): the purpose the
+    # responder declared, and the request id for correlating with server logs.
+    purpose: Mapped[str | None] = mapped_column(String, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String, nullable=True)

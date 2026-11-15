@@ -26,6 +26,10 @@ def create_guardian(tourist_id: int, payload: TripGuardianCreate, db: Session = 
     t = db.get(Tourist, tourist_id)
     if not t:
         raise HTTPException(status_code=404, detail="Tourist not found")
+    from app.services.privacy_consent import is_withdrawn
+
+    if is_withdrawn(db, tourist_id, "guardian_sharing"):
+        raise HTTPException(status_code=403, detail="Guardian sharing consent is withdrawn. Grant it in Privacy settings first.")
     guardian = TripGuardian(
         tourist_id=tourist_id, guardian_name=payload.guardian_name,
         guardian_contact=payload.guardian_contact,

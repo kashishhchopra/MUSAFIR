@@ -20,6 +20,7 @@ import Devices from './pages/admin/Devices.jsx'
 import Simulation from './pages/admin/Simulation.jsx'
 import Notifications from './pages/admin/Notifications.jsx'
 import AuditLog from './pages/admin/AuditLog.jsx'
+import PrivacyAdmin from './pages/admin/PrivacyAdmin.jsx'
 import TouristApp from './pages/tourist/TouristApp.jsx'
 import ResponderLayout from './pages/responder/ResponderLayout.jsx'
 import ResponderConsole from './pages/responder/ResponderConsole.jsx'
@@ -115,6 +116,7 @@ export default function App() {
               <Route path="simulation" element={<Simulation />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="audit" element={<AuditLog />} />
+              <Route path="privacy" element={<PrivacyAdmin />} />
             </Route>
             <Route path="/responder" element={<Protected role="responder"><ResponderLayout /></Protected>}>
               <Route index element={<ResponderConsole />} />

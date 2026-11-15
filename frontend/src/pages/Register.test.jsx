@@ -49,6 +49,12 @@ function fillIdentityAndAdvance(documentType = 'aadhaar') {
   fireEvent.click(screen.getByText('Next'))
 }
 
+// The privacy step's two required statements (nothing is pre-ticked).
+function acceptPrivacy() {
+  fireEvent.click(screen.getByLabelText(/I have read how MUSAFIR uses my data/))
+  fireEvent.click(screen.getByLabelText(/I am 18 years of age or older/))
+}
+
 // Captures a photo (live camera step, mandatory) and advances past it.
 async function capturePhotoAndAdvance() {
   expect(screen.getByText(/— Photo/)).toBeInTheDocument()
@@ -86,7 +92,8 @@ describe('Register', () => {
     renderPage()
     await advanceToAccount()
     expect(screen.getByText(/Get Your Unique Blockchain ID/).closest('button')).toBeDisabled()
-    expect(screen.queryByText(/Optional/)).not.toBeInTheDocument()
+    // the old "credentials are optional" hint is gone (the privacy step has its own optional consents)
+    expect(screen.queryByText(/Optional — set credentials/)).not.toBeInTheDocument()
   })
 
   it('cannot submit when the two passwords differ', async () => {
@@ -110,6 +117,7 @@ describe('Register', () => {
     renderPage()
     await advanceToAccount()
     fillAccount()
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     const [url, payload] = api.post.mock.calls[0]
@@ -197,6 +205,7 @@ describe('Register', () => {
     fireEvent.click(screen.getByText('Next'))  // -> Emergency Contact
     fireEvent.click(screen.getByText('Next'))  // -> Account
     fillAccount()
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     expect(api.post).toHaveBeenCalled()
@@ -224,6 +233,7 @@ describe('Register', () => {
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
     fillAccount()
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]
@@ -291,6 +301,7 @@ describe('Register', () => {
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
     fillAccount()
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]

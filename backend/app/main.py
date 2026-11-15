@@ -27,10 +27,12 @@ from app.api import (
     incidents,
     itinerary,
     maps,
+    medical_profile,
     ml,
     notifications,
     permits,
     police_network,
+    privacy,
     safety_reports,
     simulation,
     tourist_id,
@@ -97,9 +99,11 @@ def _checkin_tick_job() -> None:
 
 
 def _retention_purge_tick_job() -> None:
-    from app.services.privacy import tick_retention_purge
+    # Was location-only; now the central retention engine (which still runs the
+    # existing location purge) plus export cleanup and due account deletions.
+    from app.services.privacy_retention import tick
 
-    _locked("retention_purge_tick", tick_retention_purge)
+    _locked("retention_purge_tick", tick)
 
 
 def _disaster_tick_job() -> None:
@@ -267,6 +271,8 @@ app.include_router(response.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(police_network.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(cctv.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(tourist_id.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(medical_profile.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(privacy.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(itinerary.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(maps.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(translate.router, prefix=PREFIX, dependencies=_rl)

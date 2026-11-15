@@ -36,7 +36,7 @@ from app.schemas.tourist import (
     TouristCreate,
     TouristOut,
 )
-from app.services import audit, consular, hashchain, liveness, privacy
+from app.services import audit, consular, hashchain, liveness, privacy, privacy_consent
 from app.services import passport as passport_service
 from app.services import tourist_id as tourist_id_service
 from app.services.forecast import DEFAULT_HORIZONS_MIN, forecast_risk
@@ -98,6 +98,14 @@ def register_tourist(payload: TouristCreate, db: Session = Depends(get_db)):
     # behind a tourist with no way to sign in.
     if db.query(User).filter(func.lower(User.email) == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+    # Consents the person explicitly ticked (DPDP-oriented privacy step). Validated
+    # before anything is written.
+    choices = [c.model_dump() for c in payload.consents]
+    if choices or settings.PRIVACY_REGISTRATION_CONSENT_REQUIRED:
+        try:
+            privacy_consent.validate_choices(choices)
+        except privacy_consent.ConsentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     digital_id = _generate_digital_id(payload.full_name)
     tourist = Tourist(
         digital_id=digital_id,
@@ -142,6 +150,8 @@ def register_tourist(payload: TouristCreate, db: Session = Depends(get_db)):
     # ready to display immediately after registration -- see
     # services/tourist_id.py.
     tourist_id_service.issue_token(db, tourist)
+    if choices:
+        privacy_consent.record_registration(db, tourist, choices)
 
     # the tourist's app login (email already checked for duplicates above)
     db.add(User(
@@ -341,6 +351,10 @@ def update_location(tourist_id: int, payload: LocationUpdate, db: Session = Depe
     t = db.get(Tourist, tourist_id)
     if not t:
         raise HTTPException(status_code=404, detail="Tourist not found")
+    # Location consent withdrawn / tracking switched off: stop collecting. (An SOS has
+    # its own trail and is not affected.)
+    if not t.tracking_enabled:
+        raise HTTPException(status_code=409, detail="Location tracking is switched off for this account.")
     return process_ping(db, t, payload.lat, payload.lng, payload.speed_kmh)
 
 
@@ -368,6 +382,7 @@ def toggle_tracking(tourist_id: int, enabled: bool, db: Session = Depends(get_db
     if not t:
         raise HTTPException(status_code=404, detail="Tourist not found")
     t.tracking_enabled = enabled
+    privacy_consent.sync_tracking(db, t, enabled)
     db.commit()
     return {"tourist_id": tourist_id, "tracking_enabled": enabled}
 
@@ -511,6 +526,8 @@ def update_privacy(tourist_id: int, payload: PrivacySettingsUpdate, db: Session 
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(t, field, value)
+    if "tracking_enabled" in updates:
+        privacy_consent.sync_tracking(db, t, bool(t.tracking_enabled))
     db.commit()
     return privacy.privacy_report(db, t)
 
