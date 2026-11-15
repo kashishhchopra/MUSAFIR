@@ -54,10 +54,12 @@ and a responsive tourist mobile view.
 | 21 | **Fall & Crash Detection** | The phone's motion sensors (or a wearable, or a clearly-labelled simulation) spot a possible fall/crash → a full-screen **30 s "I AM SAFE – CANCEL ALERT" countdown** (or **Send SOS now**). Cancel and nothing is raised; let it run out and **one critical incident** (`fall_detected` / `crash_detected`) is opened through the existing monitoring pipeline — same Incidents page, alerts, push/SMS and escalation as any other emergency. The server owns the clock, so a closed app still escalates. |
 | 22 | **Walk-Me-Home** | A tourist walking alone starts a **monitored journey** (destination, duration, check-in interval, chosen guardians). Guardians follow the timer and last location on their private link; **I AM SAFE – CHECK IN** resets the deadline. Miss one and a warning + grace period start; if the grace runs out the **existing check-in engine opens a critical incident** for the police/admin dashboard. Deadlines are server-owned, so a closed app still escalates. |
 | 23 | **Intelligent Response Management** | Every incident — SOS, fall/crash, Walk-Me-Home, anomaly, missing person, field report — is **classified CRITICAL / HIGH / MEDIUM / LOW by transparent rules** (with a stored explanation), given a **backend response deadline** from its severity, and **auto-escalated** primary responder → supervisor → higher authority if nobody acknowledges it, up to one fixed **global timeout** (the incident stays open). Admin **Response & SLO** page: live countdowns, severity override with a mandatory reason, SLO compliance from real timestamps, charts and settings. |
+| 24 | **Emergency Medical Profile (QR)** | Tourists optionally record blood group, allergies, conditions, medications and emergency contacts. The existing Digital ID QR (token only, **no medical data**) lets an **authorized responder** open that profile after the backend checks the token and role; every access is **rate-limited and audited**, and the tourist can edit, regenerate or revoke the QR. Data is encrypted at rest and labelled tourist-reported. |
 
 All seven live in the tourist app's new **Explore** tab (🌍). None of them touch any existing feature's data or routes — they're additive, reusing the existing itinerary, zone, weather, translation, and POI infrastructure wherever possible. Two external, free-tier data sources back them: OpenStreetMap's **Overpass API** (Discovery + indoor alternatives — no key needed) and **Calendarific** (public holidays — free key needed, see `backend/.env.example` / `CALENDARIFIC_API_KEY`). With no Calendarific key, holiday-driven signals are simply absent, never fabricated.
 
 ---
+| 25 | **Privacy, Consent & Data Rights (DPDP-oriented)** | Purpose-specific consent (nothing pre-ticked) with real withdrawal effects, a configurable retention engine with a deletion-job audit, location-history viewing/deletion, password-gated **Download My Data** (JSON/CSV, encrypted, expiring), full **Delete My Account** with honest status, a privacy dashboard and grievance desk. Not a compliance certificate - see `docs/DPDP_PRIVACY.md`. |
 
 ## Architecture
 
@@ -562,6 +564,57 @@ Try it: sign in as **admin** → **Response & SLO**. Trigger an SOS as a tourist
 
 ---
 
+## Emergency Medical Profile (QR)
+
+A tourist can record optional emergency medical facts; an authorized responder who scans the tourist's QR can read them — and every read is recorded.
+
+**Design: extend the Digital ID, don't duplicate it.** The QR is the existing Digital Tourist Safety ID token (`services/tourist_id.py`, payload `TSID:<random token>`). The medical profile is a separate, encrypted table reached only through that token **and** an authorized account. `services/passport.py` was *not* used for this: it is keyed by numeric tourist id and has no token gate, so putting medical data there would bypass the QR requirement.
+
+| Concern | How it works |
+|---|---|
+| **QR content** | Only `TSID:` + a random 192-bit token (`secrets.token_urlsafe(24)`). No name, no medical data. Verified by decoding a real QR image. |
+| **Token storage** | SHA-256 hash is what verification uses; the QR image is re-rendered from an encrypted copy so the owner can reopen it. Regenerate = new token, old dies instantly. Revoke = no active token, and opening the card does **not** silently mint a new one. Optional lifetime: `MEDICAL_QR_TOKEN_TTL_DAYS` (0 = none; the trip end always expires the ID). |
+| **Who can read** | Only logged-in `admin` / `responder` accounts, checked from the server-side account (never a client-supplied role). A tourist hitting the endpoint gets 403 and the attempt is audited. Admins cannot read a profile by numeric id — only via the audited scan. |
+| **Possession of the image is not enough** | No public endpoint returns medical data. The scan needs a valid bearer session plus a valid token. |
+| **Brute force** | Per-responder rate limit (`MEDICAL_ACCESS_RATE_LIMIT`), plus a separate **failed-lookup lock-out** per account and per IP (`MEDICAL_FAILED_LOOKUP_LIMIT` in `MEDICAL_FAILED_LOOKUP_WINDOW_SECONDS`). Malformed tokens are rejected before any DB lookup. |
+| **At rest** | Allergies, conditions, medications, contacts and notes are Fernet-encrypted columns (same `EncryptedString` as KYC document numbers). |
+| **Audit** | Every attempt (granted / invalid / revoked / expired / no_profile / denied) writes a `tourist_id_scans` row (`method = medical_qr`: responder, tourist, time, result, declared purpose, request id, sections disclosed) **and** an `audit_logs` row. Contents and tokens are never logged. Profile edits, QR regenerate and QR revoke are audited by field **name** only. |
+| **Honest labelling** | Everything is shown as *tourist-reported, not verified*. "Not provided" and "No known allergies" are different states everywhere (UI and API). |
+
+**Tourist (Me tab → "🩺 Medical Profile & Emergency QR")** — all optional, partial saves allowed: blood group, allergies (food / medicine / other, multiple, or an explicit *none known*), conditions (with quick-add suggestions), medications (dose as reported), up to two emergency contacts, short notes; completion indicator, last-updated time, per-section Remove, QR view / download / regenerate / revoke, a plain-language privacy notice, and a list of when (and by which role) the profile was opened.
+
+**Responder (Responder console → "🩺 Scan Tourist Medical QR")** — camera scan via the already-installed `jsQR` (no new dependency), paste-the-code fallback when the camera is denied/unavailable, optional "reason for access", then a single-column mobile page: identity, large blood group, highlighted allergies, conditions, medications, tap-to-call emergency contacts, notes, last-updated and access timestamps. Clear messages for invalid / revoked / expired QR, no profile, unauthorized account, rate limit and network errors — none show medical data.
+
+**Admin** — `GET /api/medical-access-log` (who opened whose profile, when, why, result; no medical content).
+
+API:
+- Owner: `GET|PUT /api/tourists/{id}/medical-profile` (PUT is create-or-partial-update), `DELETE …/medical-profile/{field}`, `GET …/medical-qr`, `POST …/medical-qr/regenerate|revoke`, `GET …/medical-access`; `GET /api/medical-profile/options` (form options and limits).
+- Responder: `POST /api/tourist-id/medical` `{token, purpose?, lat?, lng?}` → `{status: granted|invalid|revoked|expired|no_profile, …}`.
+- Admin: `GET /api/medical-access-log`.
+
+Configuration (`backend/app/core/config.py`): `MEDICAL_QR_TOKEN_TTL_DAYS`, `MEDICAL_ACCESS_RATE_LIMIT[_WINDOW_SECONDS]`, `MEDICAL_FAILED_LOOKUP_LIMIT[_WINDOW_SECONDS]`, `MEDICAL_ACCESS_PURPOSES`, `MEDICAL_ACCESS_PURPOSE_REQUIRED`, `MEDICAL_MAX_*`, `MEDICAL_NOTES_MAX_CHARS`, `MEDICAL_SUGGESTED_CONDITIONS`. Migration: `alembic upgrade head` (adds `medical_profiles` and three nullable audit/expiry columns).
+
+**Try it:** log in as a tourist → Me → *Medical Profile & Emergency QR* → fill a few fields → note the QR. Log in as `responder@tourism.gov.in` → *Scan Tourist Medical QR* → point the camera at the QR (or paste the `TSID:…` text). Back as the tourist, the access appears under *Who has opened your profile*; as admin, in `/api/medical-access-log`.
+
+**Limits:** all data is self-reported and unverified; there is no break-glass / override access (deliberately — it would need its own authorization workflow); the contact numbers here are separate from the SOS contacts stored on the tourist record; the failed-lookup lock-out is in-memory per process (with several workers each enforces its own count); HTTPS must be provided by the deployment.
+
+## Privacy, Consent & Data Rights (DPDP-oriented)
+
+Built on top of the existing `services/privacy.py` (kept as is). Full design, **data inventory**, security notes and the
+**list of legal questions that still need review** are in [`docs/DPDP_PRIVACY.md`](docs/DPDP_PRIVACY.md). This is software that
+supports the Digital Personal Data Protection Act, 2023 / DPDP Rules, 2025; it does not certify compliance, and the Act's
+provisions commence in phases - verify the current commencement notifications before relying on it.
+
+* **Consent** - registration has a privacy step with every box unticked (two required statements, optional purposes separate). Purposes, wording and notice version are configuration (`PRIVACY_PURPOSES`, `PRIVACY_NOTICE_VERSION`). Withdrawing location consent stops collection, guardian consent revokes links, notifications consent deactivates push. History is append-only.
+* **Retention** - `retention_policies` (admin-editable; a blank period means *none established* and is never auto-deleted), documented exceptions with review dates, and a `deletion_jobs` audit (counts only). Runs on the existing hourly job; idempotent and retry-safe.
+* **Location** - view, delete selected / a date range / all. SOS is never switched off; data tied to an open emergency is kept and reported.
+* **Download My Data** - password re-entry; private encrypted file; owner-only authenticated download; expires (`PRIVACY_EXPORT_TTL_HOURS`); not e-mailed.
+* **Delete My Account** - preview, password + typed `DELETE`, sessions revoked, login blocked, background processing with bounded retries. Statuses: requested / in progress / completed / partially retained under a documented exception / failed. Backups and external processors are reported, not pretended.
+* **Grievances** - submit, track, admin response history, configurable response target.
+* **UI** - tourist **Me → Privacy Dashboard**; admin **Privacy** page (`/admin/privacy`).
+
+**Try it:** log in as a tourist → *Me → Privacy Dashboard* → *Consents* (withdraw location, see the warning) → *Location* (delete) → *My data* (download; start deletion on a throw-away account). Admin → *Privacy* to edit a retention period, add an exception and run retention. Migration: `alembic upgrade head`. Tests: `pytest tests/test_privacy_dpdp.py`, `npx vitest run src/components/PrivacyDashboard.test.jsx src/pages/admin/PrivacyAdmin.test.jsx`.
+
 ## Live Demo Mode
 
 With the backend running, drive fake tourists around the map and trigger scripted
@@ -685,6 +738,10 @@ Interactive docs at **`/docs`** (Swagger). Key endpoints:
 | POST | `/api/tourists/{id}/walk-home` · `…/{sid}/checkin` · `…/location` · `…/extend` · `…/end` · `…/cancel` | Walk-Me-Home: start a journey · check in · share location · add time · finish · cancel |
 | GET | `/api/guardian/{token}/journey` | Walk-Me-Home: the journey shared with this guardian (public, link-token scoped) |
 | WS | `/ws/guardian/{token}` | Walk-Me-Home live updates for a guardian page |
+| GET/PUT | `/api/tourists/{id}/medical-profile` · `DELETE …/{field}` | Tourist's own emergency medical profile (own record only; partial updates) |
+| GET/POST | `/api/tourists/{id}/medical-qr` · `…/regenerate` · `…/revoke` | Emergency QR state / regenerate / revoke (owner or admin) |
+| POST | `/api/tourist-id/medical` | Responder: scanned QR token → medical profile (admin/responder only, audited, rate-limited) |
+| GET | `/api/medical-access-log` | Admin audit view of medical profile access (no medical content) |
 | GET/PUT | `/api/response/config` | Response targets, stage-2 duration, global timeout (read: admin/responder · change: admin, validated + audited) |
 | GET | `/api/response/board` | Live response board: open incidents with server-computed remaining time (responders see only their unit) |
 | GET | `/api/response/slo` · `/api/response/slo/by-severity` | SLO report (admin): `from`, `to`, `severity`, `incident_type`, `unit_id` filters |

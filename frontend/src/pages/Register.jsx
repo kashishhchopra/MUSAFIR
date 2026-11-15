@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
+import RegistrationConsent, { EMPTY_CONSENT, acksComplete, consentPayload } from '../components/RegistrationConsent.jsx'
 import { useAuth } from '../auth.jsx'
 import { COUNTRIES } from '../lib/countries.js'
 import LivenessCapture from '../components/LivenessCapture.jsx'
@@ -209,6 +210,8 @@ export default function Register() {
   const steps = useMemo(() => buildSteps(f.document_type), [f.document_type])
   const [stepKey, setStepKey] = useState('identity')
   const [contact, setContact] = useState({ name: '', phone: '', relation: 'family' })
+  // Privacy step: nothing is pre-ticked (see components/RegistrationConsent.jsx).
+  const [consent, setConsent] = useState(EMPTY_CONSENT)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -259,7 +262,7 @@ export default function Register() {
     // either field is started, both are required and the password must
     // meet the same strength rule the backend enforces (see
     // lib/passwordValidation.js / backend/app/core/security.py).
-    account: () => (!f.email && !f.password) || (!!f.email && validatePassword(f.password)),
+    account: () => ((!f.email && !f.password) || (!!f.email && validatePassword(f.password))) && acksComplete(consent),
   }
   const stepIndex = steps.findIndex((s) => s.key === stepKey)
   const canAdvance = validators[stepKey]()
@@ -282,7 +285,9 @@ export default function Register() {
   const submit = async (e) => {
     e.preventDefault()
     if (!canAdvance) {
-      setError('Please provide a valid password (see the checklist above) or leave both fields empty.')
+      setError(acksComplete(consent)
+        ? 'Please provide a valid password (see the checklist above) or leave both fields empty.'
+        : 'Please confirm the two required privacy statements to continue.')
       return
     }
     setError('')
@@ -305,6 +310,7 @@ export default function Register() {
         trip_end: new Date(f.trip_end).toISOString(),
         emergency_contacts: contact.name && contact.phone ? [contact] : [],
         itinerary: [],
+        consents: consentPayload(consent),
       }
       if (f.document_type === 'passport') {
         payload.visa_type = f.visa_type
@@ -496,6 +502,7 @@ export default function Register() {
               <label className={label}>Password
                 <input type="password" className={input} value={f.password} onChange={set('password')} /></label>
               {f.password && <PasswordChecklist password={f.password} />}
+              <RegistrationConsent value={consent} onChange={setConsent} />
             </>
           )}
 

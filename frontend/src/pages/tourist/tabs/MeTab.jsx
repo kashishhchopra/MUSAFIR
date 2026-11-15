@@ -4,9 +4,11 @@ import { useAuth } from '../../../auth.jsx'
 import TabHero from '../../../components/TabHero.jsx'
 import SafetyPassportCard from '../../../components/SafetyPassportCard.jsx'
 import DigitalIdCard from '../../../components/DigitalIdCard.jsx'
+import MedicalProfileCard from '../../../components/MedicalProfileCard.jsx'
 import TripGuardianCard from '../../../components/TripGuardianCard.jsx'
 import PushToggle from '../../../components/PushToggle.jsx'
 import PrivacyCard from '../../../components/PrivacyCard.jsx'
+import PrivacyDashboard from '../../../components/PrivacyDashboard.jsx'
 import { DuressPinSettings } from '../../../components/DuressLock.jsx'
 import LanguageSwitcher from '../../../components/LanguageSwitcher.jsx'
 import ThemeToggle from '../../../components/ThemeToggle.jsx'
@@ -25,6 +27,7 @@ export default function MeTab({ data }) {
         gradient="from-fuchsia-500 via-purple-500 to-violet-600" />
 
       <DigitalIdCard touristId={tid} />
+      <MedicalProfileCard touristId={tid} />
       <SafetyPassportCard touristId={tid} />
 
       <div className="bg-white dark:bg-slate-800 rounded-[var(--theme-radius)] shadow-[var(--theme-shadow)] p-4">
@@ -67,6 +70,7 @@ export default function MeTab({ data }) {
       <TripGuardianCard touristId={tid} />
       <DuressPinSettings touristId={tid} />
       <PrivacyCard touristId={tid} />
+      <PrivacyDashboard touristId={tid} onSignOut={() => { logout(); nav('/login') }} />
 
       <div className="bg-white dark:bg-slate-800 rounded-[var(--theme-radius)] shadow-[var(--theme-shadow)] p-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">

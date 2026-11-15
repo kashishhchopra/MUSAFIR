@@ -25,6 +25,11 @@ from app.models.response import EscalationEvent, ResponseSetting, SeverityClassi
 from app.models.revoked_token import RevokedToken
 from app.models.safety_report import SafetyReport
 from app.models.tourist import IdBlock, LocationPing, Tourist
+from app.models.medical_profile import MedicalProfile
+from app.models.privacy import (  # noqa: F401
+    AccountDeletionRequest, ConsentRecord, DataExportRequest, DeletionJob,
+    GrievanceResponse, PrivacyGrievance, RetentionException, RetentionPolicy,
+)
 from app.models.tourist_id import TouristIdScan, TouristIdToken
 from app.models.user import User
 from app.models.zone import Zone
@@ -54,6 +59,7 @@ __all__ = [
     "DisasterAdvisory",
     "ChainAnchor",
     "TouristIdToken",
+    "MedicalProfile",
     "TouristIdScan",
     "JobLock",
     "ItineraryDocument",
