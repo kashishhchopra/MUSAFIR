@@ -517,6 +517,160 @@ class Settings(BaseSettings):
     # Digital Tourist Safety ID: a trip within this many hours of its end
     # shows as "expiring_soon" rather than "active" -- see services/tourist_id.py.
     ID_EXPIRING_SOON_HOURS: float = 24.0
+    # ---- Emergency Medical Profile (services/medical_profile.py) ----
+    # Optional lifetime (days) of a newly issued QR token. 0 = no token-level
+    # expiry (the QR still stops working when the trip ends, see id_status).
+    MEDICAL_QR_TOKEN_TTL_DAYS: int = 0
+    # Per responder: medical lookups allowed per window, and -- separately --
+    # how many *failed* lookups (unknown/revoked/expired token) before that
+    # responder is locked out for the window (token-guessing protection).
+    MEDICAL_ACCESS_RATE_LIMIT: int = 30
+    MEDICAL_ACCESS_RATE_WINDOW_SECONDS: int = 60
+    MEDICAL_FAILED_LOOKUP_LIMIT: int = 6
+    MEDICAL_FAILED_LOOKUP_WINDOW_SECONDS: int = 300
+    # Access purposes a responder may declare (JSON list). Recorded in the
+    # audit trail; MEDICAL_ACCESS_PURPOSE_REQUIRED makes declaring one mandatory.
+    MEDICAL_ACCESS_PURPOSES: str = (
+        '["medical_emergency","accident","unresponsive_person","routine_verification","other"]'
+    )
+    MEDICAL_ACCESS_PURPOSE_REQUIRED: bool = False
+    # Input bounds for the tourist-entered profile.
+    MEDICAL_MAX_ALLERGIES: int = 30
+    MEDICAL_MAX_CONDITIONS: int = 30
+    MEDICAL_MAX_MEDICATIONS: int = 30
+    MEDICAL_NOTES_MAX_CHARS: int = 1000
+    # Suggestions offered in the form (JSON list) -- not a restriction.
+    MEDICAL_SUGGESTED_CONDITIONS: str = '["Asthma","Diabetes","Heart condition","Epilepsy"]'
+    # ---- DPDP-oriented privacy management (services/privacy_*.py) ----
+    # Everything legal or operational below is CONFIGURATION, not a statement of
+    # law: durations, wording and purposes must be confirmed by legal review
+    # before go-live. Nothing here is a compliance claim.
+    PRIVACY_NOTICE_VERSION: str = "1.0"
+    PRIVACY_NOTICE_UPDATED: str = "2026-11-15"
+    # Shown on the dashboard so users/operators are not told every provision is
+    # already in force. Verify commencement notifications before relying on it.
+    PRIVACY_LEGAL_NOTE: str = (
+        "This system is built to support the Digital Personal Data Protection Act, 2023 "
+        "and the DPDP Rules, 2025. Provisions commence in phases; confirm the current "
+        "commencement dates, amendments and notifications with legal counsel. "
+        "This page is not a certificate of legal compliance."
+    )
+    PRIVACY_CONTACT_EMAIL: str = ""          # grievance / privacy contact shown to users
+    PRIVACY_GRIEVANCE_RESPONSE_DAYS: int = 30  # internal target, NOT a statutory figure -- verify
+    # JSON list of processing purposes. kind: "consent" = user can grant/withdraw;
+    # "notice" = informational (required for the service, or a non-consent basis
+    # to be confirmed by legal review). withdraw_effect is shown before withdrawing.
+    PRIVACY_PURPOSES: str = (
+        '[{"key":"basic_profile","title":"Basic profile & Digital ID","kind":"notice",'
+        '"description":"Your name, ID document, phone, trip dates and photo are used to issue and verify your Digital Tourist Safety ID.",'
+        '"data_categories":["identity","contact","identity_document","photo","trip"],'
+        '"shared_with":"Authorised police/responder accounts when your QR is scanned (role-limited view).",'
+        '"retention_category":"tourist_profile","basis_note":"Needed to provide the service you registered for. Legal basis to be confirmed by legal review.",'
+        '"withdraw_effect":"Cannot be withdrawn without deleting your account."},'
+        '{"key":"location_tracking","title":"Location tracking","kind":"consent",'
+        '"description":"Your phone location is sent while the app is open to compute your safety score, detect unusual movement and warn you about risky zones.",'
+        '"data_categories":["location_history","live_location"],'
+        '"shared_with":"Not shared outside MUSAFIR except during an emergency (see SOS).",'
+        '"retention_category":"location_history","basis_note":"Optional; based on your consent.",'
+        '"withdraw_effect":"Background location updates stop. Safety scoring, zone warnings and anomaly detection will not work. SOS still works and sends your location only when you raise it."},'
+        '{"key":"emergency_sos","title":"Emergency & SOS","kind":"notice",'
+        '"description":"When you or a safety rule raises an SOS, your identity, last location and emergency contacts are used to dispatch help.",'
+        '"data_categories":["sos_incident","live_location","emergency_contacts","medical_profile"],'
+        '"shared_with":"Police stations and responders handling the incident; your emergency contacts.",'
+        '"retention_category":"sos_incident_records","basis_note":"Emergency response; legal basis to be confirmed by legal review. Not switched off by withdrawing other consents.",'
+        '"withdraw_effect":"Cannot be withdrawn while an emergency is open."},'
+        '{"key":"guardian_sharing","title":"Share live status with a guardian","kind":"consent",'
+        '"description":"If you create a Trip Guardian link, that person can see your live location and status.",'
+        '"data_categories":["live_location","guardian_contact"],'
+        '"shared_with":"Only the people you give a guardian link to.",'
+        '"retention_category":"guardian_links","basis_note":"Optional; based on your consent.",'
+        '"withdraw_effect":"All guardian links are switched off and cannot see you any more."},'
+        '{"key":"notifications","title":"Push notifications","kind":"consent",'
+        '"description":"Alerts and SOS confirmations are sent to this phone through your browser push service.",'
+        '"data_categories":["device_info","push_subscription"],'
+        '"shared_with":"Your browser vendor\'s push service delivers the message.",'
+        '"retention_category":"device_info","basis_note":"Optional; based on your consent.",'
+        '"withdraw_effect":"Push alerts to this phone stop. In-app alerts keep working."}]'
+    )
+    # JSON list of retention categories seeded into `retention_policies` on first
+    # run. retention_days null + requires_review true = "no period established --
+    # an administrator/legal must decide"; the engine will NOT delete those.
+    # account_deletion: delete | anonymize | retain (what happens on erasure).
+    PRIVACY_RETENTION_DEFAULTS: str = (
+        '['
+        '{"category":"tourist_profile","title":"Tourist profile","purpose":"Digital ID and trip safety","legal_basis":"Service provision (to confirm)",'
+        '"retention_days":null,"start":"trip_end","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"No period established. Kept while the account exists; erased on account deletion."},'
+        '{"category":"location_history","title":"Location history","purpose":"Safety scoring and anomaly detection","legal_basis":"Consent (location_tracking)",'
+        '"retention_days":90,"start":"trip_end","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"Default; each tourist can choose 1-365 days after trip end (existing per-tourist setting). Value to be confirmed by legal review.",'
+        '"per_tourist":true},'
+        '{"category":"sos_incident_records","title":"SOS & incident records","purpose":"Emergency response record","legal_basis":"Emergency response / operational (to confirm)",'
+        '"retention_days":null,"start":"incident_resolved","action":"anonymize","account_deletion":"anonymize","requires_review":true,'
+        '"note":"No period established. Open incidents are always retained; resolved ones are de-identified on account deletion."},'
+        '{"category":"emergency_contacts","title":"Emergency contacts","purpose":"Notify a person you chose","legal_basis":"Service provision",'
+        '"retention_days":null,"start":"account","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"Stored inside the profile; erased with it."},'
+        '{"category":"digital_identity","title":"Digital ID, QR tokens and scan log","purpose":"Verify identity in the field","legal_basis":"Service provision",'
+        '"retention_days":null,"start":"trip_end","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"QR credentials and the ID hash chain are deleted on erasure."},'
+        '{"category":"medical_profile","title":"Emergency medical profile","purpose":"Help responders in a medical emergency","legal_basis":"Your own entry; tourist-reported",'
+        '"retention_days":null,"start":"account","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"Encrypted at rest; erased on account deletion."},'
+        '{"category":"guardian_links","title":"Guardian links","purpose":"Family live-status sharing","legal_basis":"Consent (guardian_sharing)",'
+        '"retention_days":null,"start":"trip_end","action":"delete","account_deletion":"delete","requires_review":true,"note":""},'
+        '{"category":"device_info","title":"Devices & push subscriptions","purpose":"Wearable and push delivery","legal_basis":"Consent (notifications)",'
+        '"retention_days":null,"start":"account","action":"delete","account_deletion":"delete","requires_review":true,"note":""},'
+        '{"category":"session_tokens","title":"Sessions & reset tokens","purpose":"Authentication","legal_basis":"Security",'
+        '"retention_days":0,"start":"token_expiry","action":"delete","account_deletion":"delete","requires_review":false,'
+        '"note":"Technical expiry: rows are removed once the token itself has expired."},'
+        '{"category":"notification_logs","title":"Notification delivery log","purpose":"Delivery proof and retries","legal_basis":"Operational (to confirm)",'
+        '"retention_days":null,"start":"created","action":"delete","account_deletion":"anonymize","requires_review":true,'
+        '"note":"No period established; set one to enable scheduled deletion."},'
+        '{"category":"activity_records","title":"Safety reports, fare checks, check-ins, permits, itineraries","purpose":"Trip features you used","legal_basis":"Service provision",'
+        '"retention_days":null,"start":"created","action":"delete","account_deletion":"delete","requires_review":true,'
+        '"note":"No period established; erased on account deletion."},'
+        '{"category":"efir_records","title":"E-FIR drafts","purpose":"Police report generated at your request","legal_basis":"Possible statutory record (to confirm)",'
+        '"retention_days":null,"start":"created","action":"retain","account_deletion":"retain","requires_review":true,'
+        '"note":"Held as a documented exception until legal review decides; access restricted to admins."},'
+        '{"category":"security_audit_logs","title":"Security & audit logs","purpose":"Security and accountability","legal_basis":"Security / legal obligation (to confirm)",'
+        '"retention_days":null,"start":"created","action":"delete","account_deletion":"anonymize","requires_review":true,'
+        '"note":"No period established; your e-mail/ID are replaced by an opaque reference on erasure."},'
+        '{"category":"id_scan_log","title":"Digital ID scan log","purpose":"Accountability for who verified an ID","legal_basis":"Security / accountability (to confirm)",'
+        '"retention_days":null,"start":"created","action":"retain","account_deletion":"anonymize","requires_review":true,'
+        '"note":"The responder-side record is kept; the link to you and the scan location are removed on account deletion."},'
+        '{"category":"consent_records","title":"Consent records","purpose":"Prove what you agreed to and when","legal_basis":"Accountability (to confirm)",'
+        '"retention_days":null,"start":"created","action":"retain","account_deletion":"anonymize","requires_review":true,'
+        '"note":"Kept as an audit trail with the link to you removed on account deletion. Period to be set by legal review."},'
+        '{"category":"grievances","title":"Privacy grievances","purpose":"Handle and evidence your complaints","legal_basis":"Grievance redressal (to confirm)",'
+        '"retention_days":null,"start":"created","action":"retain","account_deletion":"anonymize","requires_review":true,'
+        '"note":"An open grievance is kept until resolved; after that it is de-identified on account deletion."},'
+        '{"category":"data_exports","title":"Prepared data exports","purpose":"Give you a copy of your data","legal_basis":"Your request",'
+        '"retention_days":0,"start":"created","action":"delete","account_deletion":"delete","requires_review":false,'
+        '"note":"Download links expire after PRIVACY_EXPORT_TTL_HOURS."}'
+        ']'
+    )
+    PRIVACY_EXPORT_DIR: str = "privacy_exports"
+    PRIVACY_EXPORT_TTL_HOURS: int = 24
+    PRIVACY_EXPORT_MAX_PER_DAY: int = 5
+    PRIVACY_LOCATION_PAGE_MAX: int = 500
+    # Grace period between confirming an account deletion and processing it
+    # (0 = immediately). Sessions are revoked and login blocked either way.
+    PRIVACY_DELETION_GRACE_HOURS: int = 0
+    PRIVACY_DELETION_MAX_ATTEMPTS: int = 5
+    # JSON list of external processors that hold personal data and must be told
+    # about an erasure, e.g. [{"name":"SMS gateway","contact":"dpo@vendor"}].
+    # Empty = none configured; the deletion record says so instead of implying it.
+    PRIVACY_EXTERNAL_PROCESSORS: str = "[]"
+    # Free-text lifecycle shown with every deletion status. Be honest.
+    PRIVACY_BACKUP_NOTE: str = (
+        "Copies held in database backups are not edited. They are overwritten when "
+        "the backup rotation expires; they are not restored for normal use."
+    )
+    PRIVACY_BACKUP_ROTATION_DAYS: int = 0   # 0 = not configured/unknown
+    # Registration: refuse sign-up unless the consents marked "required" are sent.
+    # Off by default so existing API clients keep working; the web form enforces it.
+    PRIVACY_REGISTRATION_CONSENT_REQUIRED: bool = False
     # How far ahead (minutes) each ping's trajectory is projected to check for
     # an imminent high-risk/restricted zone crossing.
     TRAJECTORY_HORIZON_MIN: float = 15.0

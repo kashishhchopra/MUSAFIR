@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
+import RegistrationConsent, { EMPTY_CONSENT, acksComplete, consentPayload } from '../components/RegistrationConsent.jsx'
 import { useAuth } from '../auth.jsx'
 import { COUNTRIES } from '../lib/countries.js'
 import LivenessCapture from '../components/LivenessCapture.jsx'
@@ -212,6 +213,8 @@ export default function Register() {
   const steps = useMemo(() => buildSteps(f.document_type), [f.document_type])
   const [stepKey, setStepKey] = useState('identity')
   const [contact, setContact] = useState({ name: '', phone: '', relation: 'family' })
+  // Privacy step: nothing is pre-ticked (see components/RegistrationConsent.jsx).
+  const [consent, setConsent] = useState(EMPTY_CONSENT)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -264,9 +267,10 @@ export default function Register() {
     // Required: this email + password is the only way to sign in to the app
     // afterwards. The password must meet the same strength rule the backend
     // enforces (see lib/passwordValidation.js / backend/app/core/security.py)
-    // and be typed twice, since a typo here can't be recovered from.
+    // and be typed twice, since a typo here can't be recovered from. The two
+    // required privacy acknowledgements (DPDP step) must also be ticked.
     account: () => EMAIL_RE.test(f.email.trim()) && validatePassword(f.password)
-      && f.password === f.password_confirm,
+      && f.password === f.password_confirm && acksComplete(consent),
   }
   const stepIndex = steps.findIndex((s) => s.key === stepKey)
   const canAdvance = validators[stepKey]()
@@ -289,7 +293,9 @@ export default function Register() {
   const submit = async (e) => {
     e.preventDefault()
     if (!canAdvance) {
-      setError('Enter a valid email and a password that meets the checklist, typed the same twice.')
+      setError(acksComplete(consent)
+        ? 'Enter a valid email and a password that meets the checklist, typed the same twice.'
+        : 'Please confirm the two required privacy statements to continue.')
       return
     }
     setError('')
@@ -312,6 +318,7 @@ export default function Register() {
         trip_end: new Date(f.trip_end).toISOString(),
         emergency_contacts: contact.name && contact.phone ? [contact] : [],
         itinerary: [],
+        consents: consentPayload(consent),
       }
       if (f.document_type === 'passport') {
         payload.visa_type = f.visa_type
@@ -522,6 +529,7 @@ export default function Register() {
               {f.password_confirm && f.password !== f.password_confirm && (
                 <p className="text-xs text-amber-300 -mt-2">Passwords don't match.</p>
               )}
+              <RegistrationConsent value={consent} onChange={setConsent} />
             </>
           )}
 

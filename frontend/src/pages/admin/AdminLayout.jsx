@@ -16,6 +16,7 @@ const links = [
   { to: '/admin/simulation', label: 'Simulation', icon: '🎮' },
   { to: '/admin/notifications', label: 'Alerts', icon: '🔔' },
   { to: '/admin/audit', label: 'Audit Log', icon: '🔐' },
+  { to: '/admin/privacy', label: 'Privacy', icon: '🔒' },
 ]
 
 export default function AdminLayout() {

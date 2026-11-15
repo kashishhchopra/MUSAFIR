@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator, model_validator
 
+from app.schemas.privacy import ConsentChoice
+
 from app.core.identity_validators import (
     DOCUMENT_ERRORS,
     NAME_ERROR,
@@ -66,6 +68,9 @@ class TouristCreate(BaseModel):
     visa_expiry: datetime | None = None
     passport_expiry: datetime | None = None
     planned_states: list[str] = Field(default_factory=list, max_length=40)
+    # Explicit, per-purpose choices from the registration privacy step. Optional so
+    # existing API clients keep working; see services/privacy_consent.py.
+    consents: list[ConsentChoice] = Field(default_factory=list, max_length=20)
 
     @field_validator("document_type")
     @classmethod

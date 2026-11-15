@@ -74,6 +74,18 @@ def _upsert(db: Session, *, endpoint: str, kind: str, keys: PushKeys | None, use
     return sub
 
 
+def _require_push_consent(db: Session, user: User) -> None:
+    """A tourist who withdrew notification consent (Privacy settings, services/privacy_consent.py)
+    can't register a device for push -- browser, Android or iOS alike."""
+    if user.tourist_id is None:
+        return
+    from app.services.privacy_consent import is_withdrawn
+
+    if is_withdrawn(db, user.tourist_id, "notifications"):
+        raise HTTPException(status_code=403,
+                            detail="Push notification consent is withdrawn. Grant it in Privacy settings first.")
+
+
 @router.get("/push/public-key")
 def public_key():
     """The VAPID public key a browser needs to subscribe (public by design)."""
@@ -86,6 +98,7 @@ def public_key():
 def subscribe(payload: SubscribeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if notifications.vapid_keys()[0] is None:
         raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+    _require_push_consent(db, user)
     sub = _upsert(db, endpoint=payload.endpoint, kind="webpush", keys=payload.keys,
                   user_agent=payload.user_agent, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}
@@ -97,6 +110,7 @@ def subscribe_fcm(payload: FcmSubscribeRequest, db: Session = Depends(get_db),
     """The Android app registers its FCM token. Unsubscribe with the token as `endpoint`."""
     if not notifications.fcm_configured():
         raise HTTPException(status_code=503, detail="App push notifications are not configured on this server")
+    _require_push_consent(db, user)
     sub = _upsert(db, endpoint=payload.token, kind="fcm", keys=None,
                   user_agent=payload.user_agent, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}
@@ -108,6 +122,7 @@ def subscribe_apns(payload: ApnsSubscribeRequest, db: Session = Depends(get_db),
     """The iOS app registers its APNs device token. Unsubscribe with the token as `endpoint`."""
     if not apns.configured():
         raise HTTPException(status_code=503, detail="App push notifications are not configured on this server")
+    _require_push_consent(db, user)
     sub = _upsert(db, endpoint=payload.token.lower(), kind="apns", keys=None,
                   user_agent=payload.user_agent, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}

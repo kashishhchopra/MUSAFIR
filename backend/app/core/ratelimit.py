@@ -120,3 +120,35 @@ def registration_rate_limit(request: Request) -> None:
         settings.REGISTRATION_RATE_LIMIT,
         settings.REGISTRATION_RATE_WINDOW_SECONDS,
     )
+
+
+def check_key(key: str, limit: int, window: int) -> None:
+    """Public wrapper for feature-specific limits (e.g. medical QR lookups)."""
+    _check(key, limit, window)
+
+
+def hits_in_window(key: str, window: int) -> int:
+    """How many events `key` has recorded inside the last `window` seconds."""
+    now = time.monotonic()
+    with _lock:
+        dq = _hits.get(key)
+        if not dq:
+            return 0
+        return sum(1 for t in dq if t >= now - window)
+
+
+def add_hit(key: str) -> None:
+    """Record one event for `key` without enforcing a limit (used to count
+    only *failures* toward a lock-out)."""
+    if not settings.RATE_LIMIT_ENABLED:
+        return
+    with _lock:
+        dq = _hits.get(key)
+        if dq is None:
+            dq = _hits[key] = deque()
+        else:
+            _hits.move_to_end(key)
+        dq.append(time.monotonic())
+        while len(_hits) > _MAX_TRACKED_KEYS:
+            _hits.popitem(last=False)
+
