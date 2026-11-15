@@ -25,6 +25,14 @@ os.environ.setdefault("ENVIRONMENT", "test")
 # as pinning SECRET_KEY above: a test run must not depend on anything the
 # environment doesn't guarantee.
 os.environ.setdefault("DISCOVERY_LIVE_ENABLED", "false")
+# Hermetic notifications: a developer's real backend/.env (Twilio keys, an SMS
+# allowlist, NOTIFICATION_CHANNEL=twilio ...) must never leak into the tests,
+# or a test could text a real number / be silently blocked by the allowlist.
+# Environment variables outrank .env, so pinning them empty here wins.
+for _k in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER", "TWILIO_MESSAGING_SERVICE_SID",
+           "SMS_ALLOWLIST", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"):
+    os.environ[_k] = ""
+os.environ["NOTIFICATION_CHANNEL"] = "console"
 
 from app.core import ratelimit  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
