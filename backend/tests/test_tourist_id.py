@@ -19,6 +19,7 @@ def test_registration_accepts_photo_and_hotel(client):
         "full_name": "Kashish Chopra", "document_type": "aadhaar",
         "document_number": "123456789999", "phone": "9876543212",
         "photo": "data:image/png;base64,iVBORw0KGgo=", "hotel": "ABC Residency",
+        "email": "kashish@test.com", "password": "Strongpass1!",
         "trip_start": "2026-01-01T00:00:00", "trip_end": "2026-01-10T00:00:00",
     })
     assert r.status_code == 201, r.text

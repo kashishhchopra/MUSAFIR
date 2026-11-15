@@ -134,6 +134,7 @@ def _base_kwargs(**over):
         full_name="Rahul Sharma", nationality="Indian", document_type="aadhaar",
         document_number="123456789012", phone="9876543210",
         photo="data:image/png;base64,iVBORw0KGgo=",
+        email="rahul@test.com", password="Strongpass1!",
         trip_start=now, trip_end=now + dt.timedelta(days=5),
     )
     base.update(over)

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -99,7 +100,9 @@ def _issue_pair(response: Response, user: User) -> Token:
 def login(request: Request, response: Response, form: OAuth2PasswordRequestForm = Depends(),
           db: Session = Depends(get_db)):
     """OAuth2 password flow — `username` field carries the email."""
-    user = db.query(User).filter(User.email == form.username).first()
+    # Emails match case-insensitively: people type "Name@Gmail.com" one day
+    # and "name@gmail.com" the next.
+    user = db.query(User).filter(func.lower(User.email) == (form.username or "").strip().lower()).first()
     # Constant-ish response: same error whether the email exists or not.
     if not user or not verify_password(form.password, user.hashed_password):
         audit.record(db, "login", actor=form.username or "unknown",
@@ -174,7 +177,7 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request,
     for registered emails learns nothing from the response either way, and
     the same login rate limit that guards brute-force attempts also caps
     how many reset emails one client can trigger."""
-    user = db.query(User).filter(User.email == payload.email).first()
+    user = db.query(User).filter(func.lower(User.email) == payload.email.strip().lower()).first()
     if user:
         raw_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../../api'
 import { pointInPoly, haversineKm } from '../../components/geo'
-import { TRACK_INTERVAL_MS, SIMULATE_GPS } from '../../config'
+import { HEARTBEAT_MS, TRACK_INTERVAL_MS, SIMULATE_GPS } from '../../config'
 import useGeolocation from '../../hooks/useGeolocation'
 import useOnlineStatus from '../../hooks/useOnlineStatus'
 import useWebSocket from '../../useWebSocket'
@@ -34,8 +34,14 @@ export default function useTouristData(tid) {
   const [routePickerOpen, setRoutePickerOpen] = useState(false)
   const routePicker = useRoutePicker(tid)
   const posRef = useRef(null)
-  const geo = useGeolocation({ enabled: tracking && !SIMULATE_GPS })
-  const lastSentGeoTs = useRef(0)
+  // Gating lives in the hook: a 25 m move at most every TRACK_INTERVAL_MS,
+  // plus a heartbeat while stationary. Every position it emits is sent.
+  const geo = useGeolocation({
+    enabled: tracking && !SIMULATE_GPS,
+    minDistanceM: 25,
+    minIntervalMs: TRACK_INTERVAL_MS,
+    heartbeatMs: HEARTBEAT_MS,
+  })
 
   const showToast = (msg, ms = 4000) => {
     setToast(msg)
@@ -84,8 +90,8 @@ export default function useTouristData(tid) {
   // Opt-in live tracking. Two sources, chosen by VITE_SIMULATE_GPS:
   //  - simulated: a random walk on a timer, for demos on a machine with no
   //    meaningful GPS (the default, matching the project's existing demo mode)
-  //  - real: navigator.geolocation via useGeolocation, pushed whenever the
-  //    device reports a new fix (throttled to TRACK_INTERVAL_MS)
+  //  - real: useGeolocation, pushed whenever it emits a position (it already
+  //    applies the distance/interval gating and the stationary heartbeat)
   useEffect(() => {
     if (!tracking || !me || !SIMULATE_GPS) return
     const iv = setInterval(() => {
@@ -100,9 +106,6 @@ export default function useTouristData(tid) {
 
   useEffect(() => {
     if (!tracking || !me || SIMULATE_GPS || !geo.position) return
-    const now = Date.now()
-    if (now - lastSentGeoTs.current < TRACK_INTERVAL_MS) return
-    lastSentGeoTs.current = now
     pushLocation(geo.position.lat, geo.position.lng, geo.position.speedKmh)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo.position, tracking, me?.id])

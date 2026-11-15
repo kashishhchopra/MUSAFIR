@@ -59,7 +59,66 @@ async function capturePhotoAndAdvance() {
   fireEvent.click(screen.getByText('Next'))
 }
 
+// The account step is mandatory: email + password (typed twice).
+function fillAccount({ email = 'Aarav@Example.com', password = 'Strongpass1!', confirm = password } = {}) {
+  expect(screen.getByText(/— Account/)).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText(/^Email/i), { target: { value: email } })
+  fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: password } })
+  fireEvent.change(screen.getByLabelText(/^Confirm password/i), { target: { value: confirm } })
+}
+
+// Fills every step of an aadhaar registration and stops on Account.
+async function advanceToAccount() {
+  fillIdentityAndAdvance('aadhaar')
+  fireEvent.change(screen.getByLabelText(/Aadhaar Number/i), { target: { value: '123456789012' } })
+  fireEvent.change(screen.getByLabelText(/Phone/i), { target: { value: '9876543210' } })
+  fireEvent.click(screen.getByText('Next'))  // -> Photo
+  await capturePhotoAndAdvance()  // -> Trip
+  fireEvent.change(screen.getByLabelText(/Trip Start/i), { target: { value: '2026-11-01T09:00' } })
+  fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
+  fireEvent.click(screen.getByText('Next'))  // -> Emergency
+  fireEvent.click(screen.getByText('Next'))  // -> Account
+}
+
 describe('Register', () => {
+  // ------------------------------------------------------------ account step
+  it('cannot submit without an email and password', async () => {
+    renderPage()
+    await advanceToAccount()
+    expect(screen.getByText(/Get Your Unique Blockchain ID/).closest('button')).toBeDisabled()
+    expect(screen.queryByText(/Optional/)).not.toBeInTheDocument()
+  })
+
+  it('cannot submit when the two passwords differ', async () => {
+    renderPage()
+    await advanceToAccount()
+    fillAccount({ confirm: 'Strongpass1?' })
+    expect(screen.getByText(/Passwords don't match/)).toBeInTheDocument()
+    expect(screen.getByText(/Get Your Unique Blockchain ID/).closest('button')).toBeDisabled()
+  })
+
+  it('cannot submit with a malformed email', async () => {
+    renderPage()
+    await advanceToAccount()
+    fillAccount({ email: 'not-an-email' })
+    expect(screen.getByText(/Enter a valid email address/)).toBeInTheDocument()
+    expect(screen.getByText(/Get Your Unique Blockchain ID/).closest('button')).toBeDisabled()
+  })
+
+  it('always sends the login (lowercased email) with the registration', async () => {
+    api.post.mockResolvedValue({ data: { digital_id: 'STS-TEST', trip_end: '2026-12-01T00:00:00' } })
+    renderPage()
+    await advanceToAccount()
+    fillAccount()
+    fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    const [url, payload] = api.post.mock.calls[0]
+    expect(url).toBe('/tourists')
+    expect(payload.email).toBe('aarav@example.com')
+    expect(payload.password).toBe('Strongpass1!')
+    expect(payload).not.toHaveProperty('password_confirm')
+  })
+
   it('starts on the Identity step', () => {
     renderPage()
     expect(screen.getByText(/Step 1 of/)).toBeInTheDocument()
@@ -137,6 +196,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency Contact
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    fillAccount()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     expect(api.post).toHaveBeenCalled()
@@ -163,6 +223,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    fillAccount()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]
@@ -229,6 +290,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    fillAccount()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]
