@@ -98,6 +98,19 @@ class Settings(BaseSettings):
     # settings -> Service accounts). Empty = the Android app gets no push.
     FCM_CREDENTIALS_FILE: str = ""
 
+    # ---- Email (SMTP) -- password-reset codes; services/notifications.py ----
+    # Defaults suit Gmail: set SMTP_USERNAME to the Gmail address and
+    # SMTP_PASSWORD to a Google *App Password* (Google Account -> Security ->
+    # 2-Step Verification -> App passwords), never the normal Gmail password.
+    # Left empty, emails are not sent (in development they are logged instead).
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587                     # STARTTLS
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""                      # defaults to SMTP_USERNAME
+    SMTP_FROM_NAME: str = "MUSAFIR"
+    SMTP_TIMEOUT_SECONDS: int = 20
+
     # ---- Twilio SMS -- used when NOTIFICATION_CHANNEL=twilio ----
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""

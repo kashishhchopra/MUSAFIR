@@ -259,6 +259,13 @@ Both files are gitignored.
 
 To update the app, pull the code, repeat step 4 and install the new APK over the old one.
 
+**Password reset emails (free, Gmail).** "Forgot password" emails a one-time code (valid 30
+minutes). Turn on 2-Step Verification for the Gmail account, create an App Password at
+https://myaccount.google.com/apppasswords, then add to `.env`:
+`SMTP_USERNAME=your.address@gmail.com` and `SMTP_PASSWORD=<the 16-letter app password>`, and run
+`docker compose up -d backend`. Without these, codes are not emailed; in production they are not
+written to the logs either, so an admin resets a forgotten password by hand.
+
 **Limits.** If the PC or home internet is down the app can't reach the server; an SOS sent
 meanwhile is queued on the phone and sent when it's back, but location pings from that time are
 not. SMS needs a Twilio account. Disaster alerts reach the app over its live connection, not push.

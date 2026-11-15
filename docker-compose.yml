@@ -53,6 +53,14 @@ services:
       # and set FCM_CREDENTIALS_FILE=/app/secrets/firebase.json (README: "Android app").
       FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
       REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-false}
+      # Email for password-reset codes (README: "Password reset emails").
+      # Gmail: SMTP_USERNAME = the Gmail address, SMTP_PASSWORD = a Google App Password.
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-MUSAFIR}
       NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-console}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}

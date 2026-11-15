@@ -6,7 +6,8 @@ Layers
        `get_channel().send(to, subject, body)`
        - ConsoleNotificationChannel  logs instead of sending (default, no credentials)
        - TwilioSmsChannel            real SMS via Twilio's REST API
-     Password-reset codes still call this directly.
+     Email has its own entry point, `get_email_channel()` (password-reset codes):
+       - SmtpEmailChannel            real email over SMTP/STARTTLS (Gmail by default)
   2. Push -- `_send_push()`: Web Push (VAPID, via pywebpush) to browsers that
      subscribed (tourists, responders, admins, and guardians who only have a
      share link), shown by the service worker even when the page is closed;
@@ -37,10 +38,14 @@ import base64
 import json
 import os
 import re
+import smtplib
+import ssl
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
+from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Protocol
 
 import httpx
@@ -144,6 +149,53 @@ class TwilioSmsChannel:
         return SendResult(ok=False, error=msg, retryable=resp.status_code == 429 or resp.status_code >= 500)
 
 
+class SmtpEmailChannel:
+    """Real email over SMTP with STARTTLS -- Gmail by default (see the SMTP_*
+    settings). Uses the standard library only; the password is never logged."""
+
+    @staticmethod
+    def configured() -> bool:
+        return bool(settings.SMTP_HOST and settings.SMTP_USERNAME and settings.SMTP_PASSWORD)
+
+    def send(self, to: str, subject: str, body: str) -> bool:
+        return self.send_detailed(to, subject, body).ok
+
+    def send_detailed(self, to: str, subject: str, body: str) -> SendResult:
+        msg = EmailMessage()
+        msg["From"] = formataddr((settings.SMTP_FROM_NAME, settings.SMTP_FROM or settings.SMTP_USERNAME))
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(body)
+        try:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT,
+                              timeout=settings.SMTP_TIMEOUT_SECONDS) as smtp:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                smtp.send_message(msg)
+        except smtplib.SMTPAuthenticationError as e:
+            # Wrong address / app password, or 2-Step Verification off: retrying won't help.
+            logger.error("email_send_failed", reason="authentication", code=e.smtp_code, to=to)
+            return SendResult(ok=False, error=f"SMTP authentication failed ({e.smtp_code})", retryable=False)
+        except smtplib.SMTPRecipientsRefused:
+            logger.error("email_send_failed", reason="recipient refused", to=to)
+            return SendResult(ok=False, error="recipient refused", retryable=False)
+        except (smtplib.SMTPException, OSError) as e:
+            logger.error("email_send_failed", reason=type(e).__name__, to=to)
+            return SendResult(ok=False, error=f"{type(e).__name__}: {e}", retryable=True)
+        logger.info("email_sent", to=to, subject=subject)
+        return SendResult(ok=True)
+
+
+class UndeliveredEmailChannel:
+    """Production with no SMTP configured: say an email could not be sent, but
+    never write its body (it may hold a password-reset code) to the logs."""
+
+    def send(self, to: str, subject: str, body: str) -> bool:
+        logger.warning("email_not_configured", to=to, subject=subject,
+                       hint="set SMTP_USERNAME and SMTP_PASSWORD to send email")
+        return False
+
+
 _channels: dict[str, NotificationChannel] = {
     "console": ConsoleNotificationChannel(),
 }
@@ -155,7 +207,19 @@ def get_channel() -> NotificationChannel:
     return _channels.get(settings.NOTIFICATION_CHANNEL, _channels["console"])
 
 
+def get_email_channel() -> NotificationChannel:
+    """Where emails go: SMTP when configured; otherwise the console log in
+    development/tests, and nowhere (with a warning) in production."""
+    if SmtpEmailChannel.configured():
+        return _smtp
+    if settings.is_production:
+        return _undelivered_email
+    return _channels["console"]
+
+
 _twilio = TwilioSmsChannel()
+_smtp = SmtpEmailChannel()
+_undelivered_email = UndeliveredEmailChannel()
 
 
 # =============================================================== Web Push (VAPID)
