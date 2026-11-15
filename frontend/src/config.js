@@ -25,6 +25,11 @@ export const DEMO_LOGINS = (() => {
 })()
 export const POLL_INTERVAL_MS = Number(import.meta.env.VITE_POLL_INTERVAL_MS || 8000)
 export const TRACK_INTERVAL_MS = Number(import.meta.env.VITE_TRACK_INTERVAL_MS || 5000)
+// While real-GPS tracking is on and the tourist is standing still (no 25 m
+// move), resend the current position this often so the dashboard can tell
+// "stationary" from "phone went dark", and the anomaly model doesn't read a
+// long gap between pings as prolonged inactivity.
+export const HEARTBEAT_MS = Number(import.meta.env.VITE_HEARTBEAT_MS || 120000)
 // Demo/dev convenience: simulate a random walk instead of real GPS, since a
 // laptop/desktop rarely has meaningful geolocation and a live demo needs
 // motion on the map without physically moving. Default true; a real device

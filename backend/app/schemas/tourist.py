@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, ValidationInfo, field_validator, model_validator
 
 from app.core.identity_validators import (
     DOCUMENT_ERRORS,
@@ -53,9 +53,11 @@ class TouristCreate(BaseModel):
     emergency_contacts: list[EmergencyContact] = Field(default_factory=list, max_length=10)
     trip_start: datetime
     trip_end: datetime
-    # optional login creds; if provided a tourist user account is created
-    password: str | None = Field(None, max_length=128)
-    email: str | None = Field(None, max_length=254)
+    # Login for the tourist app. Required: registration is self-service and
+    # nothing else can attach a login to a tourist afterwards, so a tourist
+    # registered without one could never sign in.
+    email: EmailStr = Field(..., max_length=254)
+    password: str = Field(..., max_length=128)
 
     # Foreign-tourist / visa fields -- required when document_type ==
     # "passport" (see _checks below), otherwise left None.
@@ -104,14 +106,16 @@ class TouristCreate(BaseModel):
             raise ValueError(DOCUMENT_ERRORS[document_type])
         return normalized
 
+    @field_validator("email")
+    @classmethod
+    def _lowercase_email(cls, v: str) -> str:
+        return v.strip().lower()
+
     @model_validator(mode="after")
     def _checks(self) -> "TouristCreate":
         if self.trip_end <= self.trip_start:
             raise ValueError("trip_end must be after trip_start")
-        if (self.email and not self.password) or (self.password and not self.email):
-            raise ValueError("Provide both email and password to create a login, or neither.")
-        if self.password:
-            validate_password_strength(self.password)
+        validate_password_strength(self.password)
 
         if self.document_type == "passport":
             missing = [f for f in ("visa_type", "visa_expiry") if getattr(self, f) is None]

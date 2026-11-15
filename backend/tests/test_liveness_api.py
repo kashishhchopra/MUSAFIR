@@ -2,6 +2,7 @@
 (POST /tourists/verify-liveness, and TouristCreate.liveness_token)."""
 import base64
 import io
+import itertools
 from datetime import timedelta
 
 from PIL import Image
@@ -16,9 +17,14 @@ def _photo_data_uri(size=(150, 150), color=(50, 120, 200)) -> str:
     return f"data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}"
 
 
+_emails = itertools.count()
+
+
 def _registration_payload(photo, **over):
     now = utc_now()
     base = {
+        "email": f"liveness{next(_emails)}@test.com",
+        "password": "Strongpass1!",
         "full_name": "Liveness Tourist",
         "nationality": "Indian",
         "document_type": "aadhaar",
