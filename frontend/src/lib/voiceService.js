@@ -10,8 +10,13 @@
 // covers every supported language with zero network calls and no key --
 // using it is the honest choice, not a fallback for a missing feature.
 
+import { TextToSpeech } from '@capacitor-community/text-to-speech'
+import { isNativeApp } from './platform'
+
+// Android WebView has no speechSynthesis; the app uses the phone's TTS engine
+// through a Capacitor plugin instead.
 export function speechSynthesisSupported() {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window
+  return isNativeApp() || (typeof window !== 'undefined' && 'speechSynthesis' in window)
 }
 
 // BCP-47 codes SpeechSynthesis expects, keyed by this app's own i18n codes
@@ -27,6 +32,14 @@ const LANG_TO_SPEECH_LOCALE = {
  * support speech synthesis -- callers should never depend on this for
  * anything beyond a nice-to-have readout. */
 export function speak(text, lang = 'en') {
+  if (isNativeApp()) {
+    if (!text) return Promise.resolve()
+    const locale = LANG_TO_SPEECH_LOCALE[lang] || 'en-IN'
+    return TextToSpeech.stop()
+      .catch(() => {})
+      .then(() => TextToSpeech.speak({ text, lang: locale }))
+      .catch(() => {})
+  }
   return new Promise((resolve) => {
     if (!speechSynthesisSupported() || !text) {
       resolve()
@@ -42,5 +55,9 @@ export function speak(text, lang = 'en') {
 }
 
 export function stopSpeaking() {
+  if (isNativeApp()) {
+    TextToSpeech.stop().catch(() => {})
+    return
+  }
   if (speechSynthesisSupported()) window.speechSynthesis.cancel()
 }

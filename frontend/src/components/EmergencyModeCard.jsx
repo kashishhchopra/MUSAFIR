@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useEmergencyTracking from '../hooks/useEmergencyTracking'
+
+// How long the "Emergency Resolved" confirmation stays up before the card
+// disappears on its own.
+export const RESOLVED_DISMISS_MS = 5000
 
 const STATUS_META = {
   connecting: { labelKey: 'emergency_mode.status_connecting', dot: 'bg-slate-400', text: 'text-slate-300' },
@@ -19,15 +23,31 @@ const STATUS_META = {
 export default function EmergencyModeCard({ sosSent, tid, posRef }) {
   const { t } = useTranslation()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const active = !!sosSent?.incident_id && !sosSent.silent
+  // The incident whose "resolved" card has been shown and dismissed. Keyed by
+  // id (not a boolean) so a later, new SOS still gets its card.
+  const [dismissedId, setDismissedId] = useState(null)
+  const incidentId = sosSent?.incident_id
+  const active = !!incidentId && !sosSent.silent && dismissedId !== incidentId
   const startPos = posRef?.current ? { lat: posRef.current[0], lng: posRef.current[1] } : null
   const tracking = useEmergencyTracking({
-    tid, incidentId: sosSent?.incident_id, active, startPos,
+    tid, incidentId, active, startPos,
   })
+  const resolved = active && tracking.status === 'stopped'
+
+  // Once resolved, show the confirmation briefly, then remove the card --
+  // which also unmounts the tracking (GPS + send loop) for this incident.
+  useEffect(() => {
+    if (!resolved) return undefined
+    const timer = setTimeout(() => {
+      setDismissedId(incidentId)
+      setConfirmingCancel(false)
+    }, RESOLVED_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [resolved, incidentId])
 
   if (!active) return null
 
-  if (tracking.status === 'stopped') {
+  if (resolved) {
     return (
       <div className="fixed inset-x-4 bottom-40 z-[1400] max-w-sm mx-auto bg-slate-800 text-white rounded-2xl shadow-xl p-4 text-sm">
         <div className="font-bold">{t('emergency_mode.resolved_title')}</div>

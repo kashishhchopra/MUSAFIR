@@ -21,7 +21,27 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
   const [demo, setDemo] = useState(SIMULATE_GPS)
   const [error, setError] = useState('')
   const simPosRef = useRef(startPos ? { ...startPos } : null)
-  const geo = useGeolocation({ enabled: active && !SIMULATE_GPS })
+  // A new incident starts fresh: a "stopped" left over from the previous one
+  // must not block tracking for this one. (Adjusting state during render is
+  // React's documented way to reset state when a prop changes.)
+  const [statusIncident, setStatusIncident] = useState(incidentId)
+  if (incidentId !== statusIncident) {
+    setStatusIncident(incidentId)
+    setStatus('connecting')
+    setLastSentAt(null)
+    setError('')
+  }
+  // Once stopped (tourist cancelled, police resolved, or the server says 409),
+  // nothing more is sent and GPS is released -- even if the card stays mounted.
+  const stopped = status === 'stopped'
+  const stoppedRef = useRef(false)
+  stoppedRef.current = stopped
+  // Tighter than ordinary tracking: during an SOS a 5 m move matters, and
+  // re-emitting at most every POST_INTERVAL_MS keeps posts on the ~7 s rhythm
+  // (each new position triggers an immediate send below).
+  const geo = useGeolocation({
+    enabled: active && !stopped && !SIMULATE_GPS, minDistanceM: 5, minIntervalMs: POST_INTERVAL_MS,
+  })
 
   // The tourist's own channel tells us the moment police/operator resolve
   // the incident (or the tourist stops sharing from another tab/device) --
@@ -33,10 +53,11 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
   }, tid ? `/ws/tourist/${tid}` : null)
 
   useEffect(() => {
-    if (!active || !incidentId) return undefined
+    if (!active || !incidentId || stoppedRef.current) return undefined
     setStatus('connecting')
 
     const send = async () => {
+      if (stoppedRef.current) return
       let lat, lng, accuracyM, speedKmh, headingDeg, isDemo
       if (!SIMULATE_GPS && geo.position) {
         ({ lat, lng, accuracy: accuracyM, speedKmh, heading: headingDeg } = geo.position)
@@ -70,7 +91,10 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
     }
 
     send()
-    const iv = setInterval(send, POST_INTERVAL_MS)
+    const iv = setInterval(() => {
+      if (stoppedRef.current) clearInterval(iv)
+      else send()
+    }, POST_INTERVAL_MS)
     return () => clearInterval(iv)
   }, [active, incidentId, geo.position, geo.error])
 

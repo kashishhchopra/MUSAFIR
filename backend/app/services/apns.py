@@ -1,26 +1,19 @@
 """Native iOS push via Apple's APNs HTTP/2 API (token-based auth, .p8 key).
 
-The iOS (Capacitor) app registers its APNs device token through the same
-/notifications/push/* endpoints as browsers, using the endpoint form
-``apns:<device token>``. services/notifications._send_push routes those rows here.
+The iOS (Capacitor) app registers its APNs device token via
+POST /notifications/push/subscribe-apns, stored as a PushSubscription with
+kind="apns" and the token as `endpoint`. services/notifications._send_push routes
+those rows here (kind="fcm" rows go to Firebase for the Android app).
 Nothing is sent unless APNS_KEY_ID / APNS_TEAM_ID / APNS_BUNDLE_ID / APNS_AUTH_KEY
 are all configured.
 """
+import contextlib
 import json
 import time
 
 from app.core.config import settings
 
-PREFIX = "apns:"
 _jwt_cache: dict = {"token": None, "at": 0.0}
-
-
-def is_apns(endpoint: str) -> bool:
-    return endpoint.startswith(PREFIX)
-
-
-def device_token(endpoint: str) -> str:
-    return endpoint[len(PREFIX):]
 
 
 def configured() -> bool:
@@ -46,7 +39,7 @@ def _post(url: str, headers: dict, body: dict):  # indirection so tests can stub
         return client.post(url, headers=headers, content=json.dumps(body))
 
 
-def send(endpoint: str, payload: dict, urgent: bool):
+def send(token: str, payload: dict, urgent: bool):
     """Returns (ok, error, retryable)."""
     if not configured():
         return False, "iOS push is not configured (no APNs key)", False
@@ -61,16 +54,14 @@ def send(endpoint: str, payload: dict, urgent: bool):
     headers = {"authorization": f"bearer {_provider_token()}", "apns-topic": settings.APNS_BUNDLE_ID,
                "apns-push-type": "alert", "apns-priority": "10" if urgent else "5"}
     try:
-        r = _post(f"https://{host}/3/device/{device_token(endpoint)}", headers, body)
+        r = _post(f"https://{host}/3/device/{token}", headers, body)
     except Exception as e:  # noqa: BLE001 -- network/crypto errors: try again later
         return False, f"{type(e).__name__}: {str(e)[:160]}", True
     if r.status_code == 200:
         return True, None, False
     reason = ""
-    try:
+    with contextlib.suppress(Exception):
         reason = r.json().get("reason", "")
-    except Exception:  # noqa: BLE001
-        pass
     if r.status_code == 410 or reason in ("BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"):
         return False, f"subscription expired ({r.status_code} {reason})", False
     return False, f"apns {r.status_code} {reason}", r.status_code == 429 or r.status_code >= 500

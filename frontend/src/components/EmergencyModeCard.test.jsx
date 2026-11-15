@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, fireEvent, waitFor, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, fireEvent, waitFor, screen, act } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import '../i18n' // initializes i18next so t() resolves real strings, not raw keys
 import api from '../api'
-import EmergencyModeCard from './EmergencyModeCard'
+import EmergencyModeCard, { RESOLVED_DISMISS_MS } from './EmergencyModeCard'
 
 let wsCallback = null
 vi.mock('../useWebSocket', () => ({
@@ -78,7 +78,51 @@ describe('EmergencyModeCard', () => {
       <EmergencyModeCard sosSent={sosSent} tid={1} posRef={{ current: [26.1445, 91.7362] }} />
     )
     await findByText('🚨 Emergency Mode')
-    wsCallback({ event: 'emergency_tracking_stopped', incident_id: 7, reason: 'incident resolved' })
+    act(() => wsCallback({ event: 'emergency_tracking_stopped', incident_id: 7, reason: 'incident resolved' }))
     await findByText('Live emergency location sharing has stopped.')
+  })
+
+  describe('after it is resolved', () => {
+    afterEach(() => vi.useRealTimers())
+
+    const renderAndResolve = async (props = {}) => {
+      mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+      const utils = render(
+        <EmergencyModeCard sosSent={sosSent} tid={1} posRef={{ current: [26.1445, 91.7362] }} {...props} />
+      )
+      await utils.findByText('🚨 Emergency Mode')
+      vi.useFakeTimers()
+      act(() => wsCallback({ event: 'emergency_tracking_stopped', incident_id: 7 }))
+      expect(screen.getByText('Emergency Resolved')).toBeInTheDocument()
+      return utils
+    }
+
+    it('hides the "Emergency Resolved" card after 5 seconds', async () => {
+      const { container } = await renderAndResolve()
+      act(() => vi.advanceTimersByTime(RESOLVED_DISMISS_MS - 100))
+      expect(screen.getByText('Emergency Resolved')).toBeInTheDocument()
+      act(() => vi.advanceTimersByTime(200))
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('stops posting locations once resolved', async () => {
+      await renderAndResolve()
+      const posts = () => mock.history.post.filter((r) => r.url === '/incidents/7/location').length
+      const before = posts()
+      act(() => vi.advanceTimersByTime(30000))
+      expect(posts()).toBe(before)
+    })
+
+    it('still shows the card for a new SOS after an earlier one was dismissed', async () => {
+      const { container, rerender } = await renderAndResolve()
+      act(() => vi.advanceTimersByTime(RESOLVED_DISMISS_MS + 100))
+      expect(container).toBeEmptyDOMElement()
+      vi.useRealTimers()
+
+      mock.onPost('/incidents/8/location').reply(201, { status: 'ok' })
+      rerender(<EmergencyModeCard sosSent={{ ...sosSent, incident_id: 8 }} tid={1} posRef={{ current: [26.1445, 91.7362] }} />)
+      await screen.findByText('🚨 Emergency Mode')
+      await waitFor(() => expect(mock.history.post.some((r) => r.url === '/incidents/8/location')).toBe(true))
+    })
   })
 })

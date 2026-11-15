@@ -93,7 +93,11 @@ def _serialize(t: Tourist) -> dict:
 @router.post("", response_model=TouristOut, status_code=201,
              dependencies=[Depends(registration_rate_limit)])
 def register_tourist(payload: TouristCreate, db: Session = Depends(get_db)):
-    """Register a tourist, mint a digital ID, and seed its hash chain."""
+    """Register a tourist with their app login, mint a digital ID, and seed its hash chain."""
+    # Checked before anything is created, so a taken email can never leave
+    # behind a tourist with no way to sign in.
+    if db.query(User).filter(func.lower(User.email) == payload.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
     digital_id = _generate_digital_id(payload.full_name)
     tourist = Tourist(
         digital_id=digital_id,
@@ -139,15 +143,12 @@ def register_tourist(payload: TouristCreate, db: Session = Depends(get_db)):
     # services/tourist_id.py.
     tourist_id_service.issue_token(db, tourist)
 
-    # optional tourist login account
-    if payload.email and payload.password:
-        if db.query(User).filter(User.email == payload.email).first():
-            raise HTTPException(status_code=400, detail="Email already registered")
-        db.add(User(
-            email=payload.email, full_name=payload.full_name,
-            hashed_password=hash_password(payload.password),
-            role="tourist", tourist_id=tourist.id,
-        ))
+    # the tourist's app login (email already checked for duplicates above)
+    db.add(User(
+        email=payload.email, full_name=payload.full_name,
+        hashed_password=hash_password(payload.password),
+        role="tourist", tourist_id=tourist.id,
+    ))
 
     db.commit()
     db.refresh(tourist)

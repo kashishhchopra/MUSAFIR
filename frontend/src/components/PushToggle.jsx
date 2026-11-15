@@ -12,8 +12,9 @@ export default function PushToggle({ guardianToken, onChange, className = '' }) 
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
-    setPerm(permissionState())
     try { setOn(Boolean(await currentSubscription())) } catch { setOn(false) }
+    // after currentSubscription: in the Android app that call is what reads the permission
+    setPerm(permissionState())
   }, [])
   useEffect(() => { refresh() }, [refresh])
 

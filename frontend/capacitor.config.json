@@ -1,10 +1,20 @@
 {
-  "appId": "com.kashish.musafir",
+  "appId": "com.musafir.app",
   "appName": "MUSAFIR",
   "webDir": "dist",
-  "ios": { "contentInset": "always" },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
   "plugins": {
-    "CapacitorHttp": { "enabled": true },
-    "CapacitorCookies": { "enabled": true }
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
   }
 }

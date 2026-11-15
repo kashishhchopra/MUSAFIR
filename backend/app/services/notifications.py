@@ -6,10 +6,13 @@ Layers
        `get_channel().send(to, subject, body)`
        - ConsoleNotificationChannel  logs instead of sending (default, no credentials)
        - TwilioSmsChannel            real SMS via Twilio's REST API
-     Password-reset codes still call this directly.
-  2. Web Push (VAPID) -- `_send_push()` via pywebpush, to browsers/devices that
+     Email has its own entry point, `get_email_channel()` (password-reset codes):
+       - SmtpEmailChannel            real email over SMTP/STARTTLS (Gmail by default)
+  2. Push -- `_send_push()`: Web Push (VAPID, via pywebpush) to browsers that
      subscribed (tourists, responders, admins, and guardians who only have a
-     share link). The service worker shows it even when the page is closed.
+     share link), shown by the service worker even when the page is closed;
+     or Firebase Cloud Messaging (`_send_fcm()`) to the Android app, or APNs
+     (services/apns.py) to the iOS app.
   3. The pipeline -- `notify_sos`, `notify_incident_update`,
      `notify_incident_opened`, `notify_escalation`, `send_test`:
        * resolve recipients, write one NotificationLog row per (message, channel,
@@ -34,11 +37,16 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
+import smtplib
+import ssl
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
+from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Protocol
 
 import httpx
@@ -53,9 +61,9 @@ from app.db.session import SessionLocal
 from app.models.guardian import TripGuardian
 from app.models.incident import Incident
 from app.models.notification import NotificationLog, PushSubscription
-from app.services import apns
 from app.models.tourist import Tourist
 from app.models.user import User
+from app.services import apns
 
 logger = get_logger(__name__)
 
@@ -143,6 +151,53 @@ class TwilioSmsChannel:
         return SendResult(ok=False, error=msg, retryable=resp.status_code == 429 or resp.status_code >= 500)
 
 
+class SmtpEmailChannel:
+    """Real email over SMTP with STARTTLS -- Gmail by default (see the SMTP_*
+    settings). Uses the standard library only; the password is never logged."""
+
+    @staticmethod
+    def configured() -> bool:
+        return bool(settings.SMTP_HOST and settings.SMTP_USERNAME and settings.SMTP_PASSWORD)
+
+    def send(self, to: str, subject: str, body: str) -> bool:
+        return self.send_detailed(to, subject, body).ok
+
+    def send_detailed(self, to: str, subject: str, body: str) -> SendResult:
+        msg = EmailMessage()
+        msg["From"] = formataddr((settings.SMTP_FROM_NAME, settings.SMTP_FROM or settings.SMTP_USERNAME))
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(body)
+        try:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT,
+                              timeout=settings.SMTP_TIMEOUT_SECONDS) as smtp:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                smtp.send_message(msg)
+        except smtplib.SMTPAuthenticationError as e:
+            # Wrong address / app password, or 2-Step Verification off: retrying won't help.
+            logger.error("email_send_failed", reason="authentication", code=e.smtp_code, to=to)
+            return SendResult(ok=False, error=f"SMTP authentication failed ({e.smtp_code})", retryable=False)
+        except smtplib.SMTPRecipientsRefused:
+            logger.error("email_send_failed", reason="recipient refused", to=to)
+            return SendResult(ok=False, error="recipient refused", retryable=False)
+        except (smtplib.SMTPException, OSError) as e:
+            logger.error("email_send_failed", reason=type(e).__name__, to=to)
+            return SendResult(ok=False, error=f"{type(e).__name__}: {e}", retryable=True)
+        logger.info("email_sent", to=to, subject=subject)
+        return SendResult(ok=True)
+
+
+class UndeliveredEmailChannel:
+    """Production with no SMTP configured: say an email could not be sent, but
+    never write its body (it may hold a password-reset code) to the logs."""
+
+    def send(self, to: str, subject: str, body: str) -> bool:
+        logger.warning("email_not_configured", to=to, subject=subject,
+                       hint="set SMTP_USERNAME and SMTP_PASSWORD to send email")
+        return False
+
+
 _channels: dict[str, NotificationChannel] = {
     "console": ConsoleNotificationChannel(),
 }
@@ -154,7 +209,19 @@ def get_channel() -> NotificationChannel:
     return _channels.get(settings.NOTIFICATION_CHANNEL, _channels["console"])
 
 
+def get_email_channel() -> NotificationChannel:
+    """Where emails go: SMTP when configured; otherwise the console log in
+    development/tests, and nowhere (with a warning) in production."""
+    if SmtpEmailChannel.configured():
+        return _smtp
+    if settings.is_production:
+        return _undelivered_email
+    return _channels["console"]
+
+
 _twilio = TwilioSmsChannel()
+_smtp = SmtpEmailChannel()
+_undelivered_email = UndeliveredEmailChannel()
 
 
 # =============================================================== Web Push (VAPID)
@@ -209,11 +276,73 @@ def _webpush(**kwargs):  # indirection so tests can stub the network call
     return webpush(**kwargs)
 
 
+FCM_CHANNEL_ID = "sos_alerts"   # must match the channel the Android app creates
+_FCM_APP_NAME = "musafir"
+_fcm_lock = threading.Lock()
+
+
+def fcm_configured() -> bool:
+    return bool(settings.PUSH_ENABLED and settings.FCM_CREDENTIALS_FILE
+                and os.path.isfile(settings.FCM_CREDENTIALS_FILE))
+
+
+def _fcm_app():
+    import firebase_admin
+    from firebase_admin import credentials
+
+    with _fcm_lock:
+        try:
+            return firebase_admin.get_app(_FCM_APP_NAME)
+        except ValueError:
+            return firebase_admin.initialize_app(
+                credentials.Certificate(settings.FCM_CREDENTIALS_FILE), name=_FCM_APP_NAME)
+
+
+def _fcm_send(*, token: str, title: str, body: str, data: dict[str, str], urgent: bool) -> str:
+    """Indirection so tests can stub the network call. Returns FCM's message id."""
+    from firebase_admin import messaging
+
+    message = messaging.Message(
+        token=token,
+        notification=messaging.Notification(title=title, body=body),
+        data=data,
+        android=messaging.AndroidConfig(
+            priority="high" if urgent else "normal",
+            ttl=86400,
+            notification=messaging.AndroidNotification(channel_id=FCM_CHANNEL_ID, tag=data.get("tag")),
+        ),
+    )
+    return messaging.send(message, app=_fcm_app())
+
+
+def _send_fcm(sub: PushSubscription, payload: dict, urgent: bool) -> SendResult:
+    from firebase_admin import exceptions as fb_exc
+    from firebase_admin import messaging
+
+    if not fcm_configured():
+        return SendResult(ok=False, error="FCM is not configured (no FCM_CREDENTIALS_FILE)", retryable=False)
+    data = {k: str(v) for k, v in payload.items() if v is not None}
+    try:
+        msg_id = _fcm_send(token=sub.endpoint, title=payload.get("title", ""), body=payload.get("body", ""),
+                           data=data, urgent=urgent)
+        return SendResult(ok=True, provider_id=msg_id)
+    except (messaging.UnregisteredError, messaging.SenderIdMismatchError) as e:
+        return SendResult(ok=False, error=f"subscription expired (fcm {type(e).__name__})", retryable=False)
+    except fb_exc.InvalidArgumentError as e:
+        if "registration token" in str(e).lower():
+            return SendResult(ok=False, error="subscription expired (fcm invalid token)", retryable=False)
+        return SendResult(ok=False, error=f"fcm rejected the message: {str(e)[:160]}", retryable=False)
+    except Exception as e:  # noqa: BLE001 -- quota, outage, network: try again later
+        return SendResult(ok=False, error=f"fcm {type(e).__name__}: {str(e)[:160]}", retryable=True)
+
+
 def _send_push(sub: PushSubscription, payload: dict, urgent: bool) -> SendResult:
-    from app.services import apns
-    if apns.is_apns(sub.endpoint):            # native iOS app (Capacitor), not a browser
+    if sub.kind == "fcm":
+        return _send_fcm(sub, payload, urgent)
+    if sub.kind == "apns":
         ok, error, retryable = apns.send(sub.endpoint, payload, urgent)
         return SendResult(ok=ok, error=error, retryable=retryable)
+
     from py_vapid import Vapid
     from pywebpush import WebPushException
 
@@ -792,8 +921,9 @@ def config_status() -> dict:
     twilio_ok = TwilioSmsChannel.configured()
     live = settings.NOTIFICATION_CHANNEL == "twilio" and twilio_ok
     return {
-        "push": {"enabled": keys is not None, "mode": mode, "public_key_available": keys is not None,
-                 "ios_apns_configured": apns.configured()},
+        "push": {"enabled": keys is not None, "mode": mode, "public_key_available": keys is not None},
+        "fcm": {"enabled": fcm_configured()},
+        "apns": {"enabled": apns.configured()},
         "sms": {
             "channel": settings.NOTIFICATION_CHANNEL, "twilio_configured": twilio_ok, "live": live,
             "mode": "twilio (real SMS)" if live else "demo (console only — nothing is texted)",
