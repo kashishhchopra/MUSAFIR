@@ -105,6 +105,12 @@ def login(request: Request, response: Response, form: OAuth2PasswordRequestForm 
         audit.record(db, "login", actor=form.username or "unknown",
                      outcome="failure", request=request, detail="bad credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+    from app.services.privacy_deletion import login_blocked
+
+    if login_blocked(db, user):
+        audit.record(db, "login", actor=user.email, outcome="failure", request=request,
+                     detail="account deletion in progress")
+        raise HTTPException(status_code=403, detail="This account is being deleted and can no longer sign in.")
     audit.record(db, "login", actor=user.email, outcome="success", request=request)
     return _issue_pair(response, user)
 

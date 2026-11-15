@@ -49,6 +49,12 @@ function fillIdentityAndAdvance(documentType = 'aadhaar') {
   fireEvent.click(screen.getByText('Next'))
 }
 
+// The privacy step's two required statements (nothing is pre-ticked).
+function acceptPrivacy() {
+  fireEvent.click(screen.getByLabelText(/I have read how MUSAFIR uses my data/))
+  fireEvent.click(screen.getByLabelText(/I am 18 years of age or older/))
+}
+
 // Captures a photo (live camera step, mandatory) and advances past it.
 async function capturePhotoAndAdvance() {
   expect(screen.getByText(/— Photo/)).toBeInTheDocument()
@@ -137,6 +143,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency Contact
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     expect(api.post).toHaveBeenCalled()
@@ -163,6 +170,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]
@@ -229,6 +237,7 @@ describe('Register', () => {
     fireEvent.change(screen.getByLabelText(/Trip End/i), { target: { value: '2026-11-10T09:00' } })
     fireEvent.click(screen.getByText('Next'))  // -> Emergency
     fireEvent.click(screen.getByText('Next'))  // -> Account
+    acceptPrivacy()
     fireEvent.click(screen.getByText(/Get Your Unique Blockchain ID/))
 
     const [, payload] = api.post.mock.calls[0]

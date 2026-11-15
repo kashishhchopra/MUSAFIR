@@ -75,6 +75,11 @@ def public_key():
 @router.post("/push/subscribe", status_code=201)
 def subscribe(payload: SubscribeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     _require_push(payload.endpoint)
+    if user.tourist_id is not None:
+        from app.services.privacy_consent import is_withdrawn
+
+        if is_withdrawn(db, user.tourist_id, "notifications"):
+            raise HTTPException(status_code=403, detail="Push notification consent is withdrawn. Grant it in Privacy settings first.")
     sub = _upsert(db, payload, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}
 

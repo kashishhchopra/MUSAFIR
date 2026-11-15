@@ -46,3 +46,6 @@ backend/evaluation_reports/
 .vapid_keys.json
 backend/.vapid_keys.json
 .env.production.local
+
+# Prepared personal-data exports (encrypted, short-lived)
+backend/privacy_exports/
