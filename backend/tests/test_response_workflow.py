@@ -896,5 +896,8 @@ def test_migration_head_is_single_and_creates_the_new_tables():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
     cfg = Config("alembic.ini")
-    heads = ScriptDirectory.from_config(cfg).get_heads()
-    assert heads == ["g4b5c6d7e8f9"]
+    script = ScriptDirectory.from_config(cfg)
+    # a single head, with this feature's migration somewhere in its history
+    # (later migrations may legitimately sit on top of it)
+    assert len(script.get_heads()) == 1
+    assert "g4b5c6d7e8f9" in {r.revision for r in script.walk_revisions()}

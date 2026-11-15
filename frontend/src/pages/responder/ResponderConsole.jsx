@@ -6,6 +6,7 @@ import { sosIcon, missingIcon, policeIcon } from '../../components/mapIcons'
 import { SeverityBadge, StatusBadge, Card } from '../../components/ui.jsx'
 import { DEFAULT_MAP, loadMapConfig } from '../../config'
 import TouristIdScanner from '../../components/TouristIdScanner.jsx'
+import MedicalQrScanner from '../../components/MedicalQrScanner.jsx'
 import ResponseChip from '../../components/ResponseChip.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../lib/mapConfig"
 
@@ -18,6 +19,7 @@ export default function ResponderConsole() {
   const [tourists, setTourists] = useState({})
   const [mapCfg, setMapCfg] = useState(DEFAULT_MAP)
   const [scanOpen, setScanOpen] = useState(false)
+  const [medOpen, setMedOpen] = useState(false)
 
   const load = async () => {
     const { data } = await api.get('/incidents/mine')
@@ -65,6 +67,18 @@ export default function ResponderConsole() {
         {scanOpen && (
           <div className="mt-3">
             <TouristIdScanner />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button onClick={() => setMedOpen((o) => !o)} aria-expanded={medOpen}
+          className="w-full text-sm font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 rounded-xl py-2">
+          {medOpen ? 'Hide medical QR scanner ▲' : '🩺 Scan Tourist Medical QR'}
+        </button>
+        {medOpen && (
+          <div className="mt-3">
+            <MedicalQrScanner />
           </div>
         )}
       </div>

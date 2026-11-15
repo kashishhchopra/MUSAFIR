@@ -53,8 +53,10 @@ def issue_token(db: Session, tourist: Tourist) -> tuple[TouristIdToken, str]:
     """Mint a new active token for a tourist. Does not touch any existing
     token -- callers that mean to replace one should call regenerate_token."""
     raw = secrets.token_urlsafe(24)
+    ttl_days = settings.MEDICAL_QR_TOKEN_TTL_DAYS
     row = TouristIdToken(
         tourist_id=tourist.id, token_hash=_hash(raw), raw_token_encrypted=raw, status="active",
+        expires_at=(utc_now() + timedelta(days=ttl_days)) if ttl_days > 0 else None,
     )
     db.add(row)
     db.flush()
@@ -67,6 +69,27 @@ def _current_token(db: Session, tourist_id: int) -> TouristIdToken | None:
         .filter(TouristIdToken.tourist_id == tourist_id, TouristIdToken.status == "active")
         .order_by(TouristIdToken.issued_at.desc())
         .first()
+    )
+
+
+def _latest_revoked(db: Session, tourist_id: int) -> TouristIdToken | None:
+    """The most recent token, if (and only if) it was revoked by the owner."""
+    latest = (
+        db.query(TouristIdToken)
+        .filter(TouristIdToken.tourist_id == tourist_id)
+        .order_by(TouristIdToken.issued_at.desc(), TouristIdToken.id.desc())
+        .first()
+    )
+    return latest if latest is not None and latest.status == "revoked" else None
+
+
+def revoke_tokens(db: Session, tourist: Tourist) -> int:
+    """Owner/admin revocation: every active token becomes "revoked" with no
+    replacement. Returns how many were revoked."""
+    return (
+        db.query(TouristIdToken)
+        .filter(TouristIdToken.tourist_id == tourist.id, TouristIdToken.status == "active")
+        .update({"status": "revoked", "invalidated_at": utc_now()})
     )
 
 
@@ -116,6 +139,18 @@ def digital_id_card(db: Session, tourist: Tourist) -> dict:
     explicit regenerate/suspend does)."""
     token = _current_token(db, tourist.id)
     if token is None:
+        revoked = _latest_revoked(db, tourist.id)
+        if revoked is not None:
+            # The tourist deliberately revoked their QR: do NOT silently mint a
+            # replacement just because the card was opened. Only an explicit
+            # regenerate brings it back.
+            return {
+                "digital_id": tourist.digital_id, "full_name": tourist.full_name,
+                "photo": tourist.photo, "hotel": tourist.hotel,
+                "trip_start": tourist.trip_start, "trip_end": tourist.trip_end,
+                "id_status": "invalidated", "issued_at": revoked.issued_at,
+                "qr_png_base64": None,
+            }
         token, _raw = issue_token(db, tourist)
         db.commit()
     status = id_status(tourist, token)
