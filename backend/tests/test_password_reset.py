@@ -1,5 +1,8 @@
 """Forgot/reset password flow and the notification channel it uses."""
+import re
+import smtplib
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,7 +29,7 @@ def capture(monkeypatch):
 
 
 def _extract_token(body: str) -> str:
-    return body.split(": ")[-1]
+    return re.search(r"reset code: (\S+)", body).group(1)
 
 
 # ---------------------------------------------------------------- forgot-password
@@ -211,3 +214,108 @@ def test_unknown_channel_name_falls_back_to_console(monkeypatch):
 def test_console_channel_send_returns_true():
     channel = notifications.ConsoleNotificationChannel()
     assert channel.send("a@b.com", "subject", "body") is True
+
+
+# ---------------------------------------------------------------- email (SMTP / Gmail)
+@pytest.fixture
+def smtp_settings(monkeypatch):
+    s = notifications.settings
+    monkeypatch.setattr(s, "SMTP_HOST", "smtp.gmail.com")
+    monkeypatch.setattr(s, "SMTP_PORT", 587)
+    monkeypatch.setattr(s, "SMTP_USERNAME", "musafir.app@gmail.com")
+    monkeypatch.setattr(s, "SMTP_PASSWORD", "app-password-123")
+    monkeypatch.setattr(s, "SMTP_FROM", "")
+    return s
+
+
+@pytest.fixture
+def fake_smtp(monkeypatch):
+    server = MagicMock()
+    factory = MagicMock()
+    factory.return_value.__enter__.return_value = server
+    monkeypatch.setattr(notifications.smtplib, "SMTP", factory)
+    return factory, server
+
+
+def test_reset_email_contains_the_code_and_expiry(client, admin_user, capture):
+    client.post("/api/auth/forgot-password", json={"email": "admin@test.gov"})
+    mail = capture.sent[0]
+    assert mail["subject"] == "Your MUSAFIR password reset code"
+    assert _extract_token(mail["body"])
+    assert "30 minutes" in mail["body"]
+
+
+def test_email_channel_is_smtp_when_configured(smtp_settings):
+    assert isinstance(notifications.get_email_channel(), notifications.SmtpEmailChannel)
+
+
+def test_email_channel_logs_in_development_without_smtp(monkeypatch):
+    monkeypatch.setattr(notifications.settings, "SMTP_USERNAME", "")
+    monkeypatch.setattr(notifications.settings, "ENVIRONMENT", "development")
+    assert notifications.get_email_channel() is notifications._channels["console"]
+
+
+def test_production_without_smtp_never_logs_the_reset_code(client, admin_user, monkeypatch):
+    monkeypatch.setattr(notifications.settings, "SMTP_USERNAME", "")
+    monkeypatch.setattr(notifications.settings, "ENVIRONMENT", "production")
+    seen = []
+    monkeypatch.setattr(notifications.logger, "warning", lambda *a, **kw: seen.append((a, kw)))
+    monkeypatch.setattr(notifications.logger, "info", lambda *a, **kw: seen.append((a, kw)))
+
+    r = client.post("/api/auth/forgot-password", json={"email": "admin@test.gov"})
+    assert r.status_code == 200
+    assert any(a and a[0] == "email_not_configured" for a, _ in seen)
+    # The subject may be logged; the body (which carries the code) never is.
+    assert all("body" not in kw and "Your reset code:" not in str(kw) for _, kw in seen)
+
+
+def test_smtp_send_uses_starttls_and_login(smtp_settings, fake_smtp):
+    factory, server = fake_smtp
+    ok = notifications.SmtpEmailChannel().send("tourist@example.com", "Hi", "Body text")
+    assert ok is True
+    factory.assert_called_once_with("smtp.gmail.com", 587, timeout=smtp_settings.SMTP_TIMEOUT_SECONDS)
+    server.starttls.assert_called_once()
+    server.login.assert_called_once_with("musafir.app@gmail.com", "app-password-123")
+    msg = server.send_message.call_args.args[0]
+    assert msg["To"] == "tourist@example.com"
+    assert msg["Subject"] == "Hi"
+    assert "musafir.app@gmail.com" in msg["From"] and "MUSAFIR" in msg["From"]
+
+
+def test_smtp_from_address_can_be_overridden(smtp_settings, fake_smtp, monkeypatch):
+    monkeypatch.setattr(smtp_settings, "SMTP_FROM", "alerts@musafir.example")
+    _, server = fake_smtp
+    notifications.SmtpEmailChannel().send("t@example.com", "Hi", "Body")
+    assert "alerts@musafir.example" in server.send_message.call_args.args[0]["From"]
+
+
+def test_smtp_bad_app_password_is_not_retried(smtp_settings, fake_smtp):
+    _, server = fake_smtp
+    server.login.side_effect = smtplib.SMTPAuthenticationError(535, b"Username and Password not accepted")
+    result = notifications.SmtpEmailChannel().send_detailed("t@example.com", "Hi", "Body")
+    assert result.ok is False and result.retryable is False
+    assert "535" in result.error
+    assert "app-password-123" not in result.error
+
+
+def test_smtp_refused_recipient_is_not_retried(smtp_settings, fake_smtp):
+    _, server = fake_smtp
+    server.send_message.side_effect = smtplib.SMTPRecipientsRefused({"t@example.com": (550, b"no")})
+    result = notifications.SmtpEmailChannel().send_detailed("t@example.com", "Hi", "Body")
+    assert result.ok is False and result.retryable is False
+
+
+def test_smtp_network_error_is_retryable(smtp_settings, fake_smtp):
+    factory, _ = fake_smtp
+    factory.side_effect = OSError("network unreachable")
+    result = notifications.SmtpEmailChannel().send_detailed("t@example.com", "Hi", "Body")
+    assert result.ok is False and result.retryable is True
+
+
+def test_forgot_password_sends_through_smtp_when_configured(client, admin_user, smtp_settings, fake_smtp):
+    _, server = fake_smtp
+    r = client.post("/api/auth/forgot-password", json={"email": "admin@test.gov"})
+    assert r.status_code == 200
+    msg = server.send_message.call_args.args[0]
+    assert msg["To"] == "admin@test.gov"
+    assert _extract_token(msg.get_content())

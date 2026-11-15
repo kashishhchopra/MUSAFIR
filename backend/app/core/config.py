@@ -93,12 +93,29 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = "mailto:alerts@musafir.example"
+    # ---- Firebase Cloud Messaging -- push to the Android app ----
+    # Path to a Firebase service-account JSON key (Firebase console -> Project
+    # settings -> Service accounts). Empty = the Android app gets no push.
+    FCM_CREDENTIALS_FILE: str = ""
+
+    # ---- Email (SMTP) -- password-reset codes; services/notifications.py ----
+    # Defaults suit Gmail: set SMTP_USERNAME to the Gmail address and
+    # SMTP_PASSWORD to a Google *App Password* (Google Account -> Security ->
+    # 2-Step Verification -> App passwords), never the normal Gmail password.
+    # Left empty, emails are not sent (in development they are logged instead).
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587                     # STARTTLS
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""                      # defaults to SMTP_USERNAME
+    SMTP_FROM_NAME: str = "MUSAFIR"
+    SMTP_TIMEOUT_SECONDS: int = 20
 
     # ---- Native iOS push (APNs) -- services/apns.py. Needs a paid Apple Developer
     # account: create an APNs Auth Key (.p8) and paste its contents (\n allowed).
     APNS_KEY_ID: str = ""
     APNS_TEAM_ID: str = ""
-    APNS_BUNDLE_ID: str = "com.kashish.musafir"
+    APNS_BUNDLE_ID: str = "com.musafir.app"   # same app id as Android
     APNS_AUTH_KEY: str = ""
     APNS_USE_SANDBOX: bool = True            # True for Xcode/TestFlight-debug builds, False for App Store/TestFlight
 

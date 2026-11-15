@@ -1,9 +1,8 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from './auth.jsx'
 import { RTL_LANGUAGES } from './i18n.js'
-import { initNativePushRouting } from './lib/pushService'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
@@ -24,6 +23,8 @@ import AuditLog from './pages/admin/AuditLog.jsx'
 import TouristApp from './pages/tourist/TouristApp.jsx'
 import ResponderLayout from './pages/responder/ResponderLayout.jsx'
 import ResponderConsole from './pages/responder/ResponderConsole.jsx'
+import NativeBridge from './components/NativeBridge.jsx'
+import { isNativeApp } from './lib/platform'
 
 function Protected({ role, children }) {
   const { user, ready } = useAuth()
@@ -44,9 +45,28 @@ function Protected({ role, children }) {
 function Home() {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
+  if (isNativeApp() && user.role !== 'tourist') return <WebOnlyNotice />
   if (user.role === 'admin') return <Navigate to="/admin" replace />
   if (user.role === 'responder') return <Navigate to="/responder" replace />
   return <Navigate to="/app" replace />
+}
+
+// The Android app is the tourist app only; staff consoles stay on the web.
+function WebOnlyNotice() {
+  const { logout } = useAuth()
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-slate-100 dark:bg-slate-900">
+      <div className="max-w-sm text-center bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6">
+        <p className="font-semibold text-slate-800 dark:text-slate-100">This app is for tourists.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+          Admin and responder consoles are available on the web dashboard.
+        </p>
+        <button onClick={logout} className="mt-4 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-semibold">
+          Log out
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // RTL only applies to the tourist-facing screens (this app's translated
@@ -68,39 +88,42 @@ function useDocumentDirection() {
 
 export default function App() {
   useDocumentDirection()
-  const navigate = useNavigate()
-  // iOS app: tapping a push notification opens its incident / page.
-  useEffect(() => initNativePushRouting(navigate), [navigate])
+  const native = isNativeApp()
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/guardian/:token" element={<GuardianView />} />
-      <Route path="/" element={<Home />} />
+    <>
+      {native && <NativeBridge />}
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/app" element={<Protected role="tourist"><TouristApp /></Protected>} />
 
-      <Route path="/admin" element={<Protected role="admin"><AdminLayout /></Protected>}>
-        <Route index element={<Dashboard />} />
-        <Route path="tourists" element={<TouristSearch />} />
-        <Route path="zones" element={<Zones />} />
-        <Route path="incidents" element={<Incidents />} />
-        <Route path="police-network" element={<PoliceNetwork />} />
-        <Route path="live-emergencies" element={<LiveEmergencies />} />
-        <Route path="analytics" element={<Analytics />} />
-        <Route path="response" element={<ResponseCenter />} />
-        <Route path="devices" element={<Devices />} />
-        <Route path="simulation" element={<Simulation />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="audit" element={<AuditLog />} />
-      </Route>
+        {!native && (
+          <>
+            <Route path="/guardian/:token" element={<GuardianView />} />
+            <Route path="/admin" element={<Protected role="admin"><AdminLayout /></Protected>}>
+              <Route index element={<Dashboard />} />
+              <Route path="tourists" element={<TouristSearch />} />
+              <Route path="zones" element={<Zones />} />
+              <Route path="incidents" element={<Incidents />} />
+              <Route path="police-network" element={<PoliceNetwork />} />
+              <Route path="live-emergencies" element={<LiveEmergencies />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="response" element={<ResponseCenter />} />
+              <Route path="devices" element={<Devices />} />
+              <Route path="simulation" element={<Simulation />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="audit" element={<AuditLog />} />
+            </Route>
+            <Route path="/responder" element={<Protected role="responder"><ResponderLayout /></Protected>}>
+              <Route index element={<ResponderConsole />} />
+            </Route>
+          </>
+        )}
 
-      <Route path="/app" element={<Protected role="tourist"><TouristApp /></Protected>} />
-
-      <Route path="/responder" element={<Protected role="responder"><ResponderLayout /></Protected>}>
-        <Route index element={<ResponderConsole />} />
-      </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }

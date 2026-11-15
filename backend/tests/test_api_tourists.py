@@ -1,15 +1,23 @@
 """Tourist registration, serialization, and input validation."""
+import itertools
 from datetime import timedelta
 
 import pytest
 
 from app.core.time import utc_now
+from app.models.tourist import Tourist
 from app.models.user import User
+
+_emails = itertools.count()
 
 
 def _payload(**over):
     now = utc_now()
     base = {
+        # A login is required at registration; unique per call so tests that
+        # register several tourists don't collide on the email.
+        "email": f"tourist{next(_emails)}@test.com",
+        "password": "Strongpass1!",
         "full_name": "New Tourist",
         "nationality": "Indian",
         "document_type": "aadhaar",
@@ -82,9 +90,40 @@ def test_weak_password_rejected(client):
     assert r.status_code == 422
 
 
-def test_email_without_password_rejected(client):
-    assert client.post("/api/tourists",
-                       json=_payload(email="x@test.com")).status_code == 422
+@pytest.mark.parametrize("missing", ["email", "password"])
+def test_registration_requires_a_login(client, db, missing):
+    # Without a login the tourist could never sign in to the app, so
+    # registration is refused rather than creating an unreachable tourist.
+    payload = _payload()
+    del payload[missing]
+    assert client.post("/api/tourists", json=payload).status_code == 422
+    assert db.query(Tourist).filter_by(full_name="New Tourist").count() == 0
+
+
+@pytest.mark.parametrize("missing", ["email", "password"])
+def test_registration_rejects_null_login_fields(client, missing):
+    assert client.post("/api/tourists", json=_payload(**{missing: None})).status_code == 422
+
+
+def test_invalid_email_rejected(client):
+    assert client.post("/api/tourists", json=_payload(email="not-an-email")).status_code == 422
+
+
+def test_email_is_stored_lowercase_and_login_ignores_case(client, db):
+    r = client.post("/api/tourists", json=_payload(email="Mixed.Case@Test.com"))
+    assert r.status_code == 201
+    assert db.query(User).filter_by(email="mixed.case@test.com").one()
+    login = client.post("/api/auth/login",
+                        data={"username": "MIXED.case@test.COM", "password": "Strongpass1!"})
+    assert login.status_code == 200
+
+
+def test_duplicate_email_in_other_case_rejected_without_orphan_tourist(client, db):
+    assert client.post("/api/tourists", json=_payload(email="dup2@test.com")).status_code == 201
+    before = db.query(Tourist).count()
+    r = client.post("/api/tourists", json=_payload(email="DUP2@test.com", full_name="Second Person"))
+    assert r.status_code == 400
+    assert db.query(Tourist).count() == before
 
 
 @pytest.mark.parametrize("bad_doc", ["driverslicense", "ration_card", ""])

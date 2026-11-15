@@ -17,6 +17,7 @@ and a responsive tourist mobile view.
 3. [Tech Stack](#tech-stack)
 4. [Security](#security)
 5. [Deployment (Docker, one command)](#deployment)
+   - [Android app on a home server (free)](#android-app-on-a-home-server-free)
 6. [Project Structure](#project-structure)
 7. [Local Setup & Run](#setup--run)
 8. [Live Demo Mode](#live-demo-mode)
@@ -202,6 +203,75 @@ retention deletion, disaster feed). So:
 - **Frontend → Vercel** (`vercel.json`): edit the `/api` rewrite destination to your Render URL
   and set `VITE_WS_ORIGIN=wss://<your-service>.onrender.com` at build time so the browser opens
   the WebSocket directly to the backend.
+
+### Android app on a home server (free)
+
+The tourist side ships as an Android app (Capacitor, `frontend/android/`) talking to the
+backend running on a PC at home. Everything used is free: Docker Desktop (personal use),
+Tailscale (personal plan), Firebase Cloud Messaging, Android Studio, and the APK is installed
+directly instead of through the Play Store. The app is tourist-only; admin and responder
+consoles stay on the web. iPhone is not supported (it needs a Mac to build).
+
+What the app adds over the website: login that survives restarts (refresh token in app storage,
+`src/lib/nativeSession.js`), location that keeps flowing with the screen locked (foreground
+service, `src/hooks/useGeolocation.js`), push through FCM (`src/lib/pushService.js`,
+`POST /api/notifications/push/subscribe-fcm`), and the phone's own speech recognition and
+text-to-speech.
+
+**1. Home server (once)**
+1. Install Docker Desktop and turn on "Start Docker Desktop when you sign in". Set Windows to
+   never sleep while plugged in, and to sign in automatically so Docker starts after a reboot.
+2. Install [Tailscale](https://tailscale.com/download) and sign in. In the admin console turn on
+   HTTPS certificates and Funnel, and **disable key expiry** for this PC (otherwise the address
+   stops working after ~180 days). Then run `tailscale funnel --bg 8080`. Your address is
+   `https://<pc-name>.<tailnet>.ts.net`; it stays the same when the PC changes Wi-Fi, router or
+   IP. Don't rename the PC in Tailscale or switch accounts: the address would change and the app
+   would need a rebuild.
+3. `cp .env.example .env` and fill in `SECRET_KEY`, `POSTGRES_PASSWORD` and the "Home server"
+   block (your address in `PUBLIC_BASE_URL`, `CORS_ORIGINS`, `ALLOWED_HOSTS`;
+   `REFRESH_COOKIE_SECURE=true`; `FCM_CREDENTIALS_FILE=/app/secrets/firebase.json`).
+4. `docker compose up -d --build`. All services restart on their own after a reboot.
+   For an admin login on the web dashboard, start once with `SEED_ON_START=true SEED_FORCE=true`
+   and strong `SEED_*_PASSWORD`s, then set both back to `false` (seeding wipes data).
+5. Open your address in the phone's browser and log in to check it works.
+6. Optional daily backup (Task Scheduler):
+   `docker compose exec -T db pg_dump -U tourist tourist_safety > backups\musafir.sql`
+
+**2. Firebase (push notifications, once)**
+1. In the [Firebase console](https://console.firebase.google.com) create a project (Spark,
+   free) and add an Android app with package name `com.musafir.app`.
+2. Download `google-services.json` into `frontend/android/app/`.
+3. Project settings → Service accounts → Generate new private key; save it as
+   `secrets/firebase.json` in the repo root, then `docker compose up -d` again.
+Both files are gitignored.
+
+**3. Build and install the APK**
+1. Install [Android Studio](https://developer.android.com/studio) (includes Java and the SDK).
+2. `cp frontend/.env.android.example frontend/.env.android` and put your address in it.
+3. Create the signing key once, from `frontend/android/`:
+   `keytool -genkey -v -keystore musafir.jks -keyalg RSA -keysize 2048 -validity 10000 -alias musafir`,
+   then copy `keystore.properties.example` to `keystore.properties` and fill in the passwords.
+   Back up `musafir.jks` and the passwords: updates only install over the app if signed with the same key.
+4. `cd frontend && npm run build:android`, then `cd android && gradlew assembleRelease`
+   (or `npm run android:open` and build from Android Studio).
+5. Copy `android/app/build/outputs/apk/release/app-release.apk` to the phone and open it
+   (allow "Install unknown apps"), or `adb install -r app-release.apk` over USB.
+6. On the phone: allow location ("While using the app" is enough: the foreground service keeps
+   it in use), notifications, camera and microphone when asked, and set the app's battery usage
+   to "Unrestricted" so Android doesn't stop location in the background.
+
+To update the app, pull the code, repeat step 4 and install the new APK over the old one.
+
+**Password reset emails (free, Gmail).** "Forgot password" emails a one-time code (valid 30
+minutes). Turn on 2-Step Verification for the Gmail account, create an App Password at
+https://myaccount.google.com/apppasswords, then add to `.env`:
+`SMTP_USERNAME=your.address@gmail.com` and `SMTP_PASSWORD=<the 16-letter app password>`, and run
+`docker compose up -d backend`. Without these, codes are not emailed; in production they are not
+written to the logs either, so an admin resets a forgotten password by hand.
+
+**Limits.** If the PC or home internet is down the app can't reach the server; an SOS sent
+meanwhile is queued on the phone and sent when it's back, but location pings from that time are
+not. SMS needs a Twilio account. Disaster alerts reach the app over its live connection, not push.
 
 ---
 

@@ -29,9 +29,9 @@ class UserOut(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    # Optional: a cookie-based client (see REFRESH_COOKIE_NAME) sends no body
-    # at all. Kept for one release as a back-compat path for any client still
-    # holding the refresh token itself rather than relying on the cookie.
+    # Optional: the browser (cookie-based, see REFRESH_COOKIE_NAME) sends no body
+    # at all. The Android app can't use the cookie, so it holds the refresh
+    # token itself and sends it here -- keep this path.
     refresh_token: str | None = None
 
 

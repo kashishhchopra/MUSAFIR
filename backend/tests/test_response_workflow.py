@@ -896,5 +896,9 @@ def test_migration_head_is_single_and_creates_the_new_tables():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
     cfg = Config("alembic.ini")
-    heads = ScriptDirectory.from_config(cfg).get_heads()
-    assert heads == ["g4b5c6d7e8f9"]
+    script = ScriptDirectory.from_config(cfg)
+    heads = script.get_heads()
+    # One head (no forked history), and the response-management migration is part of it.
+    # The head's id itself changes whenever a later migration lands, so it isn't pinned.
+    assert len(heads) == 1
+    assert "g4b5c6d7e8f9" in {rev.revision for rev in script.walk_revisions("base", heads[0])}
