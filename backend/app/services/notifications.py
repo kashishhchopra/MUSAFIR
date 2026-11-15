@@ -53,6 +53,7 @@ from app.db.session import SessionLocal
 from app.models.guardian import TripGuardian
 from app.models.incident import Incident
 from app.models.notification import NotificationLog, PushSubscription
+from app.services import apns
 from app.models.tourist import Tourist
 from app.models.user import User
 
@@ -209,6 +210,10 @@ def _webpush(**kwargs):  # indirection so tests can stub the network call
 
 
 def _send_push(sub: PushSubscription, payload: dict, urgent: bool) -> SendResult:
+    from app.services import apns
+    if apns.is_apns(sub.endpoint):            # native iOS app (Capacitor), not a browser
+        ok, error, retryable = apns.send(sub.endpoint, payload, urgent)
+        return SendResult(ok=ok, error=error, retryable=retryable)
     from py_vapid import Vapid
     from pywebpush import WebPushException
 
@@ -787,7 +792,8 @@ def config_status() -> dict:
     twilio_ok = TwilioSmsChannel.configured()
     live = settings.NOTIFICATION_CHANNEL == "twilio" and twilio_ok
     return {
-        "push": {"enabled": keys is not None, "mode": mode, "public_key_available": keys is not None},
+        "push": {"enabled": keys is not None, "mode": mode, "public_key_available": keys is not None,
+                 "ios_apns_configured": apns.configured()},
         "sms": {
             "channel": settings.NOTIFICATION_CHANNEL, "twilio_configured": twilio_ok, "live": live,
             "mode": "twilio (real SMS)" if live else "demo (console only — nothing is texted)",

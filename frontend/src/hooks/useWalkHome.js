@@ -6,6 +6,7 @@ import {
 } from '../lib/walkHomeService'
 import '../lib/walkHomeStrings'
 import useWebSocket from '../useWebSocket'
+import { geoSupported, getCurrentPosition, watchPosition } from '../lib/geo'
 
 const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 }
 const POLL_MS = 30_000
@@ -161,7 +162,7 @@ export default function useWalkHome({ tid }) {
       }
     }
 
-    const watchId = navigator.geolocation.watchPosition(
+    const stopWatch = watchPosition(
       (pos) => {
         const first = !latestFix.current
         latestFix.current = {
@@ -180,7 +181,7 @@ export default function useWalkHome({ tid }) {
     return () => {
       stopped = true
       clearInterval(iv)
-      navigator.geolocation.clearWatch(watchId)
+      stopWatch()
       latestFix.current = null
     }
   }, [sessionId, intervalS, tid, apply, refresh])
@@ -204,8 +205,8 @@ export default function useWalkHome({ tid }) {
   }, [busy, apply])
 
   const currentPosition = () => new Promise((resolve) => {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return resolve(null)
-    navigator.geolocation.getCurrentPosition(
+    if (!geoSupported()) return resolve(null)
+    getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => resolve(null),
       { ...GEO_OPTS, timeout: 8000 },

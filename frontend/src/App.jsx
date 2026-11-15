@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from './auth.jsx'
 import { RTL_LANGUAGES } from './i18n.js'
+import { initNativePushRouting } from './lib/pushService'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
@@ -67,6 +68,9 @@ function useDocumentDirection() {
 
 export default function App() {
   useDocumentDirection()
+  const navigate = useNavigate()
+  // iOS app: tapping a push notification opens its incident / page.
+  useEffect(() => initNativePushRouting(navigate), [navigate])
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = "mailto:alerts@musafir.example"
 
+    # ---- Native iOS push (APNs) -- services/apns.py. Needs a paid Apple Developer
+    # account: create an APNs Auth Key (.p8) and paste its contents (\n allowed).
+    APNS_KEY_ID: str = ""
+    APNS_TEAM_ID: str = ""
+    APNS_BUNDLE_ID: str = "com.kashish.musafir"
+    APNS_AUTH_KEY: str = ""
+    APNS_USE_SANDBOX: bool = True            # True for Xcode/TestFlight-debug builds, False for App Store/TestFlight
+
     # ---- Twilio SMS -- used when NOTIFICATION_CHANNEL=twilio ----
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
