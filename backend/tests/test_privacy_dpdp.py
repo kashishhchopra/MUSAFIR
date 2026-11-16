@@ -224,6 +224,7 @@ def test_registration_can_require_acknowledgements(client, monkeypatch):
         "photo": "data:image/png;base64,iVBORw0KGgo=",
         "trip_start": (utc_now() - timedelta(days=1)).isoformat(),
         "trip_end": (utc_now() + timedelta(days=5)).isoformat(), "consents": [],
+        "email": "priya.ack@example.com", "password": "Strongpass1!",  # a login is required at registration
     }
     assert client.post("/api/tourists", json=body).status_code == 400
     body["consents"] = [{"purpose": "privacy_notice_ack", "granted": True},
@@ -238,6 +239,7 @@ def test_registration_without_consents_still_works(client):
         "photo": "data:image/png;base64,iVBORw0KGgo=",
         "trip_start": (utc_now() - timedelta(days=1)).isoformat(),
         "trip_end": (utc_now() + timedelta(days=5)).isoformat(),
+        "email": "priya.noconsent@example.com", "password": "Strongpass1!",  # a login is required at registration
     }
     assert client.post("/api/tourists", json=body).status_code == 201
 

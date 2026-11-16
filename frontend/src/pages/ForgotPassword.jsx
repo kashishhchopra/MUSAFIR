@@ -83,8 +83,8 @@ export default function ForgotPassword() {
               {message}
             </div>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              This demo has no real email service configured, so the reset code was
-              logged on the server instead of emailed — check the backend console output.
+              Check your email for the reset code (look in Spam if it isn't in your
+              inbox within a couple of minutes). The code works once and expires after 30 minutes.
             </p>
             <form onSubmit={submitReset} className="space-y-4">
               <div>

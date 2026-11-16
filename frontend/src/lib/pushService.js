@@ -1,56 +1,118 @@
-// Web Push registration for tourists, responders, admins (logged in) and
-// guardians (share-link token, no account). Talks to /notifications/push/*.
-import api, { bare } from '../api'
+// Push registration. In a browser: Web Push for tourists, responders, admins
+// (logged in) and guardians (share-link token, no account). In the native app,
+// via @capacitor/push-notifications: Firebase Cloud Messaging on Android, Apple
+// Push Notification service (APNs) on iOS -- the plugin hands back the matching
+// device token and the server sends with the matching service.
+// Talks to /notifications/push/*.
 import { PushNotifications } from '@capacitor/push-notifications'
-import { isNative } from './native'
+import { Preferences } from '@capacitor/preferences'
+import api, { bare } from '../api'
+import { isIOSApp, isNativeApp } from './platform'
 
-// ---- iOS app (Capacitor): native APNs token instead of a browser subscription.
-// The device token is registered with the server as endpoint "apns:<token>".
-const TOKEN_KEY = 'musafir_apns_token'
-const readToken = () => { try { return localStorage.getItem(TOKEN_KEY) } catch { return null } }
-const writeToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ } }
-
-function nativeToken() {
-  return new Promise((resolve, reject) => {
-    let regL, errL
-    const done = (fn, v) => { regL?.then((h) => h.remove()); errL?.then((h) => h.remove()); fn(v) }
-    regL = PushNotifications.addListener('registration', (t) => done(resolve, t.value))
-    errL = PushNotifications.addListener('registrationError', (e) => done(reject, new Error(e?.error || 'Could not register for push notifications.')))
-    PushNotifications.register().catch((e) => done(reject, e))
-  })
-}
-
-/** Open the app at the notification's deep link (call once at startup, native only). */
-export function initNativePushRouting(navigate) {
-  if (!isNative()) return () => {}
-  const h = PushNotifications.addListener('pushNotificationActionPerformed', (a) => {
-    const url = a?.notification?.data?.url
-    if (url && url.startsWith('/')) navigate(url)
-  })
-  return () => { h.then((x) => x.remove()) }
-}
-
-async function enableNative({ guardianToken } = {}) {
-  const perm = await PushNotifications.requestPermissions()
-  if (perm.receive !== 'granted') {
-    throw new Error('Notifications are blocked. Allow them in Settings → MUSAFIR → Notifications, then try again.')
-  }
-  const token = await nativeToken()
-  const body = { endpoint: `apns:${token}`, keys: { p256dh: 'apns', auth: 'apns' }, user_agent: 'MUSAFIR-iOS' }
-  if (guardianToken) await bare.post('/notifications/push/guardian-subscribe', { ...body, token: guardianToken })
-  else await api.post('/notifications/push/subscribe', body)
-  writeToken(token)
-  return { endpoint: body.endpoint }
-}
+const FCM_TOKEN_KEY = 'fcm_token'
+const CHANNEL_ID = 'sos_alerts' // must match FCM_CHANNEL_ID in backend services/notifications.py
+let nativePermission = 'prompt'
 
 export const pushSupported = () =>
-  isNative() ||
-  typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  isNativeApp() ||
+  (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)
 
 export const permissionState = () => {
-  if (isNative()) return readToken() ? 'granted' : 'default' // real state is asked via requestPermissions()
+  if (isNativeApp()) return nativePermission
   return pushSupported() ? Notification.permission : 'unsupported'
 }
+
+// ------------------------------------------------------------ Android app (FCM)
+const normalizePermission = (p) => (p === 'prompt-with-rationale' ? 'prompt' : p)
+
+async function nativeToken() {
+  const { value } = await Preferences.get({ key: FCM_TOKEN_KEY })
+  return value
+}
+
+async function refreshNativePermission() {
+  const { receive } = await PushNotifications.checkPermissions()
+  nativePermission = normalizePermission(receive)
+  return nativePermission
+}
+
+function registerForToken() {
+  return new Promise((resolve, reject) => {
+    const handles = []
+    const finish = (fn, value) => {
+      clearTimeout(timer)
+      handles.forEach((h) => h.then((x) => x.remove()))
+      fn(value)
+    }
+    const timer = setTimeout(
+      () => finish(reject, new Error(isIOSApp()
+        ? 'No push token from Apple. Check the phone has internet and the app is signed with push enabled.'
+        : 'No push token from Google. Check the phone has internet and Google Play services.')),
+      15000,
+    )
+    handles.push(PushNotifications.addListener('registration', ({ value }) => finish(resolve, value)))
+    handles.push(PushNotifications.addListener('registrationError', (e) =>
+      finish(reject, new Error(e?.error || 'Push registration failed.'))))
+    PushNotifications.register().catch((e) => finish(reject, e))
+  })
+}
+
+async function enableNativePush() {
+  if ((await refreshNativePermission()) !== 'granted') {
+    const { receive } = await PushNotifications.requestPermissions()
+    nativePermission = normalizePermission(receive)
+    if (receive !== 'granted') {
+      throw new Error(isIOSApp()
+        ? 'Notifications are blocked. Allow them in Settings → MUSAFIR → Notifications, then try again.'
+        : 'Notifications are blocked. Allow them for MUSAFIR in Android settings, then try again.')
+    }
+  }
+  if (!isIOSApp()) { // Android notification channel; iOS has no channels
+    await PushNotifications.createChannel({
+      id: CHANNEL_ID, name: 'Emergency alerts', description: 'SOS and incident updates',
+      importance: 5, visibility: 1, vibration: true,
+    })
+  }
+  const token = await registerForToken()
+  if (isIOSApp()) await api.post('/notifications/push/subscribe-apns', { token, user_agent: 'MUSAFIR iOS app' })
+  else await api.post('/notifications/push/subscribe-fcm', { token, user_agent: 'MUSAFIR Android app' })
+  await Preferences.set({ key: FCM_TOKEN_KEY, value: token })
+  return token
+}
+
+async function disableNativePush() {
+  const token = await nativeToken()
+  if (!token) return
+  try {
+    await api.post('/notifications/push/unsubscribe', { endpoint: token })
+  } finally {
+    await PushNotifications.unregister().catch(() => {})
+    await Preferences.remove({ key: FCM_TOKEN_KEY })
+  }
+}
+
+/** On app start: re-register so a rotated FCM/APNs token reaches the server. No prompt. */
+export async function resyncNativePush() {
+  try {
+    if (!(await nativeToken())) return
+    if ((await refreshNativePermission()) !== 'granted') return
+    await enableNativePush()
+  } catch {
+    // best effort; the toggle in the Me tab shows the real state
+  }
+}
+
+/** Open the screen a tapped notification points at. Returns the listener handle promise. */
+export function onPushTap(navigate) {
+  return PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const url = notification?.data?.url
+    if (!url) return navigate('/app')
+    const target = new URL(url, window.location.origin)
+    navigate(target.pathname + target.search)
+  })
+}
+
+// ------------------------------------------------------------ browser (Web Push)
 
 function urlB64ToUint8Array(b64) {
   const pad = '='.repeat((4 - (b64.length % 4)) % 4)
@@ -69,7 +131,7 @@ async function registration() {
 }
 
 export async function currentSubscription() {
-  if (isNative()) { const t = readToken(); return t ? { endpoint: `apns:${t}` } : null }
+  if (isNativeApp()) return (await refreshNativePermission()) === 'granted' ? nativeToken() : null
   if (!pushSupported()) return null
   const reg = await navigator.serviceWorker.getRegistration()
   return reg ? reg.pushManager.getSubscription() : null
@@ -77,7 +139,7 @@ export async function currentSubscription() {
 
 /** Ask permission, subscribe this browser, and register it with the server. */
 export async function enablePush({ guardianToken } = {}) {
-  if (isNative()) return enableNative({ guardianToken })
+  if (isNativeApp()) return enableNativePush()
   if (!pushSupported()) throw new Error('This browser does not support push notifications.')
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') {
@@ -98,16 +160,7 @@ export async function enablePush({ guardianToken } = {}) {
 }
 
 export async function disablePush({ guardianToken } = {}) {
-  if (isNative()) {
-    const t = readToken()
-    if (!t) return
-    const endpoint = `apns:${t}`
-    try {
-      if (guardianToken) await bare.post('/notifications/push/guardian-unsubscribe', { endpoint, token: guardianToken })
-      else await api.post('/notifications/push/unsubscribe', { endpoint })
-    } finally { writeToken(null) }
-    return
-  }
+  if (isNativeApp()) return disableNativePush()
   const sub = await currentSubscription()
   if (!sub) return
   const endpoint = sub.endpoint

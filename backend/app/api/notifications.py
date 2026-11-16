@@ -1,7 +1,8 @@
 """Push & SMS alerts API. See services/notifications.py.
 
-  * browsers/devices register for Web Push (tourists, responders, admins by login;
-    guardians by their share-link token -- they have no account),
+  * browsers register for Web Push (tourists, responders, admins by login;
+    guardians by their share-link token -- they have no account), and the
+    Android app registers its FCM token,
   * admins read the delivery history, retry failures and send tests.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -34,6 +35,17 @@ class GuardianSubscribeRequest(SubscribeRequest):
     token: str = Field(..., max_length=200)
 
 
+class FcmSubscribeRequest(BaseModel):
+    token: str = Field(..., min_length=20, max_length=2000)
+    user_agent: str = Field("", max_length=300)
+
+
+class ApnsSubscribeRequest(BaseModel):
+    # An APNs device token is 32 bytes, sent as 64 hex characters.
+    token: str = Field(..., min_length=64, max_length=200, pattern="^[0-9a-fA-F]+$")
+    user_agent: str = Field("", max_length=300)
+
+
 class UnsubscribeRequest(BaseModel):
     endpoint: str = Field(..., max_length=2000)
     token: str | None = Field(None, max_length=200)
@@ -44,13 +56,16 @@ class TestRequest(BaseModel):
     to: str | None = Field(None, max_length=32)
 
 
-def _upsert(db: Session, payload: SubscribeRequest, *, user: User | None, guardian: TripGuardian | None):
-    sub = db.query(PushSubscription).filter(PushSubscription.endpoint == payload.endpoint).first()
+def _upsert(db: Session, *, endpoint: str, kind: str, keys: PushKeys | None, user_agent: str,
+            user: User | None, guardian: TripGuardian | None):
+    sub = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
     if sub is None:
-        sub = PushSubscription(endpoint=payload.endpoint, p256dh=payload.keys.p256dh, auth=payload.keys.auth)
+        sub = PushSubscription(endpoint=endpoint)
         db.add(sub)
-    sub.p256dh, sub.auth, sub.active, sub.failure_count = payload.keys.p256dh, payload.keys.auth, True, 0
-    sub.user_agent = payload.user_agent[:300]
+    sub.kind = kind
+    sub.p256dh, sub.auth = (keys.p256dh, keys.auth) if keys else (None, None)
+    sub.active, sub.failure_count = True, 0
+    sub.user_agent = user_agent[:300]
     # A device belongs to exactly one owner: re-subscribing as someone else moves it.
     sub.user_id = user.id if user else None
     sub.guardian_id = guardian.id if guardian else None
@@ -59,28 +74,57 @@ def _upsert(db: Session, payload: SubscribeRequest, *, user: User | None, guardi
     return sub
 
 
-def _require_push(endpoint: str) -> None:
-    ok = apns.configured() if apns.is_apns(endpoint) else notifications.vapid_keys()[0] is not None
-    if not ok:
-        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+def _require_push_consent(db: Session, user: User) -> None:
+    """A tourist who withdrew notification consent (Privacy settings, services/privacy_consent.py)
+    can't register a device for push -- browser, Android or iOS alike."""
+    if user.tourist_id is None:
+        return
+    from app.services.privacy_consent import is_withdrawn
+
+    if is_withdrawn(db, user.tourist_id, "notifications"):
+        raise HTTPException(status_code=403,
+                            detail="Push notification consent is withdrawn. Grant it in Privacy settings first.")
 
 
 @router.get("/push/public-key")
 def public_key():
     """The VAPID public key a browser needs to subscribe (public by design)."""
     keys, mode = notifications.vapid_keys()
-    return {"enabled": keys is not None, "mode": mode, "public_key": keys["public"] if keys else None}
+    return {"enabled": keys is not None, "mode": mode, "public_key": keys["public"] if keys else None,
+            "fcm_enabled": notifications.fcm_configured(), "apns_enabled": apns.configured()}
 
 
 @router.post("/push/subscribe", status_code=201)
 def subscribe(payload: SubscribeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    _require_push(payload.endpoint)
-    if user.tourist_id is not None:
-        from app.services.privacy_consent import is_withdrawn
+    if notifications.vapid_keys()[0] is None:
+        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
+    _require_push_consent(db, user)
+    sub = _upsert(db, endpoint=payload.endpoint, kind="webpush", keys=payload.keys,
+                  user_agent=payload.user_agent, user=user, guardian=None)
+    return {"id": sub.id, "role": sub.role}
 
-        if is_withdrawn(db, user.tourist_id, "notifications"):
-            raise HTTPException(status_code=403, detail="Push notification consent is withdrawn. Grant it in Privacy settings first.")
-    sub = _upsert(db, payload, user=user, guardian=None)
+
+@router.post("/push/subscribe-fcm", status_code=201)
+def subscribe_fcm(payload: FcmSubscribeRequest, db: Session = Depends(get_db),
+                  user: User = Depends(get_current_user)):
+    """The Android app registers its FCM token. Unsubscribe with the token as `endpoint`."""
+    if not notifications.fcm_configured():
+        raise HTTPException(status_code=503, detail="App push notifications are not configured on this server")
+    _require_push_consent(db, user)
+    sub = _upsert(db, endpoint=payload.token, kind="fcm", keys=None,
+                  user_agent=payload.user_agent, user=user, guardian=None)
+    return {"id": sub.id, "role": sub.role}
+
+
+@router.post("/push/subscribe-apns", status_code=201)
+def subscribe_apns(payload: ApnsSubscribeRequest, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)):
+    """The iOS app registers its APNs device token. Unsubscribe with the token as `endpoint`."""
+    if not apns.configured():
+        raise HTTPException(status_code=503, detail="App push notifications are not configured on this server")
+    _require_push_consent(db, user)
+    sub = _upsert(db, endpoint=payload.token.lower(), kind="apns", keys=None,
+                  user_agent=payload.user_agent, user=user, guardian=None)
     return {"id": sub.id, "role": sub.role}
 
 
@@ -98,11 +142,13 @@ def unsubscribe(payload: UnsubscribeRequest, db: Session = Depends(get_db), user
 def guardian_subscribe(payload: GuardianSubscribeRequest, db: Session = Depends(get_db)):
     """A guardian (family member) opts in from their share page -- the unguessable
     share token is their credential, exactly like the page itself."""
-    _require_push(payload.endpoint)
+    if notifications.vapid_keys()[0] is None:
+        raise HTTPException(status_code=503, detail="Push notifications are not configured on this server")
     g = db.query(TripGuardian).filter(TripGuardian.token == payload.token, TripGuardian.revoked.is_(False)).first()
     if g is None:
         raise HTTPException(status_code=404, detail="This share link is not valid")
-    sub = _upsert(db, payload, user=None, guardian=g)
+    sub = _upsert(db, endpoint=payload.endpoint, kind="webpush", keys=payload.keys,
+                  user_agent=payload.user_agent, user=None, guardian=g)
     return {"id": sub.id, "role": sub.role}
 
 

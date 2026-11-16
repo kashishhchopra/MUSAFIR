@@ -4,7 +4,7 @@
 //    live tracking keep reporting while the phone is locked / app backgrounded.
 // Both return positions shaped like the browser's ({coords, timestamp}).
 import { registerPlugin } from '@capacitor/core'
-import { isNative } from './native'
+import { isNativeApp as isNative } from './platform'
 
 const Native = registerPlugin('BackgroundGeolocation')
 

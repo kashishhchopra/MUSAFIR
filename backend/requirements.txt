@@ -35,3 +35,4 @@ vaderSentiment==3.3.2 # Women & Solo Traveller Safety: real sentiment/distress
                     # analysis (services/sentiment.py) -- no network/key needed
 fairlearn==0.15.0
 pywebpush==2.5.0   # Web Push (VAPID) for emergency notifications
+firebase-admin==6.6.0   # FCM push to the Android app

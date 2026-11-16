@@ -4,7 +4,7 @@ const { native, plugin } = vi.hoisted(() => ({
   native: { on: false },
   plugin: { addWatcher: vi.fn(), removeWatcher: vi.fn() },
 }))
-vi.mock('./native', () => ({ isNative: () => native.on }))
+vi.mock('./platform', () => ({ isNativeApp: () => native.on }))
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => plugin }))
 
 import { getCurrentPosition, watchPosition } from './geo'

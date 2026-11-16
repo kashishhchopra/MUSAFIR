@@ -2,8 +2,9 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -30,7 +31,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.services import audit
-from app.services.notifications import get_channel
+from app.services.notifications import get_email_channel
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,8 +59,20 @@ def _token_predates_epoch(claims: dict, user: User) -> bool:
 # Generic response for forgot-password regardless of outcome, so the endpoint
 # cannot be used to enumerate registered email addresses.
 _FORGOT_PASSWORD_ACK = {
-    "message": "If that email is registered, a password reset link has been sent."
+    "message": "If that email is registered, a password reset code has been sent to it."
 }
+
+
+def _reset_email_body(name: str, raw_token: str) -> str:
+    minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    return (
+        f"Hello {name or 'there'},\n\n"
+        "We received a request to reset your MUSAFIR password.\n\n"
+        f"Your reset code: {raw_token}\n\n"
+        f"It is valid for {minutes} minutes and can be used once. In MUSAFIR, open "
+        "\"Forgot password\", paste this code and choose a new password.\n\n"
+        "If you did not ask for this, ignore this email -- your password stays the same.\n"
+    )
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -86,9 +99,9 @@ def _issue_pair(response: Response, user: User) -> Token:
         subject=user.email, role=user.role, tourist_id=user.tourist_id
     )
     _set_refresh_cookie(response, refresh)
-    # The body still carries refresh_token for one release: existing/mobile
-    # clients that store it themselves keep working, while the frontend now
-    # relies on the cookie and never reads this field. See RefreshRequest.
+    # The body also carries refresh_token for the Android app: its WebView is a
+    # different origin, so the SameSite=strict cookie never reaches it and it
+    # stores the token itself. The browser frontend ignores this field.
     return Token(
         access_token=access, refresh_token=refresh, role=user.role,
         tourist_id=user.tourist_id, full_name=user.full_name,
@@ -99,7 +112,9 @@ def _issue_pair(response: Response, user: User) -> Token:
 def login(request: Request, response: Response, form: OAuth2PasswordRequestForm = Depends(),
           db: Session = Depends(get_db)):
     """OAuth2 password flow — `username` field carries the email."""
-    user = db.query(User).filter(User.email == form.username).first()
+    # Emails match case-insensitively: people type "Name@Gmail.com" one day
+    # and "name@gmail.com" the next.
+    user = db.query(User).filter(func.lower(User.email) == (form.username or "").strip().lower()).first()
     # Constant-ish response: same error whether the email exists or not.
     if not user or not verify_password(form.password, user.hashed_password):
         audit.record(db, "login", actor=form.username or "unknown",
@@ -120,8 +135,8 @@ def refresh(request: Request, response: Response,
             payload: RefreshRequest | None = None, db: Session = Depends(get_db)):
     """Trade a refresh token for a new access+refresh pair.
 
-    The token comes from the httpOnly cookie if present, falling back to the
-    request body for one release (see RefreshRequest). Refresh tokens are
+    The token comes from the httpOnly cookie if present (browser), falling back
+    to the request body (Android app, see RefreshRequest). Refresh tokens are
     rotated on every use (the presented one is revoked and a new one issued)
     rather than reused: if a refresh token is ever stolen, the legitimate
     client's next refresh attempt will fail because the token it's holding
@@ -175,12 +190,14 @@ def logout(request: Request, response: Response,
 
 @router.post("/forgot-password", dependencies=[Depends(login_rate_limit)])
 def forgot_password(payload: ForgotPasswordRequest, request: Request,
-                    db: Session = Depends(get_db)):
+                    background: BackgroundTasks, db: Session = Depends(get_db)):
     """Always returns the same generic acknowledgement -- an attacker probing
     for registered emails learns nothing from the response either way, and
     the same login rate limit that guards brute-force attempts also caps
-    how many reset emails one client can trigger."""
-    user = db.query(User).filter(User.email == payload.email).first()
+    how many reset emails one client can trigger. The email is sent after the
+    response, so a slow mail server can't reveal (by timing) that the address
+    exists, nor make the request hang."""
+    user = db.query(User).filter(func.lower(User.email) == payload.email.strip().lower()).first()
     if user:
         raw_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
@@ -189,13 +206,11 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request,
             expires_at=utc_now() + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
         ))
         db.commit()
-        get_channel().send(
+        background.add_task(
+            get_email_channel().send,
             to=user.email,
-            subject="Password reset request",
-            body=(
-                f"Use this code to reset your password (valid "
-                f"{settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes): {raw_token}"
-            ),
+            subject="Your MUSAFIR password reset code",
+            body=_reset_email_body(user.full_name, raw_token),
         )
         audit.record(db, "forgot_password", actor=user.email, request=request)
     return _FORGOT_PASSWORD_ACK

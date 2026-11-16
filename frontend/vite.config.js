@@ -1,11 +1,25 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+// `vite build --mode android` builds the bundle packed into the Android app
+// (see capacitor.config.json). It gets no service worker: the assets ship
+// inside the APK, and push goes through FCM instead of Web Push.
+function checkAndroidEnv(mode) {
+  if (mode !== 'android') return
+  const env = loadEnv(mode, process.cwd())
+  if (!/^https:\/\//.test(env.VITE_API_BASE || '')) {
+    throw new Error('The Android build needs frontend/.env.android with VITE_API_BASE=https://<your server>/api ' +
+      '(copy .env.android.example).')
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  checkAndroidEnv(mode)
+  return {
   plugins: [
     react(),
-    VitePWA({
+    mode !== 'android' && VitePWA({
       registerType: 'autoUpdate',
       // Only build/register the service worker for `vite build` — during
       // `vite dev` it would intercept requests to the Vite dev server itself
@@ -30,6 +44,10 @@ export default defineConfig({
       workbox: {
         // Push + notification-click handlers (public/push-sw.js), appended to the generated worker.
         importScripts: ['push-sw.js'],
+        // The single app bundle passed Workbox's 2 MiB default (2.15 MB), which fails the
+        // build. It must stay precached -- offline SOS/maps need the app shell with no
+        // signal -- so the limit is raised. Follow-up: code-split the admin pages.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // App shell (JS/CSS/HTML/icons) is precached automatically by the
         // plugin. Runtime caching below covers API calls specifically:
         runtimeCaching: [
@@ -92,4 +110,5 @@ export default defineConfig({
       exclude: ['src/main.jsx', 'src/test/**'],
     },
   },
+  }
 })

@@ -24,6 +24,9 @@ const DOC_TYPES = [
 
 const VISA_TYPES = ['e-Visa', 'Tourist', 'Business', 'Medical', 'Conference']
 
+// Shape check only (the backend's EmailStr is authoritative): something@domain.tld
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 // Step list is built per-registration rather than a fixed array: a
 // passport-type registration (foreign tourist) needs a "Visa & Travel" step
 // the domestic-document flow doesn't. Keyed by a stable id (not index) so
@@ -196,7 +199,7 @@ export default function Register() {
   const nav = useNavigate()
   const [f, setF] = useState({
     full_name: '', nationality: 'Indian', document_type: '',
-    document_number: '', phone: '', email: '', password: '',
+    document_number: '', phone: '', email: '', password: '', password_confirm: '',
     trip_start: '', trip_end: '', hotel: '', photo: null, liveness_token: null,
     nationality_code: '', visa_type: '', visa_number: '', visa_expiry: '', passport_expiry: '',
   })
@@ -215,6 +218,9 @@ export default function Register() {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  // Set when the automatic sign-in right after registering fails, so the
+  // success screen offers the login page instead of "Signing you in…" forever.
+  const [autoLoginFailed, setAutoLoginFailed] = useState(false)
   // Smart Identity & Contact Validation: which identity/contact fields the
   // user has moved on from (blurred) -- gates whether an incomplete value
   // shows as a neutral hint or a hard error (see FieldHint above).
@@ -258,11 +264,13 @@ export default function Register() {
     photo: () => !!f.photo, // live camera capture is mandatory for the Digital ID card
     trip: () => f.trip_start && f.trip_end && new Date(f.trip_end) > new Date(f.trip_start),
     emergency: () => true, // optional
-    // Credentials are optional (see the account step's own hint), but if
-    // either field is started, both are required and the password must
-    // meet the same strength rule the backend enforces (see
-    // lib/passwordValidation.js / backend/app/core/security.py).
-    account: () => ((!f.email && !f.password) || (!!f.email && validatePassword(f.password))) && acksComplete(consent),
+    // Required: this email + password is the only way to sign in to the app
+    // afterwards. The password must meet the same strength rule the backend
+    // enforces (see lib/passwordValidation.js / backend/app/core/security.py)
+    // and be typed twice, since a typo here can't be recovered from. The two
+    // required privacy acknowledgements (DPDP step) must also be ticked.
+    account: () => EMAIL_RE.test(f.email.trim()) && validatePassword(f.password)
+      && f.password === f.password_confirm && acksComplete(consent),
   }
   const stepIndex = steps.findIndex((s) => s.key === stepKey)
   const canAdvance = validators[stepKey]()
@@ -286,7 +294,7 @@ export default function Register() {
     e.preventDefault()
     if (!canAdvance) {
       setError(acksComplete(consent)
-        ? 'Please provide a valid password (see the checklist above) or leave both fields empty.'
+        ? 'Enter a valid email and a password that meets the checklist, typed the same twice.'
         : 'Please confirm the two required privacy statements to continue.')
       return
     }
@@ -304,8 +312,8 @@ export default function Register() {
         photo: f.photo || null,
         liveness_token: f.liveness_token || null,
         hotel: f.hotel || null,
-        email: f.email || null,
-        password: f.password || null,
+        email: f.email.trim().toLowerCase(),
+        password: f.password,
         trip_start: new Date(f.trip_start).toISOString(),
         trip_end: new Date(f.trip_end).toISOString(),
         emergency_contacts: contact.name && contact.phone ? [contact] : [],
@@ -320,12 +328,15 @@ export default function Register() {
       }
       const { data } = await api.post('/tourists', payload)
       setResult(data)
-      if (f.email && f.password) {
-        setTimeout(async () => {
-          const u = await login(f.email, f.password)
+      // Show the new ID briefly, then sign in with the account just created.
+      setTimeout(async () => {
+        try {
+          const u = await login(payload.email, payload.password)
           nav(u.role === 'admin' ? '/admin' : '/app')
-        }, 1600)
-      }
+        } catch {
+          setAutoLoginFailed(true)
+        }
+      }, 1600)
     } catch (err) {
       const d = err.response?.data?.detail
       setError(typeof d === 'string' ? d : (Array.isArray(d) ? d.map((x) => x.msg).join('; ') : 'Registration failed'))
@@ -345,11 +356,16 @@ export default function Register() {
             Anchored as the genesis block of your tamper-evident ID chain.
             Valid until {new Date(result.trip_end).toLocaleDateString()}.
           </p>
-          <p className="text-sm text-slate-400 mt-1">{f.email ? 'Signing you in…' : ''}</p>
-          {!f.email && (
-            <Link to="/login" className="inline-block mt-5 bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-900 font-bold px-6 py-2.5 rounded-xl">
-              Continue to Login
-            </Link>
+          {!autoLoginFailed && <p className="text-sm text-slate-400 mt-1">Signing you in…</p>}
+          {autoLoginFailed && (
+            <>
+              <p className="text-sm text-slate-300 mt-3">
+                Your account is ready. Sign in with {f.email.trim().toLowerCase()} and your new password.
+              </p>
+              <Link to="/login" className="inline-block mt-5 bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-900 font-bold px-6 py-2.5 rounded-xl">
+                Continue to Login
+              </Link>
+            </>
           )}
         </div>
       </GlobeShell>
@@ -496,12 +512,23 @@ export default function Register() {
 
           {stepKey === 'account' && (
             <>
-              <p className="text-xs text-slate-400 -mt-1 mb-2">Optional — set credentials to access the tourist app after registering.</p>
+              <p className="text-xs text-slate-400 -mt-1 mb-2">You'll use this email and password to sign in to the app.</p>
               <label className={label}>Email
-                <input type="email" className={input} value={f.email} onChange={set('email')} placeholder="you@example.com" /></label>
+                <input type="email" required autoComplete="email" className={input} value={f.email}
+                  onChange={set('email')} placeholder="you@example.com" /></label>
+              {f.email && !EMAIL_RE.test(f.email.trim()) && (
+                <p className="text-xs text-amber-300 -mt-2">Enter a valid email address.</p>
+              )}
               <label className={label}>Password
-                <input type="password" className={input} value={f.password} onChange={set('password')} /></label>
+                <input type="password" required autoComplete="new-password" className={input}
+                  value={f.password} onChange={set('password')} /></label>
               {f.password && <PasswordChecklist password={f.password} />}
+              <label className={label}>Confirm password
+                <input type="password" required autoComplete="new-password" className={input}
+                  value={f.password_confirm} onChange={set('password_confirm')} /></label>
+              {f.password_confirm && f.password !== f.password_confirm && (
+                <p className="text-xs text-amber-300 -mt-2">Passwords don't match.</p>
+              )}
               <RegistrationConsent value={consent} onChange={setConsent} />
             </>
           )}

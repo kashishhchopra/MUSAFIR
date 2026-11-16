@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { renderHook, waitFor, cleanup } from '@testing-library/react'
+import { renderHook, waitFor, cleanup, act } from '@testing-library/react'
 import useGeolocation from './useGeolocation'
 
 function installFakeGeolocation() {
@@ -78,6 +78,66 @@ describe('useGeolocation', () => {
     const { unmount } = renderHook(() => useGeolocation({ enabled: true }))
     unmount()
     expect(fake.clearWatch).toHaveBeenCalledWith(1)
+  })
+
+  describe('gating', () => {
+    // ~0.0001 deg latitude is ~11 m; 0.0003 deg is ~33 m.
+    const fix = (lat) => ({ coords: { latitude: lat, longitude: 91.74, accuracy: 5, speed: 0 }, timestamp: 0 })
+    const opts = { enabled: true, minDistanceM: 25, minIntervalMs: 15000, heartbeatMs: 120000 }
+
+    afterEach(() => vi.useRealTimers())
+
+    it('ignores small jitter and emits a 25 m move', () => {
+      vi.useFakeTimers()
+      const { watchers } = installFakeGeolocation()
+      const { result } = renderHook(() => useGeolocation(opts))
+      act(() => watchers[1].onSuccess(fix(26.15)))
+      const first = result.current.position
+      expect(first.lat).toBe(26.15)
+
+      act(() => { vi.advanceTimersByTime(20000); watchers[1].onSuccess(fix(26.1501)) })
+      expect(result.current.position).toBe(first) // ~11 m: not emitted
+
+      act(() => watchers[1].onSuccess(fix(26.1503)))
+      expect(result.current.position.lat).toBe(26.1503) // ~33 m: emitted
+    })
+
+    it('emits a move made inside the interval once the interval ends, instead of dropping it', () => {
+      vi.useFakeTimers()
+      const { watchers } = installFakeGeolocation()
+      const { result } = renderHook(() => useGeolocation(opts))
+      act(() => watchers[1].onSuccess(fix(26.15)))
+      act(() => { vi.advanceTimersByTime(3000); watchers[1].onSuccess(fix(26.1503)) })
+      expect(result.current.position.lat).toBe(26.15) // too soon
+
+      act(() => vi.advanceTimersByTime(15000)) // no new fix arrives
+      expect(result.current.position.lat).toBe(26.1503)
+    })
+
+    it('re-emits the current position as a heartbeat while stationary', () => {
+      vi.useFakeTimers()
+      const { watchers } = installFakeGeolocation()
+      const { result } = renderHook(() => useGeolocation(opts))
+      act(() => watchers[1].onSuccess(fix(26.15)))
+      const first = result.current.position
+
+      act(() => vi.advanceTimersByTime(60000))
+      expect(result.current.position).toBe(first)
+
+      act(() => vi.advanceTimersByTime(65000))
+      expect(result.current.position).not.toBe(first)
+      expect(result.current.position.lat).toBe(26.15)
+    })
+
+    it('has no heartbeat unless asked for one', () => {
+      vi.useFakeTimers()
+      const { watchers } = installFakeGeolocation()
+      const { result } = renderHook(() => useGeolocation({ enabled: true }))
+      act(() => watchers[1].onSuccess(fix(26.15)))
+      const first = result.current.position
+      act(() => vi.advanceTimersByTime(600000))
+      expect(result.current.position).toBe(first)
+    })
   })
 
   it('clears the watch when enabled flips to false', () => {
