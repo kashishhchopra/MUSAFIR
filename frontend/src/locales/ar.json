@@ -9,11 +9,14 @@
   "auth": {
     "email": "البريد الإلكتروني",
     "invalid_credentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+    "login_error": "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
     "login_title": "تسجيل الدخول",
     "password": "كلمة المرور",
     "register_prompt": "سائح جديد؟ سجّل هنا",
+    "server_unreachable": "تعذّر الوصول إلى الخادم. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
     "sign_in": "تسجيل الدخول",
-    "tagline": "كل رحلة، بأمان"
+    "tagline": "كل رحلة، بأمان",
+    "too_many_attempts": "محاولات تسجيل دخول كثيرة جدًا. يرجى الانتظار {{minutes}} دقيقة ثم المحاولة مرة أخرى."
   },
   "checkin": {
     "card_title": "تسجيل الخروج/الدخول",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "غرفة التحكم وحدها يمكنها إغلاق حالة الطوارئ هذه. يمكنك الضغط على SOS مرة أخرى في أي وقت.",
     "assigning": "جارٍ التعيين…",
     "call_emergency": "اتصل بالطوارئ",
-    "cancel_emergency": "إلغاء الطوارئ",
     "connection_interrupted": "انقطع الاتصال — تم إرسال آخر موقع لك بنجاح. نحاول إعادة الاتصال.",
     "demo_notice": "(وضع تجريبي — موقع محاكى، لا يوجد GPS حقيقي على هذا الجهاز)",
     "finding_responder": "جارٍ البحث عن مستجيب…",
-    "keep_sharing": "لا، استمر في المشاركة",
     "last_updated": "آخر تحديث",
     "location_status": "حالة الموقع",
     "location_unavailable": "الموقع غير متاح مؤقتًا",
     "officer_assigned": "تم تعيين ضابط",
     "police_station": "مركز الشرطة",
-    "resolved_body": "تم إيقاف مشاركة الموقع المباشر للطوارئ.",
+    "resolved_body": "أغلقت غرفة التحكم حالة الطوارئ هذه. اضغط على SOS مرة أخرى إذا كنت لا تزال بحاجة إلى المساعدة.",
     "resolved_title": "تم حل الطوارئ",
     "response": "الاستجابة",
     "seconds_ago": "منذ {{count}} ثانية",
@@ -131,7 +133,6 @@
     "status_offline": "غير متصل",
     "status_stale": "قديم",
     "status_stopped": "متوقف",
-    "tap_again_confirm": "اضغط مرة أخرى للتأكيد",
     "title": "🚨 وضع الطوارئ"
   },
   "etiquette": {

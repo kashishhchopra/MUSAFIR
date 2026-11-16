@@ -9,11 +9,14 @@
   "auth": {
     "email": "E-mail",
     "invalid_credentials": "E-mail ou mot de passe incorrect",
+    "login_error": "Échec de la connexion. Veuillez réessayer.",
     "login_title": "Se connecter",
     "password": "Mot de passe",
     "register_prompt": "Nouveau touriste ? Inscrivez-vous ici",
+    "server_unreachable": "Impossible de joindre le serveur. Vérifiez votre connexion internet puis réessayez.",
     "sign_in": "Se connecter",
-    "tagline": "Chaque voyage, en toute sécurité"
+    "tagline": "Chaque voyage, en toute sécurité",
+    "too_many_attempts": "Trop de tentatives de connexion. Veuillez patienter {{minutes}} minute(s) puis réessayer."
   },
   "checkin": {
     "card_title": "Enregistrement / Départ",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "Seule la salle de contrôle peut clôturer cette urgence. Vous pouvez appuyer à nouveau sur SOS à tout moment.",
     "assigning": "Attribution en cours…",
     "call_emergency": "Appeler les services d'urgence",
-    "cancel_emergency": "Annuler l'urgence",
     "connection_interrupted": "Connexion interrompue — votre dernière position a été envoyée avec succès. Nous essayons de nous reconnecter.",
     "demo_notice": "(Mode démo — position simulée, pas de vrai GPS sur cet appareil)",
     "finding_responder": "Recherche d'un intervenant…",
-    "keep_sharing": "Non, continuer à partager",
     "last_updated": "Dernière mise à jour",
     "location_status": "État de la position",
     "location_unavailable": "Position temporairement indisponible",
     "officer_assigned": "Agent affecté",
     "police_station": "Poste de police",
-    "resolved_body": "Le partage de position d'urgence en direct s'est arrêté.",
+    "resolved_body": "La salle de contrôle a clôturé cette urgence. Appuyez à nouveau sur SOS si vous avez encore besoin d'aide.",
     "resolved_title": "Urgence résolue",
     "response": "Réponse",
     "seconds_ago": "il y a {{count}} sec",
@@ -131,7 +133,6 @@
     "status_offline": "HORS LIGNE",
     "status_stale": "ANCIEN",
     "status_stopped": "ARRÊTÉ",
-    "tap_again_confirm": "Touchez à nouveau pour confirmer",
     "title": "🚨 Mode urgence"
   },
   "etiquette": {

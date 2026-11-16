@@ -9,11 +9,14 @@
   "auth": {
     "email": "이메일",
     "invalid_credentials": "이메일 또는 비밀번호가 올바르지 않습니다",
+    "login_error": "로그인에 실패했습니다. 다시 시도해 주세요.",
     "login_title": "로그인",
     "password": "비밀번호",
     "register_prompt": "신규 관광객이신가요? 여기서 등록하세요",
+    "server_unreachable": "서버에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.",
     "sign_in": "로그인",
-    "tagline": "모든 여정에, 안전을 함께"
+    "tagline": "모든 여정에, 안전을 함께",
+    "too_many_attempts": "로그인 시도가 너무 많습니다. {{minutes}}분 후에 다시 시도해 주세요."
   },
   "checkin": {
     "card_title": "외출/복귀 체크인",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "이 긴급 상황은 관제실만 종료할 수 있습니다. 언제든지 다시 SOS를 누를 수 있습니다.",
     "assigning": "배정 중…",
     "call_emergency": "긴급 전화 걸기",
-    "cancel_emergency": "긴급 상황 취소",
     "connection_interrupted": "연결이 끊겼습니다 — 마지막 위치는 성공적으로 전송되었습니다. 재연결을 시도하는 중입니다.",
     "demo_notice": "(데모 모드 — 시뮬레이션된 위치, 이 기기에는 실제 GPS가 없음)",
     "finding_responder": "대응 요원 찾는 중…",
-    "keep_sharing": "아니요, 계속 공유",
     "last_updated": "마지막 업데이트",
     "location_status": "위치 상태",
     "location_unavailable": "일시적으로 위치를 사용할 수 없습니다",
     "officer_assigned": "담당 경찰관 배정됨",
     "police_station": "경찰서",
-    "resolved_body": "긴급 실시간 위치 공유가 중단되었습니다.",
+    "resolved_body": "관제실에서 이 긴급 상황을 종료했습니다. 아직 도움이 필요하면 다시 SOS를 누르세요.",
     "resolved_title": "긴급 상황 해결됨",
     "response": "대응",
     "seconds_ago": "{{count}}초 전",
@@ -131,7 +133,6 @@
     "status_offline": "오프라인",
     "status_stale": "오래됨",
     "status_stopped": "중지됨",
-    "tap_again_confirm": "확인하려면 다시 탭하세요",
     "title": "🚨 긴급 모드"
   },
   "etiquette": {

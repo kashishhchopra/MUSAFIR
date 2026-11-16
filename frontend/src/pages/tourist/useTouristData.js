@@ -129,7 +129,9 @@ export default function useTouristData(tid) {
     let result = null
     try {
       const { data } = await postSOS(payload)
-      setSosSent(data)
+      // pressed_at: each press restarts Emergency Mode, even when the server merged
+      // it into the same open case (see components/EmergencyModeCard.jsx).
+      setSosSent({ ...data, pressed_at: Date.now() })
       setSosQueued(false)
       result = data
     } catch (err) {

@@ -20,17 +20,24 @@ const STATUS_META = {
 // silent/duress SOS (sosSent.silent): a visible "Emergency Mode" banner on
 // screen would defeat the entire point of a silent alert, even though the
 // same real location sharing is still running underneath for police.
+//
+// The tourist cannot end the emergency from here: only the control room closes a
+// case (see backend api/emergency.py stop-tracking and api/incidents.py). They can
+// press SOS as often as they like; every press restarts sharing for the open case.
 export default function EmergencyModeCard({ sosSent, tid, posRef }) {
   const { t } = useTranslation()
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
-  // The incident whose "resolved" card has been shown and dismissed. Keyed by
-  // id (not a boolean) so a later, new SOS still gets its card.
-  const [dismissedId, setDismissedId] = useState(null)
   const incidentId = sosSent?.incident_id
-  const active = !!incidentId && !sosSent.silent && dismissedId !== incidentId
+  // One key per SOS *press* (pressed_at, set by sendSOS). A repeat press inside the
+  // server's merge window returns the same incident id, so keying on the id alone
+  // would leave a stopped card stopped. Falls back to the id (e.g. fall detection).
+  const pressKey = sosSent?.pressed_at ?? incidentId
+  // The press whose "resolved" card has been shown and dismissed, so a later press
+  // still gets its card.
+  const [dismissedKey, setDismissedKey] = useState(null)
+  const active = !!incidentId && !sosSent.silent && dismissedKey !== pressKey
   const startPos = posRef?.current ? { lat: posRef.current[0], lng: posRef.current[1] } : null
   const tracking = useEmergencyTracking({
-    tid, incidentId, active, startPos,
+    tid, incidentId, active, startPos, resetKey: pressKey,
   })
   const resolved = active && tracking.status === 'stopped'
 
@@ -38,12 +45,9 @@ export default function EmergencyModeCard({ sosSent, tid, posRef }) {
   // which also unmounts the tracking (GPS + send loop) for this incident.
   useEffect(() => {
     if (!resolved) return undefined
-    const timer = setTimeout(() => {
-      setDismissedId(incidentId)
-      setConfirmingCancel(false)
-    }, RESOLVED_DISMISS_MS)
+    const timer = setTimeout(() => setDismissedKey(pressKey), RESOLVED_DISMISS_MS)
     return () => clearTimeout(timer)
-  }, [resolved, incidentId])
+  }, [resolved, pressKey])
 
   if (!active) return null
 
@@ -103,21 +107,10 @@ export default function EmergencyModeCard({ sosSent, tid, posRef }) {
         </div>
       </div>
 
-      <div className="flex gap-2 pt-1">
-        <a href="tel:112" className="flex-1 text-center bg-white text-red-700 font-bold text-xs py-2 rounded-lg">
-          {t('emergency_mode.call_emergency')}
-        </a>
-        <button
-          onClick={() => (confirmingCancel ? tracking.stop() : setConfirmingCancel(true))}
-          className="flex-1 bg-red-900/60 hover:bg-red-900 text-white font-semibold text-xs py-2 rounded-lg">
-          {confirmingCancel ? t('emergency_mode.tap_again_confirm') : t('emergency_mode.cancel_emergency')}
-        </button>
-      </div>
-      {confirmingCancel && (
-        <button onClick={() => setConfirmingCancel(false)} className="w-full text-[11px] text-red-200 underline">
-          {t('emergency_mode.keep_sharing')}
-        </button>
-      )}
+      <a href="tel:112" className="block text-center bg-white text-red-700 font-bold text-xs py-2 rounded-lg">
+        {t('emergency_mode.call_emergency')}
+      </a>
+      <div className="text-[11px] text-red-100 text-center">{t('emergency_mode.admin_only_note')}</div>
     </div>
   )
 }

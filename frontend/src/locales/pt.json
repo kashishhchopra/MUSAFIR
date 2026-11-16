@@ -9,11 +9,14 @@
   "auth": {
     "email": "E-mail",
     "invalid_credentials": "E-mail ou senha incorretos",
+    "login_error": "Falha ao entrar. Tente novamente.",
     "login_title": "Entrar",
     "password": "Senha",
     "register_prompt": "Novo turista? Registre-se aqui",
+    "server_unreachable": "Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.",
     "sign_in": "Entrar",
-    "tagline": "Cada viagem, com segurança"
+    "tagline": "Cada viagem, com segurança",
+    "too_many_attempts": "Muitas tentativas de login. Aguarde {{minutes}} minuto(s) e tente novamente."
   },
   "checkin": {
     "card_title": "Check-in/Check-out",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "Apenas a central de controle pode encerrar esta emergência. Você pode pressionar SOS novamente a qualquer momento.",
     "assigning": "Atribuindo…",
     "call_emergency": "Ligar para emergência",
-    "cancel_emergency": "Cancelar emergência",
     "connection_interrupted": "Conexão interrompida — sua última localização foi enviada com sucesso. Tentando reconectar.",
     "demo_notice": "(Modo demo — posição simulada, sem GPS real neste dispositivo)",
     "finding_responder": "Procurando socorrista…",
-    "keep_sharing": "Não, continuar compartilhando",
     "last_updated": "Última atualização",
     "location_status": "Status da localização",
     "location_unavailable": "Localização temporariamente indisponível",
     "officer_assigned": "Policial designado",
     "police_station": "Delegacia de polícia",
-    "resolved_body": "O compartilhamento de localização ao vivo da emergência foi interrompido.",
+    "resolved_body": "A central de controle encerrou esta emergência. Pressione SOS novamente se ainda precisar de ajuda.",
     "resolved_title": "Emergência resolvida",
     "response": "Resposta",
     "seconds_ago": "há {{count}}s",
@@ -131,7 +133,6 @@
     "status_offline": "OFFLINE",
     "status_stale": "DESATUALIZADO",
     "status_stopped": "INTERROMPIDO",
-    "tap_again_confirm": "Toque novamente para confirmar",
     "title": "🚨 Modo de emergência"
   },
   "etiquette": {

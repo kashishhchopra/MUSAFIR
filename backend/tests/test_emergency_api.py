@@ -66,8 +66,8 @@ def test_rejects_missing_incident_id_route(client, tourist_headers):
     assert r.status_code in (404, 405)
 
 
-def test_posting_after_tourist_stopped_tracking_is_rejected(client, tourist_headers, sos_incident):
-    client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=tourist_headers)
+def test_posting_after_control_room_stopped_tracking_is_rejected(client, admin_headers, tourist_headers, sos_incident):
+    client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=admin_headers)
     r = client.post(f"/api/incidents/{sos_incident.id}/location", json=_loc(), headers=tourist_headers)
     assert r.status_code == 409
 
@@ -139,16 +139,75 @@ def test_multiple_simultaneous_emergencies_all_appear(client, admin_headers, db)
 
 
 # ---------------------------------------------------------------- stop-tracking
-def test_tourist_can_stop_their_own_tracking(client, tourist_headers, sos_incident, db):
+def test_tourist_cannot_end_their_own_emergency(client, tourist_headers, sos_incident, db):
+    """Ending an emergency is the control room's decision, not the app's."""
     r = client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=tourist_headers)
-    assert r.status_code == 200
+    assert r.status_code == 403
+    assert "control room" in r.json()["detail"]
+    db.refresh(sos_incident)
+    assert sos_incident.live_tracking_active is True
+    assert sos_incident.status != "resolved"
+
+
+def test_responder_cannot_stop_tracking(client, responder_headers, sos_incident, db):
+    r = client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=responder_headers)
+    assert r.status_code == 403
+    db.refresh(sos_incident)
+    assert sos_incident.live_tracking_active is True
+
+
+def test_admin_stopping_tracking_keeps_the_case_open(client, admin_headers, sos_incident, db):
+    client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=admin_headers)
     db.refresh(sos_incident)
     assert sos_incident.live_tracking_active is False
-    # The case itself stays open -- stopping sharing is not the same as
-    # police closing the incident.
-    assert sos_incident.status != "resolved"
+    assert sos_incident.status != "resolved"      # stopping sharing is not closing the case
 
 
 def test_admin_can_stop_tracking_too(client, admin_headers, sos_incident):
     r = client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=admin_headers)
     assert r.status_code == 200
+
+
+# ---------------------------------------------------------------- repeat SOS taps
+def test_repeat_sos_press_merges_into_the_open_case(client, tourist_headers, tourist_user, sos_incident, db):
+    r = client.post(f"/api/tourists/{tourist_user.tourist_id}/sos", headers=tourist_headers,
+                    json={"lat": 26.1445, "lng": 91.7362, "message": "again"})
+    assert r.status_code == 200
+    assert r.json()["incident_id"] == sos_incident.id      # no duplicate case, no second dispatch
+    assert db.query(Incident).filter(Incident.type == "sos").count() == 1
+
+
+def test_repeat_sos_press_resumes_sharing_that_was_switched_off(client, admin_headers, tourist_headers,
+                                                                tourist_user, sos_incident, db):
+    """The bug: sharing switched off, SOS pressed again, the app's location post was
+    refused and the tourist saw "Emergency Resolved" on an open case."""
+    from app.models.incident import IncidentEvent
+    client.post(f"/api/incidents/{sos_incident.id}/stop-tracking", headers=admin_headers)
+    r = client.post(f"/api/tourists/{tourist_user.tourist_id}/sos", headers=tourist_headers,
+                    json={"lat": 26.1445, "lng": 91.7362, "message": "still need help"})
+    assert r.status_code == 200
+    assert r.json()["incident_id"] == sos_incident.id and r.json()["live_tracking_active"] is True
+    db.refresh(sos_incident)
+    assert sos_incident.live_tracking_active is True
+    notes = [e.note for e in db.query(IncidentEvent).filter_by(incident_id=sos_incident.id).all()]
+    assert any("pressed SOS again" in n for n in notes)
+    loc = client.post(f"/api/incidents/{sos_incident.id}/location", json=_loc(), headers=tourist_headers)
+    assert loc.status_code == 201                            # the app can share its location again
+
+
+def test_repeat_press_on_a_live_case_writes_nothing_extra(client, tourist_headers, tourist_user, sos_incident, db):
+    from app.models.incident import IncidentEvent
+    before = db.query(IncidentEvent).filter_by(incident_id=sos_incident.id).count()
+    for _ in range(3):
+        client.post(f"/api/tourists/{tourist_user.tourist_id}/sos", headers=tourist_headers,
+                    json={"lat": 26.1445, "lng": 91.7362, "message": "tap"})
+    assert db.query(IncidentEvent).filter_by(incident_id=sos_incident.id).count() == before
+
+
+def test_sos_after_the_case_was_resolved_opens_a_new_case(client, admin_headers, tourist_headers,
+                                                         tourist_user, sos_incident):
+    client.patch(f"/api/incidents/{sos_incident.id}", json={"status": "resolved"}, headers=admin_headers)
+    r = client.post(f"/api/tourists/{tourist_user.tourist_id}/sos", headers=tourist_headers,
+                    json={"lat": 26.1445, "lng": 91.7362, "message": "new emergency"})
+    assert r.status_code == 200
+    assert r.json()["incident_id"] != sos_incident.id and r.json()["live_tracking_active"] is True

@@ -9,11 +9,14 @@
   "auth": {
     "email": "Email",
     "invalid_credentials": "Email o password errati",
+    "login_error": "Accesso non riuscito. Riprova.",
     "login_title": "Accedi",
     "password": "Password",
     "register_prompt": "Nuovo turista? Registrati qui",
+    "server_unreachable": "Impossibile raggiungere il server. Controlla la connessione a internet e riprova.",
     "sign_in": "Accedi",
-    "tagline": "Ogni viaggio, in sicurezza"
+    "tagline": "Ogni viaggio, in sicurezza",
+    "too_many_attempts": "Troppi tentativi di accesso. Attendi {{minutes}} minuto/i e riprova."
   },
   "checkin": {
     "card_title": "Check-in/Check-out",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "Solo la centrale operativa può chiudere questa emergenza. Puoi premere di nuovo SOS in qualsiasi momento.",
     "assigning": "Assegnazione…",
     "call_emergency": "Chiama emergenza",
-    "cancel_emergency": "Annulla emergenza",
     "connection_interrupted": "Connessione interrotta — la tua ultima posizione è stata inviata correttamente. Tentativo di riconnessione in corso.",
     "demo_notice": "(Modalità demo — posizione simulata, nessun GPS reale su questo dispositivo)",
     "finding_responder": "Ricerca soccorritore…",
-    "keep_sharing": "No, continua a condividere",
     "last_updated": "Ultimo aggiornamento",
     "location_status": "Stato posizione",
     "location_unavailable": "Posizione temporaneamente non disponibile",
     "officer_assigned": "Agente assegnato",
     "police_station": "Stazione di polizia",
-    "resolved_body": "La condivisione della posizione in tempo reale dell'emergenza è stata interrotta.",
+    "resolved_body": "La centrale operativa ha chiuso questa emergenza. Premi di nuovo SOS se hai ancora bisogno di aiuto.",
     "resolved_title": "Emergenza risolta",
     "response": "Risposta",
     "seconds_ago": "{{count}}s fa",
@@ -131,7 +133,6 @@
     "status_offline": "OFFLINE",
     "status_stale": "NON AGGIORNATO",
     "status_stopped": "INTERROTTO",
-    "tap_again_confirm": "Tocca di nuovo per confermare",
     "title": "🚨 Modalità di emergenza"
   },
   "etiquette": {

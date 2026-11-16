@@ -9,11 +9,14 @@
   "auth": {
     "email": "メールアドレス",
     "invalid_credentials": "メールアドレスまたはパスワードが正しくありません",
+    "login_error": "サインインに失敗しました。もう一度お試しください。",
     "login_title": "ログイン",
     "password": "パスワード",
     "register_prompt": "初めての方はこちらから登録",
+    "server_unreachable": "サーバーに接続できません。インターネット接続を確認してもう一度お試しください。",
     "sign_in": "ログイン",
-    "tagline": "すべての旅に、安全を"
+    "tagline": "すべての旅に、安全を",
+    "too_many_attempts": "サインインの試行回数が多すぎます。{{minutes}}分待ってからもう一度お試しください。"
   },
   "checkin": {
     "card_title": "外出/帰着チェックイン",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "この緊急事態を終了できるのはコントロールルームだけです。いつでも再度SOSを押すことができます。",
     "assigning": "割り当て中…",
     "call_emergency": "緊急通報する",
-    "cancel_emergency": "緊急事態をキャンセル",
     "connection_interrupted": "接続が中断されました — 最後の位置情報は正常に送信されました。再接続を試みています。",
     "demo_notice": "（デモモード — シミュレートされた位置、このデバイスには実際のGPSはありません）",
     "finding_responder": "対応者を検索中…",
-    "keep_sharing": "いいえ、共有を続ける",
     "last_updated": "最終更新",
     "location_status": "位置情報のステータス",
     "location_unavailable": "位置情報は一時的に利用できません",
     "officer_assigned": "担当者が割り当てられました",
     "police_station": "警察署",
-    "resolved_body": "緊急時のライブ位置共有は停止されました。",
+    "resolved_body": "コントロールルームがこの緊急事態を終了しました。まだ助けが必要な場合は、もう一度SOSを押してください。",
     "resolved_title": "緊急事態は解決しました",
     "response": "対応",
     "seconds_ago": "{{count}}秒前",
@@ -131,7 +133,6 @@
     "status_offline": "オフライン",
     "status_stale": "古い情報",
     "status_stopped": "停止済み",
-    "tap_again_confirm": "確認するにはもう一度タップ",
     "title": "🚨 緊急モード"
   },
   "etiquette": {

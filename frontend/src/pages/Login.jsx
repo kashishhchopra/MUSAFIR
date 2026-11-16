@@ -7,6 +7,21 @@ import LanguageSwitcher from '../components/LanguageSwitcher.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import logo from '../assets/musafir-logo.png'
 
+// "Incorrect email or password" is only true for a 401. Everything else used to be
+// reported as a wrong password too -- a rate limit, an unreachable server or a
+// server error all made a CORRECT password look wrong.
+export function loginErrorMessage(err, t) {
+  const res = err?.response
+  if (!res) return t('auth.server_unreachable')            // offline, DNS, connection refused, CORS
+  if (res.status === 401) return t('auth.invalid_credentials')
+  if (res.status === 429) {
+    const secs = Number(res.headers?.['retry-after']) || 60
+    return t('auth.too_many_attempts', { minutes: Math.max(1, Math.ceil(secs / 60)) })
+  }
+  if (res.status === 403 && res.data?.detail) return res.data.detail   // e.g. account deletion in progress
+  return t('auth.login_error')
+}
+
 export default function Login() {
   const { login } = useAuth()
   const { t } = useTranslation()
@@ -26,8 +41,8 @@ export default function Login() {
       const u = await login(emailValue, passwordValue)
       nav(u.role === 'admin' ? '/admin' : u.role === 'responder' ? '/responder' : '/app')
       return true
-    } catch {
-      setError(t('auth.invalid_credentials'))
+    } catch (err) {
+      setError(loginErrorMessage(err, t))
       return false
     } finally {
       setLoading(false)

@@ -9,11 +9,14 @@
   "auth": {
     "email": "Correo electrónico",
     "invalid_credentials": "Correo electrónico o contraseña incorrectos",
+    "login_error": "No se pudo iniciar sesión. Inténtalo de nuevo.",
     "login_title": "Iniciar sesión",
     "password": "Contraseña",
     "register_prompt": "¿Turista nuevo? Regístrese aquí",
+    "server_unreachable": "No se puede conectar con el servidor. Comprueba tu conexión a internet e inténtalo de nuevo.",
     "sign_in": "Iniciar sesión",
-    "tagline": "Cada viaje, con seguridad"
+    "tagline": "Cada viaje, con seguridad",
+    "too_many_attempts": "Demasiados intentos de inicio de sesión. Espera {{minutes}} minuto(s) e inténtalo de nuevo."
   },
   "checkin": {
     "card_title": "Registro de salida/entrada",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "Solo la sala de control puede cerrar esta emergencia. Puedes pulsar SOS de nuevo en cualquier momento.",
     "assigning": "Asignando…",
     "call_emergency": "Llamar a emergencias",
-    "cancel_emergency": "Cancelar emergencia",
     "connection_interrupted": "Conexión interrumpida — su última ubicación se envió correctamente. Intentando reconectar.",
     "demo_notice": "(Modo demo — posición simulada, sin GPS real en este dispositivo)",
     "finding_responder": "Buscando personal de respuesta…",
-    "keep_sharing": "No, seguir compartiendo",
     "last_updated": "Última actualización",
     "location_status": "Estado de ubicación",
     "location_unavailable": "Ubicación temporalmente no disponible",
     "officer_assigned": "Oficial asignado",
     "police_station": "Comisaría",
-    "resolved_body": "Se ha detenido el uso compartido de ubicación en vivo de la emergencia.",
+    "resolved_body": "La sala de control ha cerrado esta emergencia. Pulsa SOS de nuevo si todavía necesitas ayuda.",
     "resolved_title": "Emergencia resuelta",
     "response": "Respuesta",
     "seconds_ago": "hace {{count}} s",
@@ -131,7 +133,6 @@
     "status_offline": "SIN CONEXIÓN",
     "status_stale": "DESACTUALIZADO",
     "status_stopped": "DETENIDO",
-    "tap_again_confirm": "Toque de nuevo para confirmar",
     "title": "🚨 Modo de emergencia"
   },
   "etiquette": {

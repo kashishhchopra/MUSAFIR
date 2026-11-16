@@ -9,11 +9,14 @@
   "auth": {
     "email": "电子邮箱",
     "invalid_credentials": "电子邮箱或密码不正确",
+    "login_error": "登录失败。请重试。",
     "login_title": "登录",
     "password": "密码",
     "register_prompt": "新游客？在此注册",
+    "server_unreachable": "无法连接到服务器。请检查网络连接后重试。",
     "sign_in": "登录",
-    "tagline": "每一次旅行，安全相伴"
+    "tagline": "每一次旅行，安全相伴",
+    "too_many_attempts": "登录尝试次数过多。请等待 {{minutes}} 分钟后重试。"
   },
   "checkin": {
     "card_title": "外出/返回签到",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "只有控制中心可以结束此紧急情况。您可以随时再次按下 SOS。",
     "assigning": "分配中…",
     "call_emergency": "拨打紧急电话",
-    "cancel_emergency": "取消紧急情况",
     "connection_interrupted": "连接中断 — 您的最后位置已成功发送。正在尝试重新连接。",
     "demo_notice": "（演示模式 — 模拟位置，此设备没有真实GPS）",
     "finding_responder": "正在寻找应急人员…",
-    "keep_sharing": "不，继续共享",
     "last_updated": "最后更新",
     "location_status": "位置状态",
     "location_unavailable": "位置暂时不可用",
     "officer_assigned": "已分配警员",
     "police_station": "警察局",
-    "resolved_body": "紧急实时位置共享已停止。",
+    "resolved_body": "控制中心已结束此紧急情况。如果您仍需要帮助，请再次按下 SOS。",
     "resolved_title": "紧急情况已解决",
     "response": "响应",
     "seconds_ago": "{{count}}秒前",
@@ -131,7 +133,6 @@
     "status_offline": "离线",
     "status_stale": "已过期",
     "status_stopped": "已停止",
-    "tap_again_confirm": "再次点击以确认",
     "title": "🚨 紧急模式"
   },
   "etiquette": {

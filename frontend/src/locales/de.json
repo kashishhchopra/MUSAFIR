@@ -9,11 +9,14 @@
   "auth": {
     "email": "E-Mail",
     "invalid_credentials": "Falsche E-Mail oder falsches Passwort",
+    "login_error": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "login_title": "Anmelden",
     "password": "Passwort",
     "register_prompt": "Neuer Tourist? Hier registrieren",
+    "server_unreachable": "Der Server ist nicht erreichbar. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
     "sign_in": "Anmelden",
-    "tagline": "Jede Reise, sicher begleitet"
+    "tagline": "Jede Reise, sicher begleitet",
+    "too_many_attempts": "Zu viele Anmeldeversuche. Bitte warten Sie {{minutes}} Minute(n) und versuchen Sie es erneut."
   },
   "checkin": {
     "card_title": "Ein-/Auschecken",
@@ -109,19 +112,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "Nur die Leitstelle kann diesen Notfall schließen. Sie können jederzeit erneut SOS drücken.",
     "assigning": "Wird zugewiesen…",
     "call_emergency": "Rettungsdienst anrufen",
-    "cancel_emergency": "Notfall abbrechen",
     "connection_interrupted": "Verbindung unterbrochen — Ihr letzter Standort wurde erfolgreich gesendet. Wir versuchen, die Verbindung wiederherzustellen.",
     "demo_notice": "(Demo-Modus — simulierte Position, kein echtes GPS auf diesem Gerät)",
     "finding_responder": "Einsatzkraft wird gesucht…",
-    "keep_sharing": "Nein, weiter teilen",
     "last_updated": "Zuletzt aktualisiert",
     "location_status": "Standortstatus",
     "location_unavailable": "Standort vorübergehend nicht verfügbar",
     "officer_assigned": "Beamter zugewiesen",
     "police_station": "Polizeistation",
-    "resolved_body": "Die Live-Standortfreigabe im Notfall wurde beendet.",
+    "resolved_body": "Die Leitstelle hat diesen Notfall geschlossen. Drücken Sie erneut SOS, wenn Sie weiterhin Hilfe brauchen.",
     "resolved_title": "Notfall gelöst",
     "response": "Reaktion",
     "seconds_ago": "vor {{count}} Sek.",
@@ -131,7 +133,6 @@
     "status_offline": "OFFLINE",
     "status_stale": "VERALTET",
     "status_stopped": "GESTOPPT",
-    "tap_again_confirm": "Zum Bestätigen erneut tippen",
     "title": "🚨 Notfallmodus"
   },
   "etiquette": {
