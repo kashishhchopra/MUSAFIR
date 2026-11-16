@@ -275,6 +275,24 @@ written to the logs either, so an admin resets a forgotten password by hand.
 meanwhile is queued on the phone and sent when it's back, but location pings from that time are
 not. SMS needs a Twilio account. Disaster alerts reach the app over its live connection, not push.
 
+### Deploying for the phone app (free demo on Render)
+
+`render.yaml` is set up for a free demo: **free web service + free Postgres**. The web service sleeps after
+~15 min idle (the first request afterwards takes up to a minute, and background jobs/WebSockets pause while it
+sleeps); the free database expires after ~30 days. Switch both `plan:` lines to paid plans for an always-on setup.
+
+1. Merge your code to `main` on GitHub (Render builds from GitHub).
+2. Render → **New → Blueprint** → pick the repo and `main`. It reads `render.yaml`.
+3. Fill the prompts: `PUBLIC_BASE_URL` (the service's `https://…onrender.com` address), `VAPID_PUBLIC_KEY` /
+   `VAPID_PRIVATE_KEY` (`python -m app.scripts.generate_vapid_keys`), and three strong `SEED_*_PASSWORD`s.
+   Leave `TWILIO_*` and `APNS_*` empty (SMS stays in demo mode; native iOS push needs an Apple key).
+4. After the **first** successful start set `SEED_ON_START` to `false` in the Environment tab: the seed script
+   **deletes all data** each time it runs.
+5. Check `https://<address>/api/health`, then rebuild the phone app against it: put
+   `VITE_API_BASE=https://<address>/api` and `VITE_WS_ORIGIN=wss://<address>` in `frontend/.env.production.local`,
+   then `npm run build && npx cap sync ios` and Run in Xcode (see `docs/IOS_APP.md`).
+6. Once live, tighten `ALLOWED_HOSTS` from `*` to the service's hostname.
+
 ---
 
 ## Project Structure
