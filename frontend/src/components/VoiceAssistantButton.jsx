@@ -34,7 +34,9 @@ const HINT_KEYS = [
 ]
 
 const SOUND_KEY = 'voice-assistant-speak'
-const HANDSFREE_KEY = 'voice-assistant-handsfree'
+// New key on purpose: the old 'voice-assistant-handsfree' value was mostly the
+// old default (on), not a choice the tourist made, so it isn't carried over.
+const HANDSFREE_KEY = 'voice-assistant-handsfree-v2'
 
 function storedFlag(key, fallback) {
   try {
@@ -52,18 +54,29 @@ function storedFlag(key, fallback) {
 const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristId, lang = 'en', onAction }, ref) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  // Hands-free is on by default: the mic opens when the app loads and
-  // reopens after each answer, so nothing has to be tapped. It stays a
-  // toggle because an always-listening microphone is the tourist's call,
-  // not ours.
-  const [handsFree, setHandsFree] = useState(() => storedFlag(HANDSFREE_KEY, true))
+  // The microphone only ever opens when the tourist taps the mic. Hands-free
+  // (off by default) just keeps a conversation going: after each answer the
+  // mic reopens, but only while the panel is open -- closing it stops
+  // listening, and nothing listens in the background.
+  const [handsFree, setHandsFree] = useState(() => storedFlag(HANDSFREE_KEY, false))
   const voice = useVoiceAssistant({
     endpoint: `/tourists/${touristId}/copilot/ask`,
     lang,
     speakByDefault: storedFlag(SOUND_KEY, true),
-    autoListen: handsFree,
+    autoListen: handsFree && open,
     onAction,
   })
+
+  // Closing the panel turns the microphone (and any reply being read) off.
+  // Only on the open -> closed transition, so other screens' text-to-speech
+  // (translator, phrasebook) is never cut off by this component re-rendering.
+  const stopRef = useRef(voice.stopListening)
+  stopRef.current = voice.stopListening
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    if (wasOpenRef.current && !open) stopRef.current()
+    wasOpenRef.current = open
+  }, [open])
 
   useEffect(() => {
     try {
@@ -90,13 +103,6 @@ const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristI
     const el = bottomRef.current
     if (typeof el?.scrollIntoView === 'function') el.scrollIntoView({ block: 'end' })
   }, [voice.exchanges])
-
-  // Hands-free listens in the background -- the panel only comes up once
-  // the tourist has actually said something, so opening the app doesn't
-  // slam a dialog over the map.
-  useEffect(() => {
-    if (voice.exchanges.length > 0) setOpen(true)
-  }, [voice.exchanges.length])
 
   // Lets the Home tab's "🎙️ Voice" quick action open this exact assistant
   // rather than a second copy of it.
@@ -186,12 +192,7 @@ const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristI
                   {t('voice_assistant.no_voice_support')}
                 </div>
               )}
-              {handsFree && voice.autoBlocked && (
-                <div className="text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/25 rounded-lg p-2.5">
-                  {t('voice_assistant.tap_mic_once')}
-                </div>
-              )}
-              {voice.voiceError && !voice.autoBlocked && (
+              {voice.voiceError && (
                 <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/25 rounded-lg p-2.5">
                   {t('voice_assistant.mic_unavailable')}
                 </div>

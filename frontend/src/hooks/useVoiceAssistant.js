@@ -43,7 +43,6 @@ export default function useVoiceAssistant({
   const [speaking, setSpeaking] = useState(false)
   const speech = useSpeechRecognition({ lang: `${lang}-IN` })
   const lastHandledRef = useRef('')
-  const startedRef = useRef(false)
 
   // Bounded, flattened prior turns to send with the next question -- lets
   // the backend resolve a bare "yes" against what it just offered (see
@@ -130,14 +129,16 @@ export default function useVoiceAssistant({
     ask(text)
   }, [speech.listening, speech.transcript, thinking, ask])
 
-  // Hands-free mode. The microphone opens on its own when the app loads and
-  // reopens after each answer, so the tourist never has to tap anything.
+  // Hands-free (follow-up) mode. The microphone is NEVER opened on its own:
+  // the first listen always comes from the tourist tapping the mic. With
+  // `autoListen` on, the mic then reopens after each answer so a conversation
+  // can continue without tapping again -- the caller decides when that
+  // applies (VoiceAssistantButton only while its panel is open).
   //
   // Two hard constraints shape this:
-  //  * A browser refuses getUserMedia without a prior permission grant for
-  //    the origin, so the very first visit still needs one tap. When that
-  //    happens `autoBlocked` goes true and we STOP trying -- retrying in a
-  //    loop would spam permission errors and drain the battery.
+  //  * If the browser refuses the microphone, `autoBlocked` goes true and we
+  //    STOP reopening -- retrying in a loop would spam permission errors and
+  //    drain the battery.
   //  * We never reopen the mic while the assistant is speaking, or it would
   //    transcribe its own voice back as the next question.
   const startListening = useCallback(() => {
@@ -148,12 +149,12 @@ export default function useVoiceAssistant({
     speech.start()
   }, [speech])
 
-  useEffect(() => {
-    if (!autoListen || autoBlocked || startedRef.current) return
-    if (!speech.supported) return
-    startedRef.current = true
-    startListening()
-  }, [autoListen, autoBlocked, speech.supported, startListening])
+  // Close the microphone and silence any reply (e.g. the panel was closed).
+  const stopListening = useCallback(() => {
+    if (speech.listening) speech.stop()
+    stopSpeaking()
+    setSpeaking(false)
+  }, [speech])
 
   // Only a real permission/hardware refusal disables hands-free. "no-speech"
   // and "aborted" are the normal end of a listening window with nothing said
@@ -171,7 +172,7 @@ export default function useVoiceAssistant({
     if (!last?.answer) return
     const delayMs = speakReplies ? 900 : 250
     const timer = setTimeout(() => {
-      if (!speechSynthesisSupported() || !window.speechSynthesis.speaking) startListening()
+      if (!speechSynthesisSupported() || !window.speechSynthesis?.speaking) startListening()
     }, delayMs)
     return () => clearTimeout(timer)
   }, [autoListen, autoBlocked, thinking, speech.listening, exchanges, speakReplies, startListening])
@@ -205,6 +206,7 @@ export default function useVoiceAssistant({
     transcript: speech.transcript,
     voiceError: speech.error,
     toggleMic,
+    stopListening,
     // hands-free
     autoBlocked,
     // speech output

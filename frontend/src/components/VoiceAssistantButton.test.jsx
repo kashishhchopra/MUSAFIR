@@ -123,57 +123,88 @@ describe('VoiceAssistantButton', () => {
   })
 })
 
-describe('VoiceAssistantButton hands-free', () => {
-  it('starts listening on its own when the app opens, with no tap', async () => {
-    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'ok' })
-    render(<VoiceAssistantButton touristId={1} />)
-    await waitFor(() => expect(mockSpeech.start).toHaveBeenCalled())
-  })
+// Answer one spoken question through the open panel.
+async function answerOnce(utils, transcript, answer) {
+  mockSpeech.listening = false
+  mockSpeech.transcript = transcript
+  utils.rerender(<VoiceAssistantButton touristId={1} />)
+  await utils.findByText(answer)
+}
 
-  it('surfaces the panel only once something is actually said', async () => {
-    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'Bihu is a harvest festival.' })
-    const { queryByRole, findByText, rerender } = render(<VoiceAssistantButton touristId={1} />)
-    // Listening in the background -- no dialog covering the app yet.
-    expect(queryByRole('dialog')).not.toBeInTheDocument()
-
-    mockSpeech.listening = false
-    mockSpeech.transcript = 'what is bihu'
-    rerender(<VoiceAssistantButton touristId={1} />)
-    await findByText(/harvest festival/)
-  })
-
-  it('stops auto-starting when the browser denies the microphone, instead of retry-looping', async () => {
-    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'ok' })
-    mockSpeech.error = 'not-allowed'
-    const { rerender } = render(<VoiceAssistantButton touristId={1} />)
-    // One attempt is unavoidable (the refusal only arrives in response to
-    // it) -- the point is that it never becomes a retry loop.
-    await waitFor(() => expect(mockSpeech.start).toHaveBeenCalledTimes(1))
-    for (let i = 0; i < 5; i++) rerender(<VoiceAssistantButton touristId={1} />)
+describe('VoiceAssistantButton only listens after a tap', () => {
+  it('never opens the microphone on its own when the app loads', async () => {
+    const { queryByRole, rerender } = render(<VoiceAssistantButton touristId={1} />)
+    for (let i = 0; i < 3; i++) rerender(<VoiceAssistantButton touristId={1} />)
     await new Promise((r) => setTimeout(r, 50))
+    expect(mockSpeech.start).not.toHaveBeenCalled()
+    expect(queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('stays off on load even if hands-free was left on last time', async () => {
+    localStorage.setItem('voice-assistant-handsfree-v2', '1')
+    localStorage.setItem('voice-assistant-handsfree', '1') // old key, ignored
+    render(<VoiceAssistantButton touristId={1} />)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(mockSpeech.start).not.toHaveBeenCalled()
+  })
+
+  it('by default listens once per tap: it does not reopen the mic after answering', async () => {
+    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'Bihu is a harvest festival.' })
+    const utils = render(<VoiceAssistantButton touristId={1} />)
+    fireEvent.click(utils.getByLabelText('Voice assistant'))
+    expect(mockSpeech.start).toHaveBeenCalledTimes(1)
+    await answerOnce(utils, 'what is bihu', /harvest festival/)
+    await new Promise((r) => setTimeout(r, 1200))
+    expect(mockSpeech.start).toHaveBeenCalledTimes(1)
+    expect(utils.getByText('👆 Tap to talk')).toBeInTheDocument()
+  })
+
+  it('closing the panel turns the microphone off', () => {
+    const { getByLabelText, rerender } = render(<VoiceAssistantButton touristId={1} />)
+    fireEvent.click(getByLabelText('Voice assistant'))
+    mockSpeech.listening = true
+    rerender(<VoiceAssistantButton touristId={1} />)
+    fireEvent.click(getByLabelText('Close'))
+    expect(mockSpeech.stop).toHaveBeenCalled()
+  })
+})
+
+describe('VoiceAssistantButton hands-free (opt-in)', () => {
+  it('when switched on, keeps the conversation going while the panel is open', async () => {
+    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'Bihu is a harvest festival.' })
+    const utils = render(<VoiceAssistantButton touristId={1} />)
+    fireEvent.click(utils.getByLabelText('Voice assistant'))
+    fireEvent.click(utils.getByText('👆 Tap to talk'))
+    expect(utils.getByText('♾️ Hands-free')).toBeInTheDocument()
+    await answerOnce(utils, 'what is bihu', /harvest festival/)
+    await waitFor(() => expect(mockSpeech.start).toHaveBeenCalledTimes(2), { timeout: 2000 })
+  })
+
+  it('stops reopening when the browser denies the microphone, instead of retry-looping', async () => {
+    localStorage.setItem('voice-assistant-handsfree-v2', '1')
+    mock.onPost('/tourists/1/copilot/ask').reply(200, { answer: 'ok then' })
+    const utils = render(<VoiceAssistantButton touristId={1} />)
+    fireEvent.click(utils.getByLabelText('Voice assistant'))
+    mockSpeech.error = 'not-allowed'
+    await answerOnce(utils, 'hello', /ok then/)
+    for (let i = 0; i < 5; i++) utils.rerender(<VoiceAssistantButton touristId={1} />)
+    await new Promise((r) => setTimeout(r, 1200))
     expect(mockSpeech.start).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps hands-free on when the tourist simply said nothing (no-speech is not a failure)', async () => {
-    mockSpeech.error = 'no-speech'
-    render(<VoiceAssistantButton touristId={1} />)
-    await waitFor(() => expect(mockSpeech.start).toHaveBeenCalled())
-  })
-
-  it('can be switched off, and the choice is remembered', async () => {
+  it('remembers the choice, but still waits for a tap after a restart', async () => {
     const { getByLabelText, getByText, unmount } = render(<VoiceAssistantButton touristId={1} />)
     fireEvent.click(getByLabelText('Voice assistant'))
-    fireEvent.click(getByText('♾️ Hands-free'))
-    await waitFor(() => expect(getByText('👆 Tap to talk')).toBeInTheDocument())
+    fireEvent.click(getByText('👆 Tap to talk'))
+    await waitFor(() => expect(getByText('♾️ Hands-free')).toBeInTheDocument())
     unmount()
 
     mockSpeech.start.mockClear()
     const second = render(<VoiceAssistantButton touristId={1} />)
     await new Promise((r) => setTimeout(r, 50))
-    expect(mockSpeech.start).not.toHaveBeenCalled() // no auto-start on load
-    // Tapping still works -- that's the whole point of "tap to talk".
+    expect(mockSpeech.start).not.toHaveBeenCalled()
     fireEvent.click(second.getByLabelText('Voice assistant'))
-    expect(second.getByText('👆 Tap to talk')).toBeInTheDocument()
+    expect(second.getByText('♾️ Hands-free')).toBeInTheDocument()
     expect(mockSpeech.start).toHaveBeenCalled()
   })
 })
