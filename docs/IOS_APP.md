@@ -19,11 +19,14 @@ The iOS app is the existing React build wrapped by Capacitor (`frontend/ios`).
 - **Login session**: like Android, the app keeps the refresh token in app storage (`src/lib/nativeSession.js`)
   because the WebView origin (`capacitor://localhost`) never receives the SameSite cookie.
 
-Android and iOS share one Capacitor config and one app id, `com.musafir.app`.
+Android and iOS share one Capacitor config. Android's app id is `com.musafir.app` (tied to its Firebase
+project); the iOS bundle id is `com.kashish.musafir`, because `com.musafir.app` is already registered to
+another Apple developer account and Apple bundle ids are unique across all accounts. The Capacitor `appId`
+is only used when a platform is first added, so the two can differ.
 
 ## One-time Apple setup for push (needs the paid Apple Developer Program)
 1. Xcode -> App target -> Signing & Capabilities -> **+ Capability -> Push Notifications**
    (and keep **Background Modes**: Location updates, Remote notifications).
 2. developer.apple.com -> Keys -> create a key with **APNs**; download the `.p8`.
-3. On the backend set `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (`com.musafir.app`), `APNS_AUTH_KEY` (the .p8 contents, `\n` for
+3. On the backend set `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (`com.kashish.musafir`), `APNS_AUTH_KEY` (the .p8 contents, `\n` for
    line breaks) and `APNS_USE_SANDBOX=true` for Xcode builds / `false` for TestFlight and App Store.

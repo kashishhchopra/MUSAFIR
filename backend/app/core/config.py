@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     # account: create an APNs Auth Key (.p8) and paste its contents (\n allowed).
     APNS_KEY_ID: str = ""
     APNS_TEAM_ID: str = ""
-    APNS_BUNDLE_ID: str = "com.musafir.app"   # same app id as Android
+    APNS_BUNDLE_ID: str = "com.kashish.musafir"   # the iOS bundle id (Android uses com.musafir.app)
     APNS_AUTH_KEY: str = ""
     APNS_USE_SANDBOX: bool = True            # True for Xcode/TestFlight-debug builds, False for App Store/TestFlight
 
