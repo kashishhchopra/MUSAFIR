@@ -39,9 +39,19 @@ def _safety_explainer():
 
 
 def explain_safety_score(features: list[float]) -> dict[str, Any] | None:
-    """Per-feature SHAP contributions for one safety-score prediction, or
-    None if no trained model is loaded (the rule-based fallback has no
-    meaningful SHAP decomposition -- it's an explicit formula already)."""
+    """How much each factor moved one safety score.
+
+    Formula mode (the default): exact -- base_value is 100 and each
+    contribution is that factor's weighted term, so base + sum == the score
+    (before clipping to 0-100). Model mode: SHAP contributions for the
+    RandomForest, or None if no trained model is loaded."""
+    if ml_service.safety_score_method() == "formula":
+        terms = ml_service.safety_formula_terms(features)
+        return {
+            "method": "formula",
+            "base_value": 100.0,
+            "contributions": {name: round(float(terms[name]), 2) for name in SAFETY_FEATURE_NAMES},
+        }
     explainer = _safety_explainer()
     if explainer is None:
         return None
@@ -49,6 +59,7 @@ def explain_safety_score(features: list[float]) -> dict[str, Any] | None:
     X = np.array([features], dtype=float)
     shap_values = explainer.shap_values(X)[0]
     return {
+        "method": "shap",
         "base_value": round(float(np.ravel(explainer.expected_value)[0]), 2),
         "contributions": {
             name: round(float(value), 2)

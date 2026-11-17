@@ -34,7 +34,7 @@ and a responsive tourist mobile view.
 |---|---------|--------------|
 | 1 | **Digital Tourist ID** | KYC registration → unique `STS-XXXX` ID + QR code. Records stored as a **SHA-256 linked hash chain** (blockchain-style, tamper-evident). ID validity tied to trip dates. |
 | 2 | **AI Anomaly Detection** | **Isolation Forest** flags sudden location drop-off, prolonged inactivity, and abnormal speed (abduction pattern). **Route-deviation** via distance-to-itinerary. **DBSCAN** clusters historical incidents into auto high-risk zones. |
-| 3 | **Safety Score (0–100)** | **Random Forest regressor** on zone risk, time-of-day, anomaly score, crime index, and weather (live OpenWeatherMap when `OPENWEATHER_API_KEY` is set, otherwise a deterministic fallback). Live, color-coded. |
+| 3 | **Safety Score (0–100)** | Published weighted formula on zone risk, time-of-day, movement anomaly, **real NCRB district crime** for where the tourist is, and **live weather** (Open-Meteo, or OpenWeatherMap with a key). Each factor's exact contribution is shown. Live, color-coded. |
 | 4 | **Geo-fencing & Alerts** | Polygon zones + **point-in-polygon** (Shapely). Entering a high-risk/restricted zone auto-alerts tourist + dashboard over **WebSocket**. |
 | 5 | **Panic / SOS** | One-tap SOS → nearest available police unit auto-dispatched, emergency contacts notified, **critical incident** created. |
 | 6 | **Police/Admin Dashboard** | Live Leaflet map of all tourists + risk heat circles, real-time alert feed, tourist search by digital ID, **auto E-FIR** draft for missing persons, analytics charts. |
@@ -704,11 +704,20 @@ auto-dispatch (step 26). Keep the admin **Live Dashboard** open to watch alerts 
 
 ## The ML Models
 
-All three models train on **reproducible synthetic data** (`app/ml/generate_data.py`,
-fixed seed) and are saved with joblib. The API loads them lazily and degrades to
-rule-based fallbacks if an artifact is missing, so a demo never crashes.
-Re-run everything and regenerate metrics with `python -m app.ml.train_all --crime-index-source ncrb`.
-The full published evaluation is in [docs/ML_EVALUATION.md](docs/ML_EVALUATION.md).
+Models are trained reproducibly (fixed seeds) and saved with joblib. The API loads
+them lazily and degrades to rule-based fallbacks if an artifact is missing, so a demo
+never crashes. Re-run everything and regenerate metrics with
+`python -m app.ml.train_all --crime-index-source ncrb`. The full published evaluation
+is in [docs/ML_EVALUATION.md](docs/ML_EVALUATION.md); every real dataset used, its
+licence and how it was processed is in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md).
+
+**What is real:** the safety score's crime input (NCRB district crime 2017–2022 per
+lakh people, located offline from LGD district boundaries) and weather input (live
+Open-Meteo, no key needed); the anomaly model's *normal* movement (Microsoft GeoLife
+GPS traces re-sampled at this app's ping rate); and the fall-detector evaluation
+(UMAFall real falls, [docs/FALL_DETECTION_EVALUATION.md](docs/FALL_DETECTION_EVALUATION.md)).
+**What is still simulated:** the labelled emergencies the anomaly model is scored
+against, the demo data, and the hot-zone incident points.
 
 ### 1) Isolation Forest — Anomaly Detection *(unsupervised)*
 
@@ -720,26 +729,38 @@ The full published evaluation is in [docs/ML_EVALUATION.md](docs/ML_EVALUATION.m
 - **Why Isolation Forest:** anomalies are rare and unlabeled in the real world; the
   forest isolates outliers by random partitioning without needing labels. We inject
   a labeled test set purely to *evaluate*.
-- **Evaluation (25% hold-out, synthetic):**
+- **Training data:** 40,000 **real** pings of normal travel from Microsoft's GeoLife
+  GPS trajectories (182 people; walking, cycling, bus, car, metro), re-sampled at the
+  app's own ping rhythm and turned into the same four features
+  (`app/ml/etl/build_geolife_movement.py`), plus 4,000 simulated emergencies (sudden
+  jump, prolonged inactivity, abnormal speed) — no public dataset has real labelled ones.
+  `--movement-source synthetic` trains on the old fully synthetic data instead.
+- **Evaluation (25% hold-out, real normal vs simulated emergencies):**
 
   | precision | recall | F1 | ROC-AUC |
   |-----------|--------|----|---------|
-  | **0.96** | **0.96** | **0.96** | **0.9996** |
+  | **0.85** | **0.86** | **0.86** | **0.99** |
 
+  Lower than the 0.96 the fully synthetic version reported, as expected: real travel
+  is messier (traffic stops, metro gaps, fast roads) and overlaps the emergencies more.
   A `decision_function` score is squashed to a 0–1 anomaly probability for the UI.
 
-### 2) Random Forest Regressor — Safety Score
+### 2) Safety Score — weighted formula with real inputs
 
 - **Goal:** a continuous **0–100** safety score (higher = safer), updated live.
-- **Features:** `zone_risk`, `hour` (time of day), `anomaly_score`, `crime_index`
-  (NCRB-calibrated with `--crime-index-source ncrb`, otherwise synthetic), `weather_risk`
-  (live OpenWeatherMap at inference when a key is set; synthetic in the training data).
-- **Target:** a weighted risk formula (+ noise); the forest learns and generalises it,
-  matching the brief's "weighted model" while remaining a trainable ML artifact.
-- **Evaluation (25% hold-out):** **R² = 0.899**, **MAE = 3.68** points.
-- **Feature importances:** zone_risk 0.37, anomaly_score 0.27, crime_index 0.25,
-  hour 0.06, weather_risk 0.05 — i.e. *where* you are and *how anomalously you move*
-  dominate the score, which matches domain intuition.
+- **How it is computed (default, `SAFETY_SCORE_MODE=formula`):**
+  `100 − (0.30·zone_risk + 0.25·anomaly·100 + 0.25·crime_index + 0.10·weather_risk + 0.10·night)`.
+  The "Why this score?" panel shows each factor's exact contribution and where the data
+  came from.
+- **Real inputs:** `crime_index` = the percentile rank of the tourist's **district** by
+  NCRB-recorded visitor-relevant crime per lakh people, 2017–2022
+  (`app/services/district_crime.py`; e.g. ~98 in Guwahati city, under 25 in quiet hill
+  districts); `weather_risk` = live Open-Meteo (or OpenWeatherMap with a key), with the
+  source reported in the breakdown; `hour` = the local time at the tourist's position.
+- **Optional RandomForest (`SAFETY_SCORE_MODE=model`):** trained on synthetic rows to
+  reproduce the formula (R² ≈ 0.88, MAE ≈ 3.7 points), with SHAP explanations. It is no
+  longer the default: since its target *is* the formula, the formula itself is the
+  honest, exactly-explainable version.
 
 ### 3) DBSCAN — High-Risk Zone Discovery *(clustering)*
 
@@ -752,11 +773,15 @@ The full published evaluation is in [docs/ML_EVALUATION.md](docs/ML_EVALUATION.m
 - **Evaluation:** **4 clusters** recovered, **silhouette = 0.878** (well-separated),
   64 noise points correctly excluded.
 
-> **On the near-perfect anomaly metrics:** the synthetic anomaly scenarios are
-> deliberately extreme (abduction-speed, long inactivity, large jumps) with a
-> *borderline* band of normal outliers mixed in, so the classes overlap enough for
-> honest ~0.96 metrics rather than a suspicious 1.00. On messy real GPS data expect
-> lower recall; the pipeline is built to be retrained on real traces.
+### 4) Fall & crash detection — tested on real falls
+
+Rule-based (no training), on the phone's accelerometer. Replayed over 746 real
+recordings from the UMAFall dataset (208 falls, 538 everyday activities, phone in a
+trouser pocket): with the original thresholds it caught only **49%** of real falls,
+because a pocketed phone rarely shows true free-fall. Thresholds were re-chosen on
+that evidence (checked on held-out people): it now catches **85%** of falls with
+**4.8%** false alarms, each of which only opens a cancellable 30-second countdown.
+Details: [docs/FALL_DETECTION_EVALUATION.md](docs/FALL_DETECTION_EVALUATION.md).
 
 ---
 
@@ -832,7 +857,9 @@ passed off as live.
 |---|---|---|
 | Geocoding & maps (`GOOGLE_MAPS_API_KEY`) | Google | OpenStreetMap (Nominatim) lookups; final offline fallback is a small built-in table, `demo: true` |
 | Translation (`GOOGLE_TRANSLATE_API_KEY`) | Google Cloud Translation | MyMemory (free, no key); if unreachable the original text is returned with `demo: true` |
-| Weather (`OPENWEATHER_API_KEY`) | Live OpenWeatherMap | Deterministic function of lat/lng |
+| Weather (`OPENWEATHER_API_KEY`) | Live OpenWeatherMap | Live **Open-Meteo** (free, no key; `OPEN_METEO_ENABLED=false` to turn off); a deterministic function of lat/lng only if neither answers |
+| Safety-score crime input | — (built in) | Real NCRB district crime for the tourist's district, offline; outside India the zone's value |
+| Safety-score method (`SAFETY_SCORE_MODE`) | `model`: the trained RandomForest | `formula`: the published weighted formula, exactly explained |
 | Disaster advisories | **No CAP feed URL is set by default.** Set `DISASTER_FEED_PROVIDER=cap` and `DISASTER_FEED_URL=<a CAP 1.2 feed>` | A deterministic **simulator** generates advisories (`source: "simulated"`) |
 | Public holidays (`CALENDARIFIC_API_KEY`) | Real national holidays | Holiday signals are absent, never fabricated |
 | Hash-chain anchoring (`ANCHOR_TARGET`) | External anchor service | `local` — appended to a local file; tamper-evident but not independently witnessed |

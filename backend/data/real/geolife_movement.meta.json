@@ -1,0 +1,54 @@
+{
+  "title": "Real movement features from GeoLife GPS trajectories, at this app's ping rate",
+  "source": "Microsoft Research, GeoLife GPS Trajectories 1.3 (https://www.microsoft.com/en-us/download/details.aspx?id=52367)",
+  "citation": "Zheng, Xie, Ma. GeoLife: A Collaborative Social Networking Service among User, Location and Trajectory. IEEE Data Eng. Bull. 33(2), 2010.",
+  "built": "2026-11-16",
+  "people": 182,
+  "traces_used": 5311,
+  "raw_gps_points_read": 9259307,
+  "pings_after_resampling": 704142,
+  "rows_written": 120000,
+  "method": {
+    "ping_gating": ">= 15 s and >= 25 m, or a 120 s heartbeat (as hooks/useGeolocation.js)",
+    "glitch_filter_kmh": 400.0,
+    "max_gap_s": 600.0,
+    "max_trip_extent_m": 30000,
+    "planned_stops": "trip start, trip end, stay points (<= 200 m for >= 10 min)",
+    "max_traces_per_person": 60,
+    "seed": 42
+  },
+  "caveats": [
+    "Recorded mostly in Beijing, 2007-2012 -- walking, cycling, bus, car, metro and train behaviour transfers, but it is not Indian tourist data.",
+    "Speed is distance/time between pings, not the phone's instantaneous GPS speed.",
+    "Contains only normal movement: real labelled emergencies (abduction, collapse) do not exist in any public dataset, so evaluation anomalies remain simulated."
+  ],
+  "columns": [
+    "speed_kmh",
+    "dist_from_prev_m",
+    "inactivity_min",
+    "dist_from_route_m",
+    "person"
+  ],
+  "summary": {
+    "speed_kmh": {
+      "p50": 7.75,
+      "p95": 58.85,
+      "p99": 81.34
+    },
+    "dist_from_prev_m": {
+      "p50": 49.3,
+      "p95": 330.4,
+      "p99": 889.21
+    },
+    "inactivity_min": {
+      "p50": 0.33,
+      "p95": 2.07,
+      "p99": 5.03
+    },
+    "dist_from_route_m": {
+      "p50": 353.65,
+      "p95": 5810.12,
+      "p99": 10707.72
+    }
+  }
+}

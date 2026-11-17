@@ -17,14 +17,19 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from app.ml import registry
-from app.ml.generate_data import generate_movement_data
+from app.ml.generate_data import generate_movement_data, resolve_movement_source
 
 FEATURES = ["speed_kmh", "dist_from_prev_m", "inactivity_min", "dist_from_route_m"]
 
 
-def train(models_dir: str = "ml_models") -> dict:
+def train(models_dir: str = "ml_models", movement_source: str = "auto") -> dict:
     os.makedirs(models_dir, exist_ok=True)
-    df = generate_movement_data()
+    source = resolve_movement_source(movement_source)
+    if source == "geolife":
+        # Real normal movement (GeoLife) + simulated emergencies at ~10%.
+        df = generate_movement_data(n_normal=40_000, n_anomaly=4_000, source="geolife")
+    else:
+        df = generate_movement_data()
     X = df[FEATURES].values
     y = df["label"].values
 
@@ -76,6 +81,15 @@ def train(models_dir: str = "ml_models") -> dict:
         "model": "IsolationForest",
         "task": "anomaly detection (unsupervised)",
         "features": FEATURES,
+        "data_source": source,
+        "data_provenance": (
+            {"normal": "REAL: GeoLife GPS trajectories (Microsoft Research), re-sampled at the "
+                       "app's ping rate -- see data/real/geolife_movement.meta.json",
+             "anomalies": "simulated (sudden jump, prolonged inactivity, abnormal speed): no "
+                          "public dataset contains labelled real emergencies"}
+            if source == "geolife" else
+            {"normal": "synthetic (app/ml/generate_data.py)", "anomalies": "simulated"}
+        ),
         "n_train": len(X_train),
         "n_test": len(X_test),
         "contamination": round(contamination, 4),

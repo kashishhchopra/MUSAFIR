@@ -1,4 +1,6 @@
-// Renders the SHAP per-feature contributions from a safety-score breakdown.
+// Renders the per-factor contributions from a safety-score breakdown (exact
+// formula terms by default, SHAP values when the server scores with the ML
+// model), plus where the real-world inputs came from.
 // English-only labels: like the admin dashboard, this is a supplementary
 // technical view rather than core safety-critical UI, so it wasn't included
 // in the i18n pass (see the multilingual commit, which scoped translation to
@@ -11,8 +13,27 @@ const LABELS = {
   weather_risk: 'Weather conditions',
 }
 
-export default function ScoreExplanation({ explanation }) {
+const WEATHER_SOURCE = {
+  'open-meteo': 'live weather from Open-Meteo',
+  openweathermap: 'live weather from OpenWeatherMap',
+  mock: 'estimated (no live weather service reachable)',
+}
+
+function crimeSource(b) {
+  if (b?.crime_source === 'ncrb_district' || b?.crime_source === 'ncrb_state') {
+    const where = [b.district, b.state].filter(Boolean).join(', ')
+    const basis = b.crime_source === 'ncrb_state' ? ' (state-wide figure)' : ''
+    const rate = b.district_crime_rate_per_lakh != null ? ` — ${b.district_crime_rate_per_lakh} recorded per lakh people a year${basis}` : ''
+    return `NCRB police records 2017–2022 for ${where}${rate}`
+  }
+  if (b?.crime_source === 'zone') return "this zone's assigned crime level"
+  return null
+}
+
+export default function ScoreExplanation({ explanation, breakdown }) {
   if (!explanation) return null
+  const crime = crimeSource(breakdown)
+  const weather = WEATHER_SOURCE[breakdown?.weather_source]
 
   const rows = Object.entries(explanation.contributions)
     .map(([key, value]) => ({ key, label: LABELS[key] || key, value }))
@@ -44,6 +65,12 @@ export default function ScoreExplanation({ explanation }) {
             </span>
           </div>
         ))}
+        {(crime || weather) && (
+          <ul className="pt-1 text-slate-400 space-y-0.5">
+            {crime && <li>Crime: {crime}</li>}
+            {weather && <li>Weather: {weather}</li>}
+          </ul>
+        )}
       </div>
     </details>
   )

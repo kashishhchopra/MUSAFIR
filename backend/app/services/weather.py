@@ -1,16 +1,17 @@
 """Weather-risk adapter for the safety-score model.
 
-`safety.py` needs one number: 0-100 weather risk. This has two
-implementations behind that same interface:
+`safety.py` needs one number: 0-100 weather risk. Sources, tried in order:
 
-  - real: OpenWeatherMap's free "current weather" endpoint, condition codes
-    mapped to an explainable risk score.
-  - mock: a deterministic function of lat/lng (the project's original
-    behaviour), used whenever no API key is configured.
+  1. OpenWeatherMap's "current weather" endpoint, when OPENWEATHER_API_KEY is
+     set -- condition codes mapped to an explainable risk score.
+  2. Open-Meteo (free, no key, CC-BY 4.0), when OPEN_METEO_ENABLED -- the
+     same risk mapping applied to its WMO weather codes. Real data with zero
+     setup, so a fresh deployment no longer needs a key to use real weather.
+  3. mock: a deterministic function of lat/lng (the project's original
+     behaviour), only when neither real source answers (offline demo, tests).
 
-Falling back automatically (no key, API error, timeout) means the app never
-depends on network access or a paid service to run -- required for an
-offline demo -- while still being real when a key is provided.
+`weather_risk_with_source` also says which source produced the number, so
+the safety-score breakdown never passes a mock value off as real weather.
 """
 from __future__ import annotations
 
@@ -83,24 +84,86 @@ def _fetch_openweathermap(lat: float, lng: float) -> float | None:
     return round(min(100.0, max(0.0, risk)), 1)
 
 
-def get_weather_risk(lat: float, lng: float) -> float:
-    """0-100 weather risk at a coordinate. Cached briefly to avoid a network
-    call on every single GPS ping in the same neighbourhood."""
-    if not settings.OPENWEATHER_API_KEY:
-        return mock_weather_risk(lat, lng)
+def _wmo_code_risk(code: int) -> float:
+    """WMO weather interpretation code (Open-Meteo `weather_code`) -> the same
+    risk scale `_condition_risk` uses for OpenWeatherMap, so both sources
+    score the same weather the same way."""
+    if code in (95, 96, 99):  # thunderstorm (96/99: with hail)
+        return 80.0
+    if code in (51, 53, 55, 56, 57):  # drizzle (56/57 freezing)
+        return 20.0
+    if code in (61, 63, 80, 81):  # slight/moderate rain or showers
+        return 30.0
+    if code in (65, 66, 67, 82):  # heavy / freezing rain, violent showers
+        return 60.0
+    if code in (71, 73, 75, 77, 85, 86):  # snow
+        return 50.0
+    if code in (45, 48):  # fog
+        return 45.0
+    if code == 0:  # clear sky
+        return 5.0
+    return 10.0  # 1-3: partly cloudy / overcast
 
+
+def _fetch_open_meteo(lat: float, lng: float) -> float | None:
+    try:
+        resp = httpx.get(
+            settings.OPEN_METEO_URL,
+            params={"latitude": lat, "longitude": lng,
+                    "current": "temperature_2m,weather_code,wind_speed_10m",
+                    "wind_speed_unit": "ms"},
+            timeout=settings.OPEN_METEO_TIMEOUT_SECONDS,
+        )
+        resp.raise_for_status()
+        current = resp.json().get("current") or {}
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Open-Meteo request failed, falling back to mock: %s", e)
+        return None
+    code = current.get("weather_code")
+    if code is None:
+        return None
+
+    risk = _wmo_code_risk(int(code))
+    wind_speed = current.get("wind_speed_10m") or 0.0  # m/s
+    if wind_speed > 15:
+        risk += 20
+    elif wind_speed > 10:
+        risk += 10
+    temp = current.get("temperature_2m")
+    if temp is not None and (temp > 42 or temp < 2):
+        risk += 15
+    return round(min(100.0, max(0.0, risk)), 1)
+
+
+def weather_risk_with_source(lat: float, lng: float) -> tuple[float, str]:
+    """(0-100 weather risk, source) where source is "openweathermap",
+    "open-meteo" or "mock". Real results are cached briefly so every GPS ping
+    in the same neighbourhood doesn't cost a network call."""
     key = _cache_key(lat, lng)
     cached = _cache.get(key)
     now = time.monotonic()
     if cached and cached[1] > now:
         return cached[0]
 
-    risk = _fetch_openweathermap(lat, lng)
-    if risk is None:
-        return mock_weather_risk(lat, lng)
+    result: tuple[float, str] | None = None
+    if settings.OPENWEATHER_API_KEY:
+        risk = _fetch_openweathermap(lat, lng)
+        if risk is not None:
+            result = (risk, "openweathermap")
+    if result is None and settings.OPEN_METEO_ENABLED:
+        risk = _fetch_open_meteo(lat, lng)
+        if risk is not None:
+            result = (risk, "open-meteo")
+    if result is None:
+        return mock_weather_risk(lat, lng), "mock"  # not cached: retry real next time
 
-    _cache[key] = (risk, now + settings.WEATHER_CACHE_TTL_SECONDS)
-    return risk
+    _cache[key] = (result, now + settings.WEATHER_CACHE_TTL_SECONDS)
+    return result
+
+
+def get_weather_risk(lat: float, lng: float) -> float:
+    """0-100 weather risk at a coordinate (see weather_risk_with_source)."""
+    return weather_risk_with_source(lat, lng)[0]
 
 
 _conditions_cache: dict[tuple[float, float], tuple[dict, float]] = {}  # (lat,lng) -> (conditions, expires_at)

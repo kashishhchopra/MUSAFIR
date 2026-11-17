@@ -41,6 +41,32 @@ describe('ScoreExplanation', () => {
     expect(labels[0]).toBe('Movement anomaly')
   })
 
+  it('says where the crime and weather inputs came from', () => {
+    render(<ScoreExplanation explanation={explanation} breakdown={{
+      crime_source: 'ncrb_district', district: 'Kamrup Metro', state: 'Assam',
+      district_crime_rate_per_lakh: 779.86, weather_source: 'open-meteo',
+    }} />)
+    fireEvent.click(screen.getByText('Why this score?'))
+    expect(screen.getByText(/NCRB police records 2017–2022 for Kamrup Metro, Assam/)).toBeVisible()
+    expect(screen.getByText(/779.86 recorded per lakh people a year/)).toBeInTheDocument()
+    expect(screen.getByText(/live weather from Open-Meteo/)).toBeInTheDocument()
+  })
+
+  it('flags a state-wide crime figure and estimated weather honestly', () => {
+    render(<ScoreExplanation explanation={explanation} breakdown={{
+      crime_source: 'ncrb_state', district: 'New District', state: 'Assam',
+      district_crime_rate_per_lakh: 120, weather_source: 'mock',
+    }} />)
+    expect(screen.getByText(/state-wide figure/)).toBeInTheDocument()
+    expect(screen.getByText(/estimated \(no live weather service reachable\)/)).toBeInTheDocument()
+  })
+
+  it('shows no source lines when the server sent none', () => {
+    render(<ScoreExplanation explanation={explanation} breakdown={{ zone: 'open area' }} />)
+    expect(screen.queryByText(/^Crime:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Weather:/)).not.toBeInTheDocument()
+  })
+
   it('falls back to the raw key for an unrecognised feature name', () => {
     render(<ScoreExplanation explanation={{ base_value: 50, contributions: { mystery_feature: 3 } }} />)
     expect(screen.getByText('mystery_feature')).toBeInTheDocument()

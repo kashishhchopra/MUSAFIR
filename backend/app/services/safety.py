@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.time import local_hour_for
 from app.models.tourist import Tourist
 from app.models.zone import Zone
-from app.services import explain, ml_service, weather
+from app.services import district_crime, explain, ml_service, weather
 from app.services.geo import zones_containing_point
 
 _RISK_WEIGHT = {"low": 20.0, "medium": 50.0, "high": 80.0, "restricted": 100.0}
@@ -55,7 +55,17 @@ def score_at(db: Session, lat: float, lng: float, hour: int, anomaly_score: floa
     else:
         zone_risk, crime_index, zone_name = 15.0, 20.0, "open area"
 
-    weather_risk = weather.get_weather_risk(lat, lng)
+    # Real recorded crime for the district the point is in (NCRB, per lakh
+    # people). It replaces the zone's tier-based estimate whenever the point
+    # is inside India; the zone still counts through zone_risk.
+    district = district_crime.crime_at(lat, lng)
+    if district is not None:
+        crime_index = district["crime_index"]
+        crime_source = "ncrb_district" if district["rate_basis"] == "district" else "ncrb_state"
+    else:
+        crime_source = "zone" if inside else "default"
+
+    weather_risk, weather_source = weather.weather_risk_with_source(lat, lng)
 
     feats = ml_service.safety_features(zone_risk, hour, anomaly_score, crime_index, weather_risk)
     score = ml_service.predict_safety_score(feats)
@@ -68,9 +78,16 @@ def score_at(db: Session, lat: float, lng: float, hour: int, anomaly_score: floa
         "night_penalty": hour >= 22 or hour <= 5,
         "anomaly_score": round(anomaly_score, 3),
         "weather_risk": weather_risk,
-        # Per-feature SHAP contributions for THIS prediction -- None when only
-        # the rule-based fallback is active, since that's already an explicit
-        # formula with nothing to decompose.
+        # Where the two real-world inputs came from, so a mock or estimated
+        # value is never presented as measured data.
+        "crime_source": crime_source,
+        "weather_source": weather_source,
+        "district": district["district"] if district else None,
+        "state": district["state"] if district else None,
+        "district_crime_rate_per_lakh": district["rate_per_lakh"] if district else None,
+        "score_method": ml_service.safety_score_method(),
+        # Per-factor contributions for THIS score: exact formula terms in
+        # formula mode, SHAP values in model mode (None if no model loaded).
         "explanation": explain.explain_safety_score(feats),
     }
     return {"score": score, "band": band_for(score), "breakdown": breakdown}

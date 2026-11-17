@@ -216,12 +216,104 @@ def test_safety_score_uses_the_weather_service(db, monkeypatch):
 
     called = {}
 
-    def fake_get_weather_risk(lat, lng):
+    def fake_weather(lat, lng):
         called["used"] = True
-        return 42.0
+        return 42.0, "open-meteo"
 
-    monkeypatch.setattr("app.services.safety.weather.get_weather_risk", fake_get_weather_risk)
+    monkeypatch.setattr("app.services.safety.weather.weather_risk_with_source", fake_weather)
     t = make_tourist(db)
     result = compute_safety_score(db, t)
     assert called.get("used") is True
     assert result["breakdown"]["weather_risk"] == 42.0
+    assert result["breakdown"]["weather_source"] == "open-meteo"
+
+
+# ---------------------------------------------------------------- Open-Meteo (no key)
+class _OpenMeteoResponse:
+    def __init__(self, current):
+        self._current = current
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"current": self._current}
+
+
+@pytest.mark.parametrize("code,expected", [
+    (0, 5.0), (2, 10.0), (45, 45.0), (53, 20.0), (61, 30.0), (65, 60.0),
+    (73, 50.0), (82, 60.0), (95, 80.0), (99, 80.0),
+])
+def test_wmo_codes_map_onto_the_same_risk_scale(code, expected):
+    assert weather._wmo_code_risk(code) == expected
+
+
+def test_open_meteo_is_used_when_there_is_no_key(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", True)
+    seen = {}
+
+    def fake_get(url, params=None, timeout=None):
+        seen["url"], seen["params"] = url, params
+        return _OpenMeteoResponse({"weather_code": 95, "wind_speed_10m": 12.0, "temperature_2m": 30.0})
+
+    monkeypatch.setattr(weather.httpx, "get", fake_get)
+    assert weather.weather_risk_with_source(26.14, 91.73) == (90.0, "open-meteo")  # 80 + 10 wind
+    assert "open-meteo" in seen["url"]
+    assert seen["params"]["latitude"] == 26.14
+
+
+def test_open_meteo_backs_up_a_failing_openweathermap(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "fake-key")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", True)
+
+    def fake_get(url, params=None, timeout=None):
+        if "openweathermap" in url:
+            raise httpx.ConnectTimeout("down")
+        return _OpenMeteoResponse({"weather_code": 0, "wind_speed_10m": 1.0, "temperature_2m": 44.0})
+
+    monkeypatch.setattr(weather.httpx, "get", fake_get)
+    assert weather.weather_risk_with_source(26.14, 91.73) == (20.0, "open-meteo")  # 5 + 15 heat
+
+
+def test_openweathermap_wins_when_it_answers(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "fake-key")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", True)
+
+    class OWResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"weather": [{"id": 800}], "wind": {}, "main": {}}
+
+    monkeypatch.setattr(weather.httpx, "get", lambda *a, **k: OWResponse())
+    assert weather.weather_risk_with_source(26.14, 91.73) == (5.0, "openweathermap")
+
+
+def test_mock_only_when_no_real_source_answers_and_it_is_labelled(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", True)
+
+    def boom(*a, **k):
+        raise httpx.ConnectTimeout("offline")
+
+    monkeypatch.setattr(weather.httpx, "get", boom)
+    risk, source = weather.weather_risk_with_source(26.14, 91.73)
+    assert source == "mock"
+    assert risk == weather.mock_weather_risk(26.14, 91.73)
+
+
+def test_open_meteo_missing_code_falls_back_to_mock(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", True)
+    monkeypatch.setattr(weather.httpx, "get", lambda *a, **k: _OpenMeteoResponse({}))
+    assert weather.weather_risk_with_source(26.14, 91.73)[1] == "mock"
+
+
+def test_disabled_open_meteo_never_calls_the_network(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(weather.settings, "OPEN_METEO_ENABLED", False)
+
+    def boom(*a, **k):
+        raise AssertionError("network must not be called")
+
+    monkeypatch.setattr(weather.httpx, "get", boom)
+    assert weather.weather_risk_with_source(26.14, 91.73)[1] == "mock"

@@ -146,23 +146,67 @@ describe('Walk-Me-Home — setup', () => {
     expect(sent.destination_name).toBe('Home')
   })
 
-  it('looks the destination up through the existing geocoder and never invents a pin', async () => {
-    mock.onGet('/maps/geocode').reply((c) => [200, c.params.place === 'Kamakhya'
-      ? { lat: 26.166, lng: 91.705 } : { lat: null, lng: null }])
+  it('searches places, lets the tourist pick the right one, and never invents a pin', async () => {
+    mock.onGet('/maps/search').reply((c) => [200, c.params.q === 'GS Road'
+      ? {
+          provider: 'openstreetmap', results: [
+            { name: 'G.S. Road', address: 'Ulubari, Guwahati, Assam, India', lat: 26.1686, lng: 91.7647, distance_m: 3900 },
+            { name: 'GS Road', address: 'Iewduh, Shillong, Meghalaya, India', lat: 25.5794, lng: 91.8825, distance_m: 64700 },
+          ],
+        }
+      : { provider: 'none', results: [] }])
     mock.onPost('/tourists/1/walk-home').reply(201, J())
     await mount()
     fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Nowhere Land' } })
-    fireEvent.click(screen.getByText('Find on map'))
+    fireEvent.click(screen.getByText('Search'))
     await flush()
-    expect(screen.getByText(/Place not found/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Kamakhya' } })
-    fireEvent.click(screen.getByText('Find on map'))
+    expect(screen.getByText(/No match found/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'GS Road' } })
+    fireEvent.click(screen.getByText('Search'))
     await flush()
-    expect(screen.getByTestId('wh-found')).toHaveTextContent('26.1660')
+    // Both real "GS Road"s are offered -- nothing is picked for the tourist.
+    expect(screen.getByTestId('wh-matches')).toHaveTextContent('Ulubari, Guwahati')
+    expect(screen.getByText(/3.9 km away/)).toBeInTheDocument()
+    expect(screen.getByText(/65 km away/)).toBeInTheDocument()
+    expect(screen.queryByTestId('wh-found')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('📍 GS Road'))
+    expect(screen.queryByTestId('wh-matches')).not.toBeInTheDocument()
+    expect(screen.getByTestId('wh-found')).toHaveTextContent('GS Road — Iewduh, Shillong')
     fireEvent.click(screen.getByText('Review journey'))
     fireEvent.click(screen.getByTestId('wh-start'))
     await flush()
-    expect(body(mock.history.post[0])).toMatchObject({ dest_lat: 26.166, dest_lng: 91.705 })
+    expect(body(mock.history.post[0])).toMatchObject({
+      destination_name: 'GS Road', dest_lat: 25.5794, dest_lng: 91.8825,
+    })
+  })
+
+  it('pressing Enter in the destination box searches instead of submitting', async () => {
+    mock.onGet('/maps/search').reply(200, { provider: 'openstreetmap', results: [
+      { name: 'Kamakhya Temple', address: 'Guwahati', lat: 26.166, lng: 91.705, distance_m: 4000 }] })
+    await mount()
+    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'kamakya' } })
+    fireEvent.keyDown(screen.getByLabelText('Destination'), { key: 'Enter' })
+    await flush()
+    expect(screen.getByText('📍 Kamakhya Temple')).toBeInTheDocument()
+    expect(screen.queryByTestId('wh-review')).not.toBeInTheDocument()
+  })
+
+  it('a failed search still lets the journey start with the name only', async () => {
+    mock.onGet('/maps/search').networkError()
+    mock.onPost('/tourists/1/walk-home').reply(201, J())
+    await mount()
+    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'My hostel' } })
+    fireEvent.click(screen.getByText('Search'))
+    await flush()
+    expect(screen.getByText(/Search is unavailable/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Review journey'))
+    fireEvent.click(screen.getByTestId('wh-start'))
+    await flush()
+    const sent = body(mock.history.post[0])
+    expect(sent.destination_name).toBe('My hostel')
+    expect(sent).not.toHaveProperty('dest_lat')
   })
 
   it('warns when no guardian is selected and shows server rejections', async () => {

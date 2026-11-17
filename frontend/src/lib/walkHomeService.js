@@ -40,6 +40,12 @@ export const addGuardian = (tid, body) =>
 export const geocodePlace = (place) =>
   api.get('/maps/geocode', { params: { place } }).then((r) => r.data)
 
+// Several ranked matches to pick from (Google Places when the server has a
+// key, else OpenStreetMap), nearest to the tourist first.
+export const searchPlaces = (q, near) =>
+  api.get('/maps/search', { params: { q, ...(near ? { lat: near.lat, lng: near.lng } : {}) } })
+    .then((r) => r.data)
+
 // Guardian side: public, token-scoped.
 export const getGuardianJourney = (token) =>
   api.get(`/guardian/${token}/journey`).then((r) => r.data)

@@ -192,6 +192,20 @@ class Settings(BaseSettings):
     OPENWEATHER_API_KEY: str = ""
     OPENWEATHER_TIMEOUT_SECONDS: float = 3.0
     WEATHER_CACHE_TTL_SECONDS: int = 600
+    # Open-Meteo (https://open-meteo.com): free, no API key, CC-BY 4.0. Real
+    # current weather for the safety score when no OpenWeatherMap key is set
+    # (or it fails). Only when this is also unavailable does the score fall
+    # back to the deterministic mock.
+    OPEN_METEO_ENABLED: bool = True
+    OPEN_METEO_URL: str = "https://api.open-meteo.com/v1/forecast"
+    OPEN_METEO_TIMEOUT_SECONDS: float = 3.0
+    # How the 0-100 safety score is computed:
+    #   "formula" -- the published weighted formula (services/ml_service.py),
+    #                with exact per-factor contributions. Default: the model was
+    #                only ever trained to reproduce this formula, so the formula
+    #                itself is the honest, explainable version.
+    #   "model"   -- the RandomForest in ml_models/safety_rf.joblib (if present).
+    SAFETY_SCORE_MODE: str = "formula"
 
     # ---- dispatch / escalation ----
     # Assumed average travel speed for a responding unit, used only to turn a
@@ -361,8 +375,14 @@ class Settings(BaseSettings):
     # GET /fall-detection/config; the browser has no hardcoded values) ----
     # Accelerometer magnitude in g (1 g = resting). Free-fall: magnitude stays
     # below FREEFALL_G for at least FREEFALL_MIN_MS.
-    FALL_FREEFALL_G: float = 0.4
-    FALL_FREEFALL_MIN_MS: int = 80
+    # 0.7 g / 40 ms (was 0.4 g / 80 ms), chosen on REAL falls: a phone in a
+    # trouser pocket rarely reaches true weightlessness while its owner falls
+    # (median low point before impact 0.30 g, often only briefly). On UMAFall
+    # (746 recordings, 19 people) falls caught rose from 49% to 85% with false
+    # alarms on everyday activities 2.6% -> 4.8%; held-out-people checks agree.
+    # See docs/FALL_DETECTION_EVALUATION.md (frontend/scripts/evaluate-fall-detector.mjs).
+    FALL_FREEFALL_G: float = 0.7
+    FALL_FREEFALL_MIN_MS: int = 40
     # A fall = free-fall followed, within FREEFALL_IMPACT_WINDOW_MS, by an
     # impact of at least IMPACT_G.
     FALL_IMPACT_G: float = 2.5
@@ -463,6 +483,13 @@ class Settings(BaseSettings):
     # payload so the frontend can say so, not silently pass mock data off
     # as live.
     GOOGLE_MAPS_API_KEY: str = ""
+    # Place search (services/place_search.py, GET /maps/search): Google Places
+    # (New) Text Search when GOOGLE_MAPS_API_KEY is set; otherwise free OSM
+    # search (Photon + Nominatim), ranked near the tourist.
+    PLACE_SEARCH_LIVE_ENABLED: bool = True
+    PHOTON_URL: str = "https://photon.komoot.io/api/"
+    PLACE_SEARCH_TIMEOUT_SECONDS: float = 5.0
+    PLACE_SEARCH_BIAS_RADIUS_M: int = 50_000
     GOOGLE_TRANSLATE_API_KEY: str = ""
     SPEECH_TO_TEXT_API_KEY: str = ""
     TEXT_TO_SPEECH_API_KEY: str = ""

@@ -85,20 +85,46 @@ def safety_features(zone_risk: float, hour: int, anomaly_score: float,
     return [zone_risk, hour, anomaly_score, crime_index, weather_risk]
 
 
+# The published safety formula. Each factor is a 0-100 risk; the score is
+# 100 minus the weighted sum. These weights ARE the model: the RandomForest
+# (SAFETY_SCORE_MODE=model) was only ever trained to reproduce them.
+SAFETY_WEIGHTS = {"zone_risk": 0.30, "anomaly_score": 0.25, "crime_index": 0.25,
+                  "weather_risk": 0.10, "hour": 0.10}
+
+
+def _night_risk(hour: int) -> float:
+    return 100.0 if (hour >= 22 or hour <= 5) else 20.0
+
+
+def safety_formula_terms(features: list[float]) -> dict[str, float]:
+    """Points each factor takes off 100 (negative numbers), in feature order."""
+    zone_risk, hour, anomaly_score, crime_index, weather_risk = features
+    return {
+        "zone_risk": -SAFETY_WEIGHTS["zone_risk"] * zone_risk,
+        "hour": -SAFETY_WEIGHTS["hour"] * _night_risk(int(hour)),
+        "anomaly_score": -SAFETY_WEIGHTS["anomaly_score"] * anomaly_score * 100,
+        "crime_index": -SAFETY_WEIGHTS["crime_index"] * crime_index,
+        "weather_risk": -SAFETY_WEIGHTS["weather_risk"] * weather_risk,
+    }
+
+
+def safety_formula_score(features: list[float]) -> float:
+    return round(max(0.0, min(100.0, 100.0 + sum(safety_formula_terms(features).values()))), 1)
+
+
+def safety_score_method() -> str:
+    """"model" only when asked for AND the trained model is present."""
+    if settings.SAFETY_SCORE_MODE == "model" and _load("safety_rf.joblib") is not None:
+        return "model"
+    return "formula"
+
+
 def predict_safety_score(features: list[float]) -> float:
-    """Predict a 0-100 safety score. Higher = safer."""
+    """0-100 safety score, higher = safer. The weighted formula by default;
+    the trained RandomForest when SAFETY_SCORE_MODE=model and it exists."""
+    if safety_score_method() == "formula":
+        return safety_formula_score(features)
     model = _load("safety_rf.joblib")
-    if model is None:
-        # Weighted fallback identical in spirit to the training target
-        zone_risk, hour, anomaly_score, crime_index, weather_risk = features
-        risk = (
-            0.30 * zone_risk
-            + 0.25 * anomaly_score * 100
-            + 0.25 * crime_index
-            + 0.10 * weather_risk
-            + 0.10 * (100 if (hour >= 22 or hour <= 5) else 20)
-        )
-        return round(max(0.0, min(100.0, 100.0 - risk)), 1)
     pred = float(model.predict(np.array([features], dtype=float))[0])
     return round(max(0.0, min(100.0, pred)), 1)
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from './ui.jsx'
 import WalkHomeMap from './WalkHomeMap.jsx'
-import { clock, geocodePlace } from '../lib/walkHomeService'
+import { clock, searchPlaces } from '../lib/walkHomeService'
 import '../lib/walkHomeStrings'
 
 const INPUT = 'w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm'
@@ -58,7 +58,8 @@ function Setup({ walk }) {
   const { t } = useTranslation()
   const { config, guardians, busy, error } = walk
   const [destination, setDestination] = useState('')
-  const [coords, setCoords] = useState(null) // {lat,lng} | 'none'
+  const [coords, setCoords] = useState(null) // {lat,lng,name,address} | 'none' | 'error'
+  const [matches, setMatches] = useState(null) // search results to pick from
   const [finding, setFinding] = useState(false)
   const [duration, setDuration] = useState(config.duration.default)
   const [interval, setIntervalMin] = useState(config.interval.default)
@@ -69,18 +70,35 @@ function Setup({ walk }) {
   const [gContact, setGContact] = useState('')
   const [localError, setLocalError] = useState(null)
 
+  // Search, then let the tourist pick: several real places can share a name
+  // (a road in two cities, a market and a bus stop), so never auto-pick one.
   const find = async () => {
-    if (!destination.trim()) return
+    const q = destination.trim()
+    if (q.length < 2) return
     setFinding(true)
+    setCoords(null)
+    setMatches(null)
     try {
-      const r = await geocodePlace(destination.trim())
-      setCoords(r.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : 'none')
+      const r = await searchPlaces(q)
+      const results = r.results || []
+      if (results.length === 0) setCoords('none')
+      else setMatches(results)
     } catch {
-      setCoords('none')
+      setCoords('error')
     } finally {
       setFinding(false)
     }
   }
+
+  const choose = (m) => {
+    setDestination(m.name)
+    setCoords({ lat: m.lat, lng: m.lng, name: m.name, address: m.address })
+    setMatches(null)
+  }
+
+  const away = (m) => (m.distance_m == null ? null
+    : m.distance_m < 1000 ? t('walk_home.place_m', { m: m.distance_m })
+      : t('walk_home.place_km', { km: (m.distance_m / 1000).toFixed(m.distance_m < 10_000 ? 1 : 0) }))
 
   const toggle = (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 
@@ -102,7 +120,7 @@ function Setup({ walk }) {
 
   const begin = () => walk.start({
     destination_name: destination.trim(),
-    ...(coords && coords !== 'none' ? { dest_lat: coords.lat, dest_lng: coords.lng } : {}),
+    ...(coords && typeof coords === 'object' ? { dest_lat: coords.lat, dest_lng: coords.lng } : {}),
     duration_minutes: duration, check_interval_minutes: interval, grace_minutes: grace,
     guardian_ids: picked,
   })
@@ -163,19 +181,41 @@ function Setup({ walk }) {
         </label>
         <div className="flex gap-2">
           <input id="wh-dest" value={destination} maxLength={120}
-            onChange={(e) => { setDestination(e.target.value); setCoords(null) }}
+            onChange={(e) => { setDestination(e.target.value); setCoords(null); setMatches(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); find() } }}
             placeholder={t('walk_home.destination_ph')} className={INPUT} />
-          <button type="button" onClick={find} disabled={finding || !destination.trim()}
+          <button type="button" onClick={find} disabled={finding || destination.trim().length < 2}
             className="shrink-0 text-xs font-semibold px-3 rounded-lg bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 disabled:opacity-50">
-            {t('walk_home.find_place')}
+            {finding ? t('walk_home.finding_place') : t('walk_home.find_place')}
           </button>
         </div>
-        {coords && coords !== 'none' && (
-          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1" data-testid="wh-found">
-            📍 {t('walk_home.place_found', { lat: coords.lat.toFixed(4), lng: coords.lng.toFixed(4) })}
-          </p>
+        {matches && (
+          <div className="mt-2" data-testid="wh-matches">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('walk_home.pick_place')}</p>
+            <ul className="border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
+              {matches.map((m, i) => (
+                <li key={`${m.lat},${m.lng},${i}`}>
+                  <button type="button" onClick={() => choose(m)}
+                    className="w-full text-left px-3 py-2 hover:bg-sky-50 dark:hover:bg-sky-900/30">
+                    <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">📍 {m.name}</span>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                      {[m.address, away(m)].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {coords && typeof coords === 'object' && (
+          <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 flex items-start justify-between gap-2" data-testid="wh-found">
+            <span>📍 {coords.address ? `${coords.name} — ${coords.address}`
+              : t('walk_home.place_found', { lat: coords.lat.toFixed(4), lng: coords.lng.toFixed(4) })}</span>
+            <button type="button" onClick={find} className="shrink-0 underline">{t('walk_home.change_place')}</button>
+          </div>
         )}
         {coords === 'none' && <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{t('walk_home.place_not_found')}</p>}
+        {coords === 'error' && <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">{t('walk_home.search_failed')}</p>}
       </div>
 
       <MinutesPicker id="wh-dur" label={t('walk_home.duration')} spec={config.duration}

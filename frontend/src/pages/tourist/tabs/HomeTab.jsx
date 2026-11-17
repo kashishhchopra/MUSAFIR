@@ -134,7 +134,7 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
             className="mt-3 w-full text-sm font-semibold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/30 rounded-xl py-2">
             {t('home.view_live_map')}
           </button>
-          <ScoreExplanation explanation={score.breakdown.explanation} />
+          <ScoreExplanation explanation={score.breakdown.explanation} breakdown={score.breakdown} />
         </div>
       </div>
 

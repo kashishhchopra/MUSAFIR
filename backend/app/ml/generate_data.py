@@ -37,26 +37,64 @@ def _synthetic_csv(name: str) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
-def generate_movement_data(n_normal: int = 4000, n_anomaly: int = 400) -> pd.DataFrame:
+MOVEMENT_FEATURES = ["speed_kmh", "dist_from_prev_m", "inactivity_min", "dist_from_route_m"]
+# Real normal movement, built by app/ml/etl/build_geolife_movement.py from
+# Microsoft Research's GeoLife GPS trajectories (see its .meta.json).
+GEOLIFE_MOVEMENT = os.path.join(os.path.dirname(__file__), "..", "..", "data", "real",
+                                "geolife_movement.csv.gz")
+
+
+def geolife_available() -> bool:
+    return os.path.exists(GEOLIFE_MOVEMENT)
+
+
+def resolve_movement_source(source: str = "auto") -> str:
+    """"geolife" when asked for (or "auto") and the committed file exists, else "synthetic"."""
+    if source == "synthetic":
+        return "synthetic"
+    if geolife_available():
+        return "geolife"
+    if source == "geolife":
+        raise FileNotFoundError(f"{GEOLIFE_MOVEMENT} not found -- run app.ml.etl.build_geolife_movement")
+    return "synthetic"
+
+
+def generate_movement_data(n_normal: int = 4000, n_anomaly: int = 400,
+                           source: str = "synthetic") -> pd.DataFrame:
     """Rows: speed_kmh, dist_from_prev_m, inactivity_min, dist_from_route_m, label.
 
     label: 0 = normal, 1 = anomaly. Anomalies model the three target scenarios:
       - sudden location drop-off / jump  (huge dist_from_prev)
       - prolonged inactivity              (huge inactivity_min)
       - unusual speed (vehicle abduction) (huge speed)
+
+    `source`:
+      - "synthetic" (default): normal rows from the parametric generator below.
+      - "geolife": normal rows are REAL movement (GeoLife GPS traces re-sampled
+        at this app's ping rate); n_normal of them are drawn, and n_anomaly
+        simulated anomalies are added -- no public dataset contains labelled
+        real emergencies, so those stay simulated either way.
     """
     real = _synthetic_csv("ml_movement")
     if real is not None:
         cols = ["speed_kmh", "dist_from_prev_m", "inactivity_min", "dist_from_route_m", "label"]
         return real[cols].reset_index(drop=True)
-    # Normal walking/short-drive behaviour. A small fraction are "borderline"
-    # (fast cabs, brief rests, long sightseeing loops) so the classes overlap and
-    # the evaluation metrics stay realistic rather than perfectly separable.
-    speed = RNG.normal(10, 12, n_normal).clip(0, 95)
-    dist_prev = RNG.normal(200, 400, n_normal).clip(0, 2800)
-    inactivity = RNG.normal(5, 8, n_normal).clip(0, 40)
-    dist_route = RNG.normal(400, 500, n_normal).clip(0, 2600)
-    normal = np.column_stack([speed, dist_prev, inactivity, dist_route])
+    if source == "geolife":
+        geo = pd.read_csv(GEOLIFE_MOVEMENT)
+        geo = geo.sample(min(n_normal, len(geo)), random_state=42)
+        normal = geo[MOVEMENT_FEATURES].to_numpy(float)
+        # Fewer real rows than asked for: keep the same anomaly share.
+        n_anomaly = max(3, round(n_anomaly * len(normal) / n_normal))
+        n_normal = len(normal)
+    else:
+        # Normal walking/short-drive behaviour. A small fraction are "borderline"
+        # (fast cabs, brief rests, long sightseeing loops) so the classes overlap
+        # and the evaluation metrics stay realistic rather than perfectly separable.
+        speed = RNG.normal(10, 12, n_normal).clip(0, 95)
+        dist_prev = RNG.normal(200, 400, n_normal).clip(0, 2800)
+        inactivity = RNG.normal(5, 8, n_normal).clip(0, 40)
+        dist_route = RNG.normal(400, 500, n_normal).clip(0, 2600)
+        normal = np.column_stack([speed, dist_prev, inactivity, dist_route])
     normal_labels = np.zeros(n_normal)
 
     # Anomalies: mix of the three scenarios

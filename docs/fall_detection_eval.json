@@ -1,0 +1,398 @@
+{
+  "dataset": {
+    "name": "UMAFall (Universidad de Malaga), corrected version",
+    "doi": "10.6084/m9.figshare.4214283",
+    "licence": "CC BY 4.0",
+    "signal": "smartphone accelerometer, right trouser pocket (sensor 0), gyro unavailable",
+    "recordings": 746,
+    "falls": 208,
+    "adls": 538,
+    "subjects": 19
+  },
+  "thresholds": {
+    "freefall_g": 0.7,
+    "freefall_min_ms": 40,
+    "impact_g": 2.5,
+    "freefall_impact_window_ms": 600,
+    "crash_impact_g": 4,
+    "crash_min_speed_kmh": 20,
+    "stillness_dev_g": 0.15,
+    "stillness_gyro_dps": 40,
+    "stillness_ms": 2000,
+    "post_impact_observe_ms": 8000,
+    "cooldown_seconds": 60
+  },
+  "peak_g": {
+    "falls": {
+      "p10": 2.7,
+      "p50": 4.03,
+      "p90": 5.87
+    },
+    "adls": {
+      "p10": 1.15,
+      "p50": 2.01,
+      "p90": 4.05
+    }
+  },
+  "results_50hz": {
+    "falls": 208,
+    "falls_detected": 177,
+    "adls": 538,
+    "false_alarms": 26,
+    "by_activity": {
+      "Aplausing": {
+        "kind": "adl",
+        "n": 42,
+        "detected": 0
+      },
+      "HandsUp": {
+        "kind": "adl",
+        "n": 43,
+        "detected": 0
+      },
+      "MakingACall": {
+        "kind": "adl",
+        "n": 46,
+        "detected": 16
+      },
+      "OpeningDoor": {
+        "kind": "adl",
+        "n": 43,
+        "detected": 0
+      },
+      "Sitting": {
+        "kind": "adl",
+        "n": 64,
+        "detected": 0
+      },
+      "Walking": {
+        "kind": "adl",
+        "n": 63,
+        "detected": 0
+      },
+      "Bending": {
+        "kind": "adl",
+        "n": 59,
+        "detected": 0
+      },
+      "Hopping": {
+        "kind": "adl",
+        "n": 53,
+        "detected": 8
+      },
+      "Jogging": {
+        "kind": "adl",
+        "n": 28,
+        "detected": 0
+      },
+      "LyingDown": {
+        "kind": "adl",
+        "n": 57,
+        "detected": 0
+      },
+      "backwardFall": {
+        "kind": "fall",
+        "n": 73,
+        "detected": 68
+      },
+      "forwardFall": {
+        "kind": "fall",
+        "n": 71,
+        "detected": 58
+      },
+      "lateralFall": {
+        "kind": "fall",
+        "n": 64,
+        "detected": 51
+      },
+      "GoDownstairs": {
+        "kind": "adl",
+        "n": 20,
+        "detected": 1
+      },
+      "GoUpstairs": {
+        "kind": "adl",
+        "n": 20,
+        "detected": 1
+      }
+    },
+    "sensitivity": 0.851,
+    "false_alarm_rate": 0.0483,
+    "specificity": 0.9517
+  },
+  "results_200hz": {
+    "falls": 208,
+    "falls_detected": 189,
+    "adls": 538,
+    "false_alarms": 48,
+    "by_activity": {
+      "Aplausing": {
+        "kind": "adl",
+        "n": 42,
+        "detected": 0
+      },
+      "HandsUp": {
+        "kind": "adl",
+        "n": 43,
+        "detected": 0
+      },
+      "MakingACall": {
+        "kind": "adl",
+        "n": 46,
+        "detected": 24
+      },
+      "OpeningDoor": {
+        "kind": "adl",
+        "n": 43,
+        "detected": 2
+      },
+      "Sitting": {
+        "kind": "adl",
+        "n": 64,
+        "detected": 0
+      },
+      "Walking": {
+        "kind": "adl",
+        "n": 63,
+        "detected": 0
+      },
+      "Bending": {
+        "kind": "adl",
+        "n": 59,
+        "detected": 0
+      },
+      "Hopping": {
+        "kind": "adl",
+        "n": 53,
+        "detected": 10
+      },
+      "Jogging": {
+        "kind": "adl",
+        "n": 28,
+        "detected": 0
+      },
+      "LyingDown": {
+        "kind": "adl",
+        "n": 57,
+        "detected": 0
+      },
+      "backwardFall": {
+        "kind": "fall",
+        "n": 73,
+        "detected": 69
+      },
+      "forwardFall": {
+        "kind": "fall",
+        "n": 71,
+        "detected": 62
+      },
+      "lateralFall": {
+        "kind": "fall",
+        "n": 64,
+        "detected": 58
+      },
+      "GoDownstairs": {
+        "kind": "adl",
+        "n": 20,
+        "detected": 5
+      },
+      "GoUpstairs": {
+        "kind": "adl",
+        "n": 20,
+        "detected": 7
+      }
+    },
+    "sensitivity": 0.9087,
+    "false_alarm_rate": 0.0892,
+    "specificity": 0.9108
+  },
+  "previous_defaults": {
+    "thresholds": {
+      "freefall_g": 0.4,
+      "freefall_min_ms": 80
+    },
+    "results_50hz": {
+      "falls": 208,
+      "falls_detected": 101,
+      "adls": 538,
+      "false_alarms": 14,
+      "by_activity": {
+        "Aplausing": {
+          "kind": "adl",
+          "n": 42,
+          "detected": 0
+        },
+        "HandsUp": {
+          "kind": "adl",
+          "n": 43,
+          "detected": 0
+        },
+        "MakingACall": {
+          "kind": "adl",
+          "n": 46,
+          "detected": 7
+        },
+        "OpeningDoor": {
+          "kind": "adl",
+          "n": 43,
+          "detected": 0
+        },
+        "Sitting": {
+          "kind": "adl",
+          "n": 64,
+          "detected": 0
+        },
+        "Walking": {
+          "kind": "adl",
+          "n": 63,
+          "detected": 0
+        },
+        "Bending": {
+          "kind": "adl",
+          "n": 59,
+          "detected": 0
+        },
+        "Hopping": {
+          "kind": "adl",
+          "n": 53,
+          "detected": 7
+        },
+        "Jogging": {
+          "kind": "adl",
+          "n": 28,
+          "detected": 0
+        },
+        "LyingDown": {
+          "kind": "adl",
+          "n": 57,
+          "detected": 0
+        },
+        "backwardFall": {
+          "kind": "fall",
+          "n": 73,
+          "detected": 40
+        },
+        "forwardFall": {
+          "kind": "fall",
+          "n": 71,
+          "detected": 34
+        },
+        "lateralFall": {
+          "kind": "fall",
+          "n": 64,
+          "detected": 27
+        },
+        "GoDownstairs": {
+          "kind": "adl",
+          "n": 20,
+          "detected": 0
+        },
+        "GoUpstairs": {
+          "kind": "adl",
+          "n": 20,
+          "detected": 0
+        }
+      },
+      "sensitivity": 0.4856,
+      "false_alarm_rate": 0.026,
+      "specificity": 0.974
+    }
+  },
+  "sweep_50hz": [
+    {
+      "freefall_g": 0.4,
+      "freefall_min_ms": 40,
+      "sensitivity": 0.5577,
+      "false_alarm_rate": 0.0335
+    },
+    {
+      "freefall_g": 0.4,
+      "freefall_min_ms": 80,
+      "sensitivity": 0.4856,
+      "false_alarm_rate": 0.026
+    },
+    {
+      "freefall_g": 0.5,
+      "freefall_min_ms": 40,
+      "sensitivity": 0.6538,
+      "false_alarm_rate": 0.039
+    },
+    {
+      "freefall_g": 0.5,
+      "freefall_min_ms": 80,
+      "sensitivity": 0.5769,
+      "false_alarm_rate": 0.0279
+    },
+    {
+      "freefall_g": 0.6,
+      "freefall_min_ms": 40,
+      "sensitivity": 0.7596,
+      "false_alarm_rate": 0.0428
+    },
+    {
+      "freefall_g": 0.6,
+      "freefall_min_ms": 80,
+      "sensitivity": 0.6587,
+      "false_alarm_rate": 0.0335
+    },
+    {
+      "freefall_g": 0.7,
+      "freefall_min_ms": 40,
+      "sensitivity": 0.851,
+      "false_alarm_rate": 0.0483
+    },
+    {
+      "freefall_g": 0.7,
+      "freefall_min_ms": 80,
+      "sensitivity": 0.7356,
+      "false_alarm_rate": 0.039
+    },
+    {
+      "freefall_g": 0.8,
+      "freefall_min_ms": 40,
+      "sensitivity": 0.8846,
+      "false_alarm_rate": 0.0669
+    },
+    {
+      "freefall_g": 0.8,
+      "freefall_min_ms": 80,
+      "sensitivity": 0.8269,
+      "false_alarm_rate": 0.0465
+    }
+  ],
+  "cross_validation": [
+    {
+      "tuned_on_people": 10,
+      "tested_on_people": 9,
+      "picked": {
+        "freefall_g": 0.8,
+        "freefall_min_ms": 120
+      },
+      "held_out": {
+        "sensitivity": 0.64,
+        "false_alarm_rate": 0.0161
+      },
+      "held_out_previous_defaults": {
+        "sensitivity": 0.384,
+        "false_alarm_rate": 0.0129
+      }
+    },
+    {
+      "tuned_on_people": 9,
+      "tested_on_people": 10,
+      "picked": {
+        "freefall_g": 0.8,
+        "freefall_min_ms": 40
+      },
+      "held_out": {
+        "sensitivity": 0.9759,
+        "false_alarm_rate": 0.0921
+      },
+      "held_out_previous_defaults": {
+        "sensitivity": 0.6386,
+        "false_alarm_rate": 0.0439
+      }
+    }
+  ],
+  "generated": "2026-11-16"
+}

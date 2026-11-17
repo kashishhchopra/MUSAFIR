@@ -61,6 +61,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-MUSAFIR}
+      # Google Maps Platform key (Places API (New) + Geocoding): complete place
+      # search for Walk-Me-Home etc. Empty = free OpenStreetMap search.
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-console}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
