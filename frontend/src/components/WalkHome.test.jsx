@@ -284,7 +284,7 @@ describe('Walk-Me-Home — setup', () => {
     await flush()
     await flush()
     expect(mock.history.get.filter((c) => c.url === '/maps/route').pop().params).toMatchObject({ olat: 9.97, olng: 76.28 })
-    expect(screen.getByText('Starting point')).toBeInTheDocument() // labelled as the start, not a "Destination"
+    expect(screen.getByText(/Starting point/)).toBeInTheDocument() // labelled as the start, not a "Destination"
     // detect again: back to the live position, fresh fix requested
     const before = geo.getCurrentPosition.mock.calls.length
     fireEvent.click(screen.getByTestId('wh-detect'))
