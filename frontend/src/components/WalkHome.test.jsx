@@ -295,6 +295,21 @@ describe('Walk-Me-Home — setup', () => {
     expect(screen.getByPlaceholderText(/Search your starting place/)).toBeInTheDocument()
   })
 
+  it('Detect stays clickable while locating, and a location that never answers times out instead of hanging', async () => {
+    geo.getCurrentPosition = vi.fn() // an ignored permission prompt: never calls back
+    stubMaps()
+    await mount()
+    await typeAndPick('City Hosp')
+    const btn = screen.getByTestId('wh-detect')
+    expect(btn).not.toBeDisabled()
+    expect(screen.getByText(/choose Allow/i)).toBeInTheDocument()
+    fireEvent.click(btn) // retry while pending is allowed
+    expect(geo.getCurrentPosition.mock.calls.length).toBe(2)
+    await advance(14_000) // 10 s browser timeout + 3 s watchdog
+    expect(screen.getByText(/took too long/i)).toBeInTheDocument()
+    expect(screen.getByTestId('wh-detect')).not.toBeDisabled()
+  })
+
   it('does not show the time picker while the location is still being found', async () => {
     geo.getCurrentPosition = vi.fn() // never answers
     stubMaps()

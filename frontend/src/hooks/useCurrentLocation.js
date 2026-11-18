@@ -62,8 +62,20 @@ export default function useCurrentLocation({ auto = false, quick = false } = {})
     }
     setStatus(LOCATION_STATUS.LOCATING)
     return new Promise((resolve) => {
+      // The browser's own timeout only starts AFTER the permission prompt is
+      // answered, so an ignored/hidden prompt (or a stuck OS location service)
+      // would leave us "locating" forever. This watchdog ends the wait; a late
+      // answer is still accepted below if it does arrive.
+      let settled = false
+      const watchdog = setTimeout(() => {
+        if (settled) return
+        if (mounted.current) setStatus(LOCATION_STATUS.TIMEOUT)
+        resolve(null)
+      }, (options.timeout || 20_000) + 3_000)
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          settled = true
+          clearTimeout(watchdog)
           const fix = {
             lat: pos.coords.latitude, lng: pos.coords.longitude,
             accuracy: pos.coords.accuracy, timestamp: pos.timestamp,
@@ -72,6 +84,8 @@ export default function useCurrentLocation({ auto = false, quick = false } = {})
           resolve(fix)
         },
         (err) => {
+          settled = true
+          clearTimeout(watchdog)
           if (mounted.current) setStatus(statusFromError(err))
           resolve(null)
         },

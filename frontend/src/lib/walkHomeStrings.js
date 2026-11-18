@@ -125,6 +125,7 @@ export const WALK_HOME_STRINGS_EN = {
   start_search_ph: 'Search your starting place…',
   start_label: 'Starting point',
   detect_location: '📍 Detect my current location',
+  locating_hint: 'If your browser is asking for permission, choose Allow (look near the address bar). Not working? Search your starting place above.',
   route_too_long: 'This trip is longer than the maximum journey of {{n}} minutes. Choose a nearer destination, or a faster mode.',
   route_retry: 'Try again',
   manual_time: 'Set the time myself',

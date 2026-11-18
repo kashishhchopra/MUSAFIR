@@ -83,10 +83,12 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
           {/* Two ways to say where you start: search a place, or detect where you are now. */}
           <PlaceSearch autocomplete selected={startPlace} onSelect={setStartPlace} icon="📍"
             label={t('walk_home.start_label')} placeholder={t('walk_home.start_search_ph')} />
-          <button type="button" onClick={detect} disabled={loc.locating} data-testid="wh-detect"
-            className="w-full text-xs font-semibold bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white px-3 py-2 rounded-lg">
-            {loc.locating ? t('location.locating', 'Getting your location…') : t('walk_home.detect_location')}
+          {/* Always clickable (also while a request is pending): tapping it again retries. */}
+          <button type="button" onClick={detect} data-testid="wh-detect"
+            className="w-full text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 rounded-lg">
+            {t('walk_home.detect_location')}
           </button>
+          {loc.locating && <p className="text-[11px] text-slate-500">{t('walk_home.locating_hint')}</p>}
           {!startPlace && <LocationStatus loc={loc} />}
         </div>
       )}
