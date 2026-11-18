@@ -55,8 +55,7 @@ export default function PlaceSearch({ selected, onSelect, placeholder, autocompl
   }, [query, autocomplete]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => abort.current?.abort(), [])
 
-  const search = async (e) => {
-    e?.preventDefault()
+  const search = async () => {
     if (!query.trim() || busy) return
     abort.current?.abort()
     setBusy(true)
@@ -90,15 +89,20 @@ export default function PlaceSearch({ selected, onSelect, placeholder, autocompl
 
   return (
     <div className="space-y-1.5">
-      <form onSubmit={search} className="flex gap-2">
+      {/* Deliberately NOT a <form>: this box is used inside other forms (Fair Price), and a form inside a
+          form makes the browser submit the OUTER one -- reloading the page. Enter and the button are
+          handled here instead. */}
+      <div className="flex gap-2">
         <input value={query} onChange={(e) => { typed.current = true; setQuery(e.target.value) }} aria-label={placeholder}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); search() } }}
+          enterKeyHint="search" autoComplete="off"
           placeholder={placeholder || t('place_search.placeholder', 'Search a place')}
           className="flex-1 min-w-0 text-sm border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-2 py-1.5" />
-        <button disabled={busy || !query.trim()}
+        <button type="button" onClick={search} disabled={busy || !query.trim()}
           className="text-sm font-semibold bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-3 rounded-lg">
           {busy ? '…' : t('place_search.search', 'Search')}
         </button>
-      </form>
+      </div>
       {message && <div className="text-xs text-amber-700 dark:text-amber-300">{message}</div>}
       {results.length > 0 && (
         <ul className="border border-slate-100 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-700">

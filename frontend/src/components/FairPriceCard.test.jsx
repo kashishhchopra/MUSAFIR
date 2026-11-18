@@ -37,6 +37,25 @@ async function pickDestinationAndQuote(utils, quote = '150') {
   fireEvent.change(utils.getByPlaceholderText('Quoted fare (₹)'), { target: { value: quote } })
 }
 
+describe('FairPriceCard destination search', () => {
+  it('has no form inside a form (that made the browser reload the page on Search)', () => {
+    const { container } = render(<FairPriceCard touristId={1} />)
+    expect(container.querySelectorAll('form form')).toHaveLength(0)
+    expect(container.querySelectorAll('form')).toHaveLength(1)
+  })
+
+  it('Enter in the destination box searches and does not submit the fare form', async () => {
+    const utils = render(<FairPriceCard touristId={1} />)
+    const submit = vi.fn((e) => e.preventDefault())
+    utils.container.querySelector('form').addEventListener('submit', submit)
+    const input = utils.getByLabelText('Destination (place name)')
+    fireEvent.change(input, { target: { value: 'Taj Mahal' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await utils.findByText(/Taj Mahal/)).toBeInTheDocument()
+    expect(submit).not.toHaveBeenCalled()
+  })
+})
+
 describe('FairPriceCard', () => {
   it('asks permission with an explanation and never reads a location before the tourist agrees', () => {
     const geo = stubGeo({ lat: 27.18, lng: 78.01 })

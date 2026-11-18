@@ -256,3 +256,14 @@ accepted; granting permission later fetches the position by itself); a wait long
 Refused permission is respected: the remembered position is dropped and no workaround is offered. Fair Price still requires a fresh GPS fix; directions to Maps only pass a precise fix as the start.
 **Tested:** 25 + 14 new frontend tests (shared request, instant start, stale/refresh, watchdog, late answer, permission change, approximate, every message) + 14 backend provider-chain tests; live check of the new translation fallback.
 **Not verified:** on a real phone / the user's own Mac -- whether the OS answers is outside the app's control; the approximate option exists for exactly that case.
+
+---
+
+## Addendum: Fair Price destination search reloaded the page
+
+**Cause:** the shared place-search box was itself a `<form>`, and Fair Price wraps it in its own `<form>`. A form inside a form is invalid HTML; in a real browser clicking Search (or pressing Enter)
+submitted the *outer* form natively, reloading the page and losing the typed text. React logged `validateDOMNesting: <form> cannot appear as a descendant of <form>`. The earlier tests could not see this
+because the simulated browser (jsdom) is lenient about nested forms. Reproduced and verified in a real headless Chrome driven over the DevTools protocol (log in, open Explore, type, click Search / press Enter,
+check the page did not reload).
+**Fix:** `PlaceSearch` is no longer a form (Enter and the button are handled explicitly), so it can never nest. A sweep of every tab in the real browser found no other nested form and no DOM-nesting warnings.
+**Tests:** 6 regression tests that fail on the old code and pass on the new (search box is never a form; button and Enter search without submitting an outer form; Fair Price has no form inside a form).
