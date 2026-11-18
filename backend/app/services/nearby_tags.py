@@ -15,8 +15,8 @@ CATEGORIES = (HOSPITAL, PHARMACY, POLICE, TRANSPORT)
 
 OVERPASS_SELECTORS: dict[str, list[str]] = {
     HOSPITAL: [
-        '["amenity"~"^(hospital|clinic|doctors)$"]',
-        '["healthcare"~"^(hospital|clinic|centre|doctor)$"]',
+        '["amenity"~"^(hospital|clinic)$"]',
+        '["healthcare"~"^(hospital|clinic|centre)$"]',
         '["emergency"="yes"]["amenity"]',
     ],
     PHARMACY: [
@@ -38,14 +38,14 @@ OVERPASS_SELECTORS: dict[str, list[str]] = {
 
 # Nominatim special-phrase searches (fallback when Overpass is down), cheapest/most useful first.
 NOMINATIM_QUERIES: dict[str, list[str]] = {
-    HOSPITAL: ["[amenity=hospital]", "[amenity=clinic]", "[healthcare=centre]", "[amenity=doctors]"],
+    HOSPITAL: ["[amenity=hospital]", "[amenity=clinic]", "[healthcare=centre]"],
     PHARMACY: ["[amenity=pharmacy]", "[shop=chemist]"],
     POLICE: ["[amenity=police]"],
     TRANSPORT: ["[railway=station]", "[amenity=bus_station]", "[highway=bus_stop]", "[amenity=taxi]", "[railway=halt]"],
 }
 
 # For ranking "emergency first" on the hospital list.
-_RANK = {"Emergency hospital": 0, "Hospital": 1, "Medical centre": 2, "Clinic": 2, "Doctor": 3}
+_RANK = {"Emergency hospital": 0, "Hospital": 1, "Medical centre": 2, "Clinic": 2}
 
 
 def _clean(v) -> str | None:
@@ -60,6 +60,14 @@ def _is_gov(tags: dict) -> str | None:
     if t in ("private", "private_non_profit", "religious", "ngo"):
         return "Private"
     return None
+
+
+_ANIMAL = re.compile(r"v[eé]t[eé]rinaire|veterinar|\bvet\b|animal|\bpets?\b|\bdog\b|\bcat\b", re.I)
+
+
+def _is_for_animals(tags: dict) -> bool:
+    spec = (tags.get("healthcare:speciality") or tags.get("healthcare") or "").lower()
+    return "veterinary" in spec or bool(_ANIMAL.search(tags.get("name", "")))
 
 
 # --------------------------------------------------------------- classification
@@ -78,6 +86,8 @@ def classify(tags: dict) -> tuple[str, str] | None:
         return PHARMACY, "Pharmacy"
     if shop == "chemist":
         return PHARMACY, "Chemist"
+    if (am in ("hospital", "clinic") or hc in ("hospital", "clinic")) and _is_for_animals(tags):
+        return None  # a veterinary clinic is not what someone looking for a hospital needs
     if am == "hospital" or hc == "hospital":
         if tags.get("emergency") == "yes":
             return HOSPITAL, "Emergency hospital"
@@ -86,8 +96,6 @@ def classify(tags: dict) -> tuple[str, str] | None:
         return HOSPITAL, "Clinic"
     if hc == "centre":
         return HOSPITAL, "Medical centre"
-    if am == "doctors" or hc == "doctor":
-        return HOSPITAL, "Doctor"
     # ---- transport
     rw = tags.get("railway")
     if rw in ("station", "halt"):

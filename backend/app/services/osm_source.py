@@ -89,10 +89,22 @@ def bbox(lat: float, lng: float, radius_km: float) -> str:
 
 def nominatim_rows(phrase: str, lat: float, lng: float, radius_km: float, limit: int = 40) -> list[dict]:
     """One bounded category search ("[amenity=pharmacy]"). Raises httpx.HTTPError/ValueError."""
-    return maps.nominatim_request(settings.NOMINATIM_URL, {
+    params = {
         "q": phrase, "format": "jsonv2", "viewbox": bbox(lat, lng, radius_km), "bounded": 1, "limit": limit,
         "addressdetails": 0, "extratags": 1, "accept-language": "en",
-    }, timeout=10.0)
+    }
+    # The public service now and then times out or answers "busy" for a single request while
+    # being fine a moment later; one patient retry keeps an emergency lookup from failing on that.
+    for attempt in (0, 1):
+        try:
+            return maps.nominatim_request(settings.NOMINATIM_URL, params, timeout=10.0)
+        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+            transient = isinstance(e, httpx.TimeoutException) or e.response.status_code in (429, 500, 502, 503, 504)
+            if attempt == 1 or not transient:
+                raise
+            logger.info("Nominatim request retrying after: %s", type(e).__name__)
+            time.sleep(1.5)
+    raise AssertionError("unreachable")
 
 
 def row_to_tags(r: dict) -> dict:

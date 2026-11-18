@@ -169,3 +169,35 @@ journeys, SOS and data live above the tabs and are unaffected.
 
 **Tested:** 26 backend tests (tag logic, region filtering, fallback order, cache, circuit breaker, 503 vs empty, API validation) + 37 frontend tests (GPS accept/deny/timeout/unsupported, manual location, every filter, radius debounce, sort, search, map pins, directions URLs, empty/error/offline/partial). **Live** against real OSM services for Delhi, Jaipur, Manali, Paris: only the requested category, nothing outside the radius, distances match an independent haversine, nearest-first.
 **Not tested / limits:** not on a real phone; the public Overpass was down during testing, so the live checks exercised the Nominatim fallback (cold start ~20-30 s for all three categories; results stream in per category) -- run your own Overpass for speed and volume. OSM coverage varies: many restaurants carry no `cuisine` tag, so regional matching is conservative and small towns can legitimately return little. "Hidden" is inferred from tags (no popularity data exists), so a well-known museum can still appear. New UI strings are English-only in the other 20 languages.
+
+---
+
+## Addendum: Nearby (hospital / pharmacy / police / transport)
+
+**Why it said "Nothing found nearby yet":**
+1. The backend ignored the phone's location and read the *stored profile coordinate*; when that was empty (`last_lat is None`) it returned `[]`,
+   which the screen showed as "nothing nearby". The frontend never sent any position at all.
+2. Pharmacy and transport read *seeded demo rows* (Guwahati); hospital and police read a local table of an old OSM import. No live lookup anywhere.
+3. A failure and "nothing here" were indistinguishable.
+
+**What changed:**
+| Area | Change |
+|---|---|
+| Position | Device GPS on open (permission prompt), place search when refused / off / timed out, "You are near <area>" (reverse geocoded); every failure named. New `GET /api/nearby?lat&lng&category&radius_km` -- the old stored-position endpoint is removed. |
+| Data | Overpass (several endpoints, failing ones skipped 2 min) -> Nominatim category searches in widening boxes (nearest first, one retry on a timeout) -> for hospital/police only, the saved OSM import (labelled "saved copy", no phone numbers) -> otherwise HTTP 503. Shared with Discovery in `services/osm_source.py`. Cached per cell/radius/category. |
+| Hospital | hospitals, emergency hospitals, clinics, medical centres (not single-doctor practices, not veterinary); government/private when mapped; "Emergency first" or nearest sort. |
+| Pharmacy | pharmacies/chemists; "Open 24 hours" for 24/7; "Open now / Closed now" **only** when `opening_hours` is plainly parseable and the user's own clock is known (live position); otherwise nothing is claimed. "Only confirmed open" filter. |
+| Police | stations, posts, headquarters. |
+| Transport | metro, railway, bus stops/terminals, taxi and auto-rickshaw stands, ferry, airports, with operator/network/lines when mapped; no timetable or "running now" claims. |
+| Actions | Call button only for a number actually mapped; Directions (Google Maps link, no key); "Time & route" (OSRM distance + duration, walk/drive, line on the map); Nearest hospital / Nearest police shortcuts; emergency-number call link always visible; refresh. |
+| UI | 4 category filters with counts, radius 1/2/5/10/25/50 km, search, sort, list + Leaflet map (own pin per category), skeletons, honest empty/error/offline notes. |
+
+**Tested:** 30 backend tests (tags, phones, opening hours, region, fallback order incl. saved data, caching, 503 vs empty, validation) + 40 frontend tests
+(GPS accept/deny/timeout, manual place, each category, radius, open-now, call/directions/route, map pins, empty/error/offline). **Live** against the real map
+services -- Delhi (all four categories), Paris (hospital), Manali (pharmacy): only the requested kind, nothing outside the radius, distances match an independent
+haversine, nearest-first, no duplicate ids, phones only where mapped. Bugs found by testing and fixed: a crash while a category was first loading; a single Nominatim
+timeout failing a whole police lookup (now retried once); veterinary clinics and single doctors in the hospital list.
+**Not tested / limits:** not on a real phone. The public Overpass was down during testing, so live runs exercised the Nominatim fallback (first search 5-25 s) --
+run your own Overpass for speed and volume. OpenStreetMap data is volunteer-made: many places have no phone/hours, some are mis-tagged (e.g. police-run
+booths mapped as police), and "open now" is unknown for any hours the parser does not fully understand. Distances are straight-line; the route button gives road
+time without traffic. New UI strings are English-only in the other 20 languages.

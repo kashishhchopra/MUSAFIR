@@ -101,6 +101,12 @@ def test_classification():
     assert c({"amenity": "hospital", "emergency": "yes"}) == ("hospital", "Emergency hospital")
     assert c({"amenity": "clinic"}) == ("hospital", "Clinic")
     assert c({"healthcare": "centre"}) == ("hospital", "Medical centre")
+    assert c({"amenity": "clinic", "name": "Clinique Vétérinaire Saint Paul"}) is None  # animals
+    assert c({"amenity": "clinic", "name": "Happy Pet Clinic"}) is None
+    assert c({"amenity": "clinic", "healthcare:speciality": "veterinary", "name": "X"}) is None
+    assert c({"amenity": "clinic", "name": "Capital Clinic"}) == ("hospital", "Clinic")  # "cap" is not "cat"/"pet"
+    # a single doctor's practice is not a hospital, clinic or medical centre
+    assert c({"amenity": "doctors", "name": "Dr X"}) is None and c({"healthcare": "doctor"}) is None
     assert c({"amenity": "pharmacy"}) == ("pharmacy", "Pharmacy")
     assert c({"shop": "chemist"}) == ("pharmacy", "Chemist")
     assert c({"amenity": "police", "name": "X Police Station"}) == ("police", "Police station")
@@ -403,3 +409,33 @@ def test_api_validation_and_auth(client, tourist_headers):
 def test_the_old_stored_position_endpoint_is_gone(client, admin_headers, tourist_user):
     r = client.get(f"/api/tourists/{tourist_user.tourist_id}/nearby?category=hospital", headers=admin_headers)
     assert r.status_code in (404, 405, 422)
+
+
+def test_one_transient_nominatim_timeout_is_retried_not_fatal(monkeypatch, db):
+    fail_overpass(monkeypatch)
+    monkeypatch.setattr(osm_source.time, "sleep", lambda s: None)
+    attempts = []
+    ok_row = {"osm_type": "node", "osm_id": 95, "lat": "28.6331", "lon": "77.2161", "name": "Retry Police Station",
+              "category": "amenity", "type": "police", "display_name": "Retry Police Station, CP, Delhi"}
+
+    def req(url, params, timeout=8.0):
+        attempts.append(params["q"])
+        if len(attempts) == 1:
+            raise httpx.ReadTimeout("slow")
+        return [ok_row] if params["q"] == "[amenity=police]" else []
+    monkeypatch.setattr(maps, "nominatim_request", req)
+    r = run(db, "police", 5)
+    assert names(r) == ["Retry Police Station"] and attempts[:2] == ["[amenity=police]", "[amenity=police]"]
+
+
+def test_a_non_transient_nominatim_error_is_not_retried(monkeypatch, db):
+    fail_overpass(monkeypatch)
+    attempts = []
+
+    def req(url, params, timeout=8.0):
+        attempts.append(1)
+        raise httpx.ConnectError("refused")
+    monkeypatch.setattr(maps, "nominatim_request", req)
+    with pytest.raises(nb.NearbyUnavailable):
+        run(db, "police", 5)
+    assert len(attempts) == 1
