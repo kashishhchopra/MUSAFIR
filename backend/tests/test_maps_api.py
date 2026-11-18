@@ -1,5 +1,25 @@
-"""Routing/search endpoints (app/api/maps.py) and services/maps.py fallbacks."""
+"""Maps API (app/api/maps.py): geocoding, place search, routing, multi-stop trips,
+and the services/maps.py routing fallbacks."""
 from app.services import maps
+
+
+def test_geocode_known_place(client, tourist_headers):
+    r = client.get("/api/maps/geocode", params={"place": "Kamakhya Temple"}, headers=tourist_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["lat"] is not None and body["lng"] is not None
+
+
+def test_geocode_unknown_place_returns_null_not_a_guess(client, tourist_headers):
+    r = client.get("/api/maps/geocode", params={"place": "Nowhereville Xyzzy"}, headers=tourist_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["lat"] is None and body["lng"] is None
+
+
+def test_geocode_requires_auth(client):
+    r = client.get("/api/maps/geocode", params={"place": "Delhi"})
+    assert r.status_code == 401
 
 
 def test_directions_falls_back_to_honest_estimate_per_mode():
