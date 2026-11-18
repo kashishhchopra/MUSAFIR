@@ -14,7 +14,7 @@ import { openPlace } from '../lib/mapsLinks.js'
 // only biases ranking towards the user.
 const MIN_CHARS = 3
 const DEBOUNCE_MS = 450
-export default function PlaceSearch({ selected, onSelect, placeholder, autocomplete = false, near = null }) {
+export default function PlaceSearch({ selected, onSelect, placeholder, autocomplete = false, near = null, label = null, icon = '🏁' }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
@@ -77,7 +77,7 @@ export default function PlaceSearch({ selected, onSelect, placeholder, autocompl
     return (
       <div className="flex items-start justify-between gap-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5">
         <span className="min-w-0">
-          <span className="block text-xs text-slate-400">🏁 {t('place_search.destination', 'Destination')}</span>
+          <span className="block text-xs text-slate-400">{icon} {label || t('place_search.destination', 'Destination')}</span>
           <span className="block truncate">{selected.name}</span>
         </span>
         <span className="flex gap-3 shrink-0 text-xs font-semibold text-sky-700 dark:text-sky-400">

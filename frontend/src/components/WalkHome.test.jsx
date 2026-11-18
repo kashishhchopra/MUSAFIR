@@ -267,6 +267,34 @@ describe('Walk-Me-Home — setup', () => {
     expect(sent).not.toHaveProperty('start_lat') // GPS gave nothing; nothing invented
   })
 
+  it('keeps both ways to set the start: a searched place, or "Detect my current location"', async () => {
+    const KOCHI = { name: 'Kochi Metro Station, Kochi, Kerala, India', lat: 9.97, lng: 76.28, demo: false }
+    mock.onGet('/maps/suggest').reply((c) => [200, { results: c.params.q.startsWith('Koc') ? [KOCHI] : [HOSPITAL] }])
+    mock.onGet('/maps/route').reply(200, ROUTE)
+    await mount()
+    await typeAndPick('City Hosp')
+    // both options are on screen at once, and GPS was tried automatically
+    expect(screen.getByPlaceholderText(/Search your starting place/)).toBeInTheDocument()
+    expect(screen.getByTestId('wh-detect')).toHaveTextContent('Detect my current location')
+    expect(mock.history.get.filter((c) => c.url === '/maps/route')[0].params).toMatchObject({ olat: 26.14, olng: 91.73 })
+    // choose a searched start: the route restarts from there
+    fireEvent.change(screen.getByPlaceholderText(/Search your starting place/), { target: { value: 'Kochi Metro' } })
+    await advance(500)
+    fireEvent.click(screen.getByText('Kochi Metro Station', { exact: false }))
+    await flush()
+    await flush()
+    expect(mock.history.get.filter((c) => c.url === '/maps/route').pop().params).toMatchObject({ olat: 9.97, olng: 76.28 })
+    expect(screen.getByText('Starting point')).toBeInTheDocument() // labelled as the start, not a "Destination"
+    // detect again: back to the live position, fresh fix requested
+    const before = geo.getCurrentPosition.mock.calls.length
+    fireEvent.click(screen.getByTestId('wh-detect'))
+    await flush()
+    await flush()
+    expect(geo.getCurrentPosition.mock.calls.length).toBe(before + 1)
+    expect(mock.history.get.filter((c) => c.url === '/maps/route').pop().params).toMatchObject({ olat: 26.14, olng: 91.73 })
+    expect(screen.getByPlaceholderText(/Search your starting place/)).toBeInTheDocument()
+  })
+
   it('does not show the time picker while the location is still being found', async () => {
     geo.getCurrentPosition = vi.fn() // never answers
     stubMaps()

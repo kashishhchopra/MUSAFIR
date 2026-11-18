@@ -39,7 +39,8 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
   const [mode, setMode] = useState('walking')
   const [modes, setModes] = useState(['walking', 'bicycling', 'driving'])
   const [startPlace, setStartPlace] = useState(null) // chosen start, when GPS cannot give one
-  const [pickStart, setPickStart] = useState(false)
+  // "Detect my location": drop any searched start and use a fresh device fix.
+  const detect = () => { setStartPlace(null); loc.request() }
   const gpsFailed = ['denied', 'unavailable', 'timeout', 'unsupported'].includes(loc.status)
   // The route starts from a place the traveller chose, else from the live GPS fix.
   const here = startPlace || loc.position
@@ -74,28 +75,20 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
           placeholder={t('walk_home.dest_search_ph')} />
       </div>
 
-      {!startPlace && <LocationStatus loc={loc} />}
-
-      {dest && (!loc.position || pickStart || startPlace) && (
-        <div data-testid="wh-start-picker">
-          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+      {dest && (
+        <div className="space-y-2" data-testid="wh-start-picker">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
             {t('walk_home.start_from')}
           </label>
-          <PlaceSearch autocomplete selected={startPlace} onSelect={setStartPlace}
-            placeholder={t('walk_home.start_search_ph')} />
-          {startPlace && loc.position && (
-            <button type="button" onClick={() => { setStartPlace(null); setPickStart(false) }}
-              className="mt-1 text-xs font-semibold text-sky-700 dark:text-sky-400 underline">
-              {t('walk_home.use_my_location')}
-            </button>
-          )}
+          {/* Two ways to say where you start: search a place, or detect where you are now. */}
+          <PlaceSearch autocomplete selected={startPlace} onSelect={setStartPlace} icon="📍"
+            label={t('walk_home.start_label')} placeholder={t('walk_home.start_search_ph')} />
+          <button type="button" onClick={detect} disabled={loc.locating} data-testid="wh-detect"
+            className="w-full text-xs font-semibold bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white px-3 py-2 rounded-lg">
+            {loc.locating ? t('location.locating', 'Getting your location…') : t('walk_home.detect_location')}
+          </button>
+          {!startPlace && <LocationStatus loc={loc} />}
         </div>
-      )}
-      {dest && !gpsFailed && !pickStart && !startPlace && loc.position && (
-        <button type="button" onClick={() => setPickStart(true)} data-testid="wh-change-start"
-          className="text-xs font-semibold text-sky-700 dark:text-sky-400 underline">
-          {t('walk_home.start_elsewhere')}
-        </button>
       )}
 
       {dest && (
