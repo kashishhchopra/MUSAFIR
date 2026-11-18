@@ -15,7 +15,7 @@ vi.mock('../hooks/useSpeechRecognition.js', async (orig) => {
   const real = await orig()
   return {
     ...real,
-    default: ({ lang }) => {
+    default: function useMockSpeech({ lang }) {
       const [transcript, setTranscript] = useState('')
       const [error, setError] = useState(null)
       sides[lang] = { setTranscript, setError }

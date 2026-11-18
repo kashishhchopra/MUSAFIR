@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, renderHook } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import api from '../api'
@@ -18,6 +18,7 @@ vi.mock('react-leaflet', () => ({
 }))
 
 const mock = new MockAdapter(api)
+beforeEach(() => mock.reset())
 
 const routeResponse = {
   tourist_id: 1,
@@ -97,5 +98,49 @@ describe('RoutePicker', () => {
     rerender(<RoutePicker active={true} onToggle={() => {}} state={result.current} />)
 
     expect(getByText('Tourist has no known location yet')).toBeInTheDocument()
+  })
+
+  describe('saving the recommended route', () => {
+    it('POSTs the route (origin, destination, line, risk) and reports success', async () => {
+      mock.onGet('/tourists/1/route-recommendation').reply(200, routeResponse)
+      mock.onPost('/tourists/1/saved-routes').reply(201, { id: 1 })
+      const { result } = renderHook(() => useRoutePicker(1))
+      act(() => { result.current.pick([26.12, 91.71]) })
+      await act(async () => { await result.current.findRoute() })
+      let ok
+      await act(async () => { ok = await result.current.save([26.1, 91.7], 'Evening walk') })
+      expect(ok).toBe(true)
+      expect(result.current.saved).toBe(true)
+      const body = JSON.parse(mock.history.post[0].data)
+      expect(body).toMatchObject({
+        name: 'Evening walk', risk_level: 'low', distance_km: 1.5,
+        origin: { lat: 26.1, lng: 91.7 }, destination: { lat: 26.12, lng: 91.71 },
+      })
+      expect(body.geometry).toEqual(routeResponse.recommended.points)
+    })
+
+    it('reports a failed save instead of pretending it worked', async () => {
+      mock.onGet('/tourists/1/route-recommendation').reply(200, routeResponse)
+      mock.onPost('/tourists/1/saved-routes').reply(500, { detail: 'Could not save the route. Please try again.' })
+      const { result } = renderHook(() => useRoutePicker(1))
+      act(() => { result.current.pick([26.12, 91.71]) })
+      await act(async () => { await result.current.findRoute() })
+      let ok
+      await act(async () => { ok = await result.current.save([26.1, 91.7], '') })
+      expect(ok).toBe(false)
+      expect(result.current.saved).toBe(false)
+      expect(result.current.saveError).toBe('Could not save the route. Please try again.')
+    })
+
+    it('cannot save without a known current position', async () => {
+      mock.onGet('/tourists/1/route-recommendation').reply(200, routeResponse)
+      const { result } = renderHook(() => useRoutePicker(1))
+      act(() => { result.current.pick([26.12, 91.71]) })
+      await act(async () => { await result.current.findRoute() })
+      let ok
+      await act(async () => { ok = await result.current.save(null, '') })
+      expect(ok).toBe(false)
+      expect(mock.history.post).toHaveLength(0)
+    })
   })
 })

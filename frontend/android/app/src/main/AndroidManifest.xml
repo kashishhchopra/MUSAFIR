@@ -35,6 +35,34 @@
     <!-- Live-photo liveness check at registration (getUserMedia in the WebView). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <!-- Location, foreground service, notifications and microphone come from the
-         background-geolocation, push-notifications and speech-recognition plugins. -->
+    <!-- Declared explicitly (the plugins below also contribute them) so the
+         permissions this app depends on are visible and cannot silently vanish
+         if a plugin is swapped or upgraded. -->
+    <!-- Live location: Fair Price, travel times, safe routes, SOS and tracking. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- Voice translator speech-to-text (runtime prompt, asked when the feature is used). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Android 11+ package visibility: without these the app cannot see the
+         phone's speech recognizer / text-to-speech engine / Maps app, and the
+         voice translator and "Open in Maps" would fail even with permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 </manifest>

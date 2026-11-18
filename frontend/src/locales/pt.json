@@ -251,7 +251,8 @@
   "itinerary": {
     "next_stop": "próxima parada",
     "route_safe": "Rota segura",
-    "title": "Rastreador de itinerário"
+    "title": "Rastreador de itinerário",
+    "empty": "No itinerary yet — upload one or type your plan above."
   },
   "itinerary_upload": {
     "add_destination": "+ Adicionar destino",
@@ -280,7 +281,21 @@
     "unresolved_warning_other": "⚠ {{count}} paradas não puderam ser localizadas no mapa e ainda não aparecem no seu rastreador de itinerário — reenvie e use \"📍 Localizar\" para corrigir.",
     "upload_another": "Enviar outro",
     "upload_failed": "Falha no envio. Tente novamente.",
-    "upload_timeout": "Isso está demorando muito. Tente uma foto menor/mais nítida ou um arquivo PDF/DOCX/texto."
+    "upload_timeout": "Isso está demorando muito. Tente uma foto menor/mais nítida ou um arquivo PDF/DOCX/texto.",
+    "build_failed": "Couldn't build your itinerary. Check your connection and try again.",
+    "source": "How do you want to add your itinerary?",
+    "tab_upload": "📄 Upload a file",
+    "tab_type": "✍️ Type your plan",
+    "type_intro": "Write your plans in your own words — one place or several, with dates and times if you like. We find each place on the map and work out the travel time from where you are.",
+    "type_label": "Your travel plan",
+    "type_placeholder": "e.g. I want to visit the Taj Mahal tomorrow morning, then Agra Fort at 5pm",
+    "building": "Finding your places…",
+    "build": "Build my itinerary",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove stop",
+    "date_for": "Date for stop {{n}}",
+    "time_for": "Preferred time for stop {{n}}"
   },
   "lang": {
     "label": "Idioma"
@@ -587,5 +602,52 @@
     "change": "Change",
     "placeholder": "Search a place",
     "search": "Search"
+  },
+  "trip": {
+    "heading": "Travel time & distance",
+    "mode": "Travel mode",
+    "mode_driving": "Drive",
+    "mode_walking": "Walk",
+    "mode_bicycling": "Cycle",
+    "mode_transit": "Public transport",
+    "no_transit": "Public-transport times need a Google Maps key on the server, so they are not shown.",
+    "calculate": "Calculate travel time",
+    "calculating": "Calculating…",
+    "need_stop": "Add at least one destination with a map location.",
+    "need_location_or_two": "Allow your location, or add at least two stops, to calculate travel time.",
+    "failed": "Couldn't calculate travel times right now. Check your connection and try again.",
+    "my_location": "My location",
+    "you": "You",
+    "total": "total",
+    "arrive_first": "If you leave now you reach {{name}} around {{time}}.",
+    "estimate_note": "Road routing was unavailable for some legs, so those are straight-line estimates — real travel will usually take longer.",
+    "navigate": "Navigate in Google Maps",
+    "route_name": "Route name",
+    "save_route": "Save route",
+    "saving": "Saving…",
+    "saved": "✓ Route saved — find it under Saved routes.",
+    "save_failed": "Couldn't save this route. Please try again."
+  },
+  "saved_routes": {
+    "title": "Saved routes",
+    "load_failed": "Couldn't load your saved routes. Check your connection and try again.",
+    "deleted": "Route deleted.",
+    "delete_failed": "Couldn't delete that route. Please try again.",
+    "loading": "Loading your routes…",
+    "empty": "No saved routes yet. Plan a route or itinerary, then tap \"Save route\" to keep it here.",
+    "start": "Start",
+    "end": "Destination",
+    "stops_one": "{{count}} stop",
+    "stops_other": "{{count}} stops",
+    "risk": "risk",
+    "saved_on": "saved {{date}}",
+    "hide_map": "Hide map",
+    "view_map": "View on map",
+    "navigate": "Navigate",
+    "deleting": "Deleting…",
+    "confirm_delete": "Yes, delete",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "no_line": "This route was saved without a road line, so stops are joined by straight dashed lines."
   }
 }

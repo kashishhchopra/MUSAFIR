@@ -39,8 +39,10 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   const startNative = useCallback(async () => {
     setListening(true)
     try {
-      const { available } = await NativeSpeech.available()
-      if (!available) {
+      // Android 11+ shows no recognizer if Google's speech service is missing/disabled.
+      let available = true
+      try { ({ available } = await NativeSpeech.available()) } catch { /* unknown -- try anyway */ }
+      if (available === false) {
         setError('not-available')
         return
       }

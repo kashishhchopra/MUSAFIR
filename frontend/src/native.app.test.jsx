@@ -8,7 +8,7 @@ const fakes = vi.hoisted(() => ({
   user: null,
   watcher: null,
   removed: [],
-  speech: { perm: 'granted', matches: ['help me'] },
+  speech: { perm: 'granted', matches: ['help me'], available: true },
 }))
 
 vi.mock('./lib/platform', () => ({
@@ -29,6 +29,8 @@ vi.mock('@capacitor/app', () => ({
 
 vi.mock('@capacitor-community/speech-recognition', () => ({
   SpeechRecognition: {
+    available: vi.fn(async () => ({ available: fakes.speech.available })),
+    checkPermissions: vi.fn(async () => ({ speechRecognition: fakes.speech.perm })),
     requestPermissions: vi.fn(async () => ({ speechRecognition: fakes.speech.perm })),
     start: vi.fn(async () => ({ matches: fakes.speech.matches })),
     stop: vi.fn(async () => {}),
@@ -113,7 +115,7 @@ describe('background location in the Android app', () => {
 
 describe('speech recognition in the Android app', () => {
   it('uses the phone recognizer and returns the transcript', async () => {
-    fakes.speech = { perm: 'granted', matches: ['help me'] }
+    fakes.speech = { perm: 'granted', matches: ['help me'], available: true }
     const { result } = renderHook(() => useSpeechRecognition({ lang: 'en-IN' }))
     expect(result.current.supported).toBe(true)
 
@@ -123,9 +125,25 @@ describe('speech recognition in the Android app', () => {
   })
 
   it('reports a refused microphone', async () => {
-    fakes.speech = { perm: 'denied', matches: [] }
+    fakes.speech = { perm: 'denied', matches: [], available: true }
     const { result } = renderHook(() => useSpeechRecognition())
     act(() => result.current.start())
     await waitFor(() => expect(result.current.error).toBe('not-allowed'))
+    expect(result.current.errorKind).toBe('permission')
+  })
+
+  it('reports when the phone has no speech recognizer installed', async () => {
+    fakes.speech = { perm: 'granted', matches: [], available: false }
+    const { result } = renderHook(() => useSpeechRecognition())
+    act(() => result.current.start())
+    await waitFor(() => expect(result.current.errorKind).toBe('unavailable'))
+    expect(result.current.listening).toBe(false)
+  })
+
+  it('reports "nothing heard" instead of silently doing nothing', async () => {
+    fakes.speech = { perm: 'granted', matches: [], available: true }
+    const { result } = renderHook(() => useSpeechRecognition())
+    act(() => result.current.start())
+    await waitFor(() => expect(result.current.errorKind).toBe('no-speech'))
   })
 })
