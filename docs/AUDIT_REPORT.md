@@ -145,3 +145,27 @@ Home during an active SOS, recents, login return/redirect safety, hardware back;
 **Not tested:** visual layout on a real phone/emulator and the PWA install; Chrome device-mode check recommended.
 **Known limit:** tab *content* state (e.g. half-typed form text) is not kept when switching screens, only scroll position;
 journeys, SOS and data live above the tabs and are unaffected.
+
+---
+
+## Addendum: Discovery (hidden gems / regional food / homestays)
+
+**Why it showed "No places found nearby yet" (three causes):**
+1. The live OpenStreetMap lookup (Overpass) is currently failing on the public servers (HTTP 502 "at capacity" / timeouts), and the
+   code swallowed that error and fell back to a database table holding a handful of *seeded demo rows for Guwahati* -> empty anywhere else.
+2. The tab used the *stored profile* coordinates, not the phone's GPS, so searches could be for the wrong city.
+3. Nothing told the user about any of it: a failure and "nothing here" looked identical.
+
+**What changed:**
+| Area | Change |
+|---|---|
+| Data | Overpass (several endpoints, failing ones skipped 2 min) -> automatic fallback to Nominatim category searches inside the radius -> stale cached copy -> otherwise HTTP 503. No seeded/demo rows. Cached 1 h per ~1 km cell. |
+| Honesty | Outage = error with Retry; backup source and stale copies are labelled; empty = "No X within N km" with *Search wider* / *Change location*. Descriptions, cuisine, phone, website, hours appear only if OSM has them. No ratings, no availability claims (homestays carry a "not confirmed" note). |
+| Hidden gems | viewpoints, historic sites, parks/gardens, lakes, waterfalls, peaks/beaches/caves, museums/galleries, public art, heritage, and "attractions" only when they have no Wikipedia/Wikidata entry (i.e. not the famous ones). |
+| Regional food | restaurants, street food, bakeries, sweet shops, markets. Region from reverse geocoding (Indian states + ~20 countries): chains and foreign-cuisine places are dropped, local ones badged; areas/countries without a table are only de-chained. |
+| Homestays | guest houses, homestays, B&Bs, hostels, chalets, farm stays (hotels excluded) with address/phone/website when present. |
+| Location | device GPS on open (permission prompt), manual place search when refused/off/timed out, "You are near <area>" (reverse geocoded). |
+| UI | filters with counts, radius 2/5/10/25/50 km, sort (nearest / best local match / name), text search, list + Leaflet map (pin per category, popups, fit-to-results), skeletons, Directions (Google Maps link, no key), refresh, paging. |
+
+**Tested:** 26 backend tests (tag logic, region filtering, fallback order, cache, circuit breaker, 503 vs empty, API validation) + 37 frontend tests (GPS accept/deny/timeout/unsupported, manual location, every filter, radius debounce, sort, search, map pins, directions URLs, empty/error/offline/partial). **Live** against real OSM services for Delhi, Jaipur, Manali, Paris: only the requested category, nothing outside the radius, distances match an independent haversine, nearest-first.
+**Not tested / limits:** not on a real phone; the public Overpass was down during testing, so the live checks exercised the Nominatim fallback (cold start ~20-30 s for all three categories; results stream in per category) -- run your own Overpass for speed and volume. OSM coverage varies: many restaurants carry no `cuisine` tag, so regional matching is conservative and small towns can legitimately return little. "Hidden" is inferred from tags (no popularity data exists), so a well-known museum can still appear. New UI strings are English-only in the other 20 languages.

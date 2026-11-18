@@ -257,8 +257,11 @@ def food_relevance(tags: dict, profile: dict | None) -> tuple[bool, str | None, 
     if cuisines:
         if cuisines & profile["region"]:
             return True, "region", ", ".join(sorted(c.replace("_", " ") for c in cuisines & profile["region"]))
-        if cuisines & profile["country"]:
-            return True, "country", ", ".join(sorted(c.replace("_", " ") for c in cuisines & profile["country"]))
+        local = cuisines & profile["country"]
+        # A broad country-level match ("indian") only counts when most of what the place
+        # lists is local: "pizza;italian;crepe;indian" is an international menu, not local food.
+        if local and len(local) * 2 >= len(cuisines):
+            return True, "country", ", ".join(sorted(c.replace("_", " ") for c in local))
         return False, None, None  # foreign / generic international cuisine
     if tags.get("shop") in _FOOD_SHOP or tags.get("amenity") in ("marketplace", "food_court"):
         return True, None, None

@@ -106,6 +106,10 @@ def test_food_relevance_in_delhi():
     assert tg.food_relevance({"name": "A", "cuisine": "punjabi;indian"}, prof)[:2] == (True, "region")
     assert tg.food_relevance({"name": "A", "cuisine": "indian"}, prof)[:2] == (True, "country")
     assert tg.food_relevance({"name": "A", "cuisine": "pizza;italian"}, prof)[0] is False       # foreign
+    # an international menu with one token "indian" is not local food ...
+    assert tg.food_relevance({"name": "A", "cuisine": "italian;pizza;crepe;indian"}, prof)[0] is False
+    # ... but a genuinely mixed local place is
+    assert tg.food_relevance({"name": "A", "cuisine": "indian;regional;chinese"}, prof)[0] is True
     assert tg.food_relevance({"name": "A", "cuisine": "indian", "brand": "X"}, prof)[0] is False  # chain
     assert tg.food_relevance({"name": "Old Bakery", "shop": "bakery"}, prof)[0] is True          # local kind of outlet
     assert tg.food_relevance({"name": "Mystery", "amenity": "restaurant"}, prof)[0] is False     # nothing says it is local
