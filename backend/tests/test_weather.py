@@ -225,3 +225,45 @@ def test_safety_score_uses_the_weather_service(db, monkeypatch):
     result = compute_safety_score(db, t)
     assert called.get("used") is True
     assert result["breakdown"]["weather_risk"] == 42.0
+
+
+# ---- keyless real source (Open-Meteo) used when no OpenWeatherMap key is set ----
+def _open_meteo_response(code, temp=25.0, wind=3.0):
+    class R:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"current": {"weather_code": code, "temperature_2m": temp, "wind_speed_10m": wind}}
+    return R()
+
+
+@pytest.mark.parametrize("wmo,owm_id", [(0, 800), (3, 804), (45, 741), (65, 502), (95, 200), (75, 602)])
+def test_open_meteo_codes_normalise_to_owm_ids(monkeypatch, wmo, owm_id):
+    monkeypatch.setattr(weather.httpx, "get", lambda *a, **k: _open_meteo_response(wmo))
+    c = weather._fetch_open_meteo(26.14, 91.73)
+    assert c["weather_id"] == owm_id and c["temp_c"] == 25.0 and c["wind_speed_ms"] == 3.0
+
+
+def test_open_meteo_failure_returns_none_not_a_guess(monkeypatch):
+    def boom(*a, **k): raise httpx.ConnectError("offline")
+    monkeypatch.setattr(weather.httpx, "get", boom)
+    assert weather._fetch_open_meteo(26.14, 91.73) is None
+
+
+def test_keyless_non_test_mode_uses_real_open_meteo_for_risk_and_conditions(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(type(weather.settings), "is_test", property(lambda self: False))
+    monkeypatch.setattr(weather.httpx, "get", lambda *a, **k: _open_meteo_response(95, temp=30.0, wind=12.0))
+    risk = weather.get_weather_risk(26.14, 91.73)
+    assert risk == 90.0  # thunderstorm 80 + strong wind 10 -- from the live reading, not the mock
+    assert risk != weather.mock_weather_risk(26.14, 91.73)
+    cond = weather.fetch_current_conditions(26.14, 91.73)
+    assert cond["weather_id"] == 200 and cond["description"] == "thunderstorm"
+
+
+def test_keyless_falls_back_to_mock_only_when_offline(monkeypatch):
+    monkeypatch.setattr(weather.settings, "OPENWEATHER_API_KEY", "")
+    monkeypatch.setattr(type(weather.settings), "is_test", property(lambda self: False))
+    def boom(*a, **k): raise httpx.ConnectError("offline")
+    monkeypatch.setattr(weather.httpx, "get", boom)
+    assert weather.get_weather_risk(26.14, 91.73) == weather.mock_weather_risk(26.14, 91.73)
+    assert weather.fetch_current_conditions(26.14, 91.73) is None

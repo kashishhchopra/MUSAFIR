@@ -651,5 +651,9 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "no_line": "This route was saved without a road line, so stops are joined by straight dashed lines."
+  },
+  "explore": {
+    "near_you": "Near you",
+    "needs_location": "Hidden spots, local food, the offline trip pack and festivals nearby all depend on where you are. Share your location to see them."
   }
 }

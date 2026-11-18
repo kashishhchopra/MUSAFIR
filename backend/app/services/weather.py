@@ -5,12 +5,14 @@ implementations behind that same interface:
 
   - real: OpenWeatherMap's free "current weather" endpoint, condition codes
     mapped to an explainable risk score.
+  - real, keyless: Open-Meteo's free current-weather API (no signup, no
+    key), used when no OpenWeatherMap key is configured.
   - mock: a deterministic function of lat/lng (the project's original
-    behaviour), used whenever no API key is configured.
+    behaviour), used ONLY when neither real source is reachable (offline, or
+    the test suite) so the safety score still computes.
 
-Falling back automatically (no key, API error, timeout) means the app never
-depends on network access or a paid service to run -- required for an
-offline demo -- while still being real when a key is provided.
+So out of the box the app uses genuine current conditions; the deterministic
+mock is a last-resort offline fallback, never the normal path.
 """
 from __future__ import annotations
 
@@ -53,6 +55,68 @@ def _condition_risk(weather_id: int) -> float:
     return 10.0  # clouds (801-804)
 
 
+# WMO weather interpretation codes (Open-Meteo) -> the OpenWeatherMap-style
+# condition ids the rest of this module (and services/disaster.py) already
+# understand, so one risk mapping serves both providers.
+_WMO_TO_OWM = {
+    0: 800, 1: 801, 2: 802, 3: 804, 45: 741, 48: 741,
+    51: 300, 53: 301, 55: 302, 56: 511, 57: 511,
+    61: 500, 63: 501, 65: 502, 66: 511, 67: 511,
+    71: 600, 73: 601, 75: 602, 77: 600,
+    80: 520, 81: 521, 82: 522, 85: 620, 86: 621,
+    95: 200, 96: 202, 99: 202,
+}
+_WMO_DESC = {
+    0: "clear sky", 1: "mainly clear", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "freezing fog",
+    51: "light drizzle", 53: "drizzle", 55: "dense drizzle", 56: "freezing drizzle", 57: "heavy freezing drizzle",
+    61: "light rain", 63: "rain", 65: "heavy rain", 66: "freezing rain", 67: "heavy freezing rain",
+    71: "light snow", 73: "snow", 75: "heavy snow", 77: "snow grains",
+    80: "light showers", 81: "showers", 82: "violent showers", 85: "snow showers", 86: "heavy snow showers",
+    95: "thunderstorm", 96: "thunderstorm with hail", 99: "severe thunderstorm with hail",
+}
+
+
+def _fetch_open_meteo(lat: float, lng: float) -> dict | None:
+    """Real current conditions from Open-Meteo (free, no key), normalised to the
+    same dict shape as OpenWeatherMap's: weather_id / description / temp_c /
+    wind_speed_ms / observed_at. None on any failure -- never a guess."""
+    try:
+        resp = httpx.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat, "longitude": lng, "wind_speed_unit": "ms",
+                "current": "weather_code,temperature_2m,wind_speed_10m",
+            },
+            timeout=settings.OPENWEATHER_TIMEOUT_SECONDS,
+        )
+        resp.raise_for_status()
+        cur = resp.json()["current"]
+        code = int(cur["weather_code"])
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+        logger.warning("Open-Meteo request failed: %s", e)
+        return None
+    return {
+        "weather_id": _WMO_TO_OWM.get(code, 800),
+        "description": _WMO_DESC.get(code, ""),
+        "temp_c": cur.get("temperature_2m"),
+        "wind_speed_ms": cur.get("wind_speed_10m") or 0.0,
+        "observed_at": None,
+    }
+
+
+def _risk_from_conditions(c: dict) -> float:
+    risk = _condition_risk(c.get("weather_id", 800))
+    wind_speed = c.get("wind_speed_ms") or 0.0
+    if wind_speed > 15:
+        risk += 20
+    elif wind_speed > 10:
+        risk += 10
+    temp = c.get("temp_c")
+    if temp is not None and (temp > 42 or temp < 2):
+        risk += 15
+    return round(min(100.0, max(0.0, risk)), 1)
+
+
 def _fetch_openweathermap(lat: float, lng: float) -> float | None:
     try:
         resp = httpx.get(
@@ -85,8 +149,9 @@ def _fetch_openweathermap(lat: float, lng: float) -> float | None:
 
 def get_weather_risk(lat: float, lng: float) -> float:
     """0-100 weather risk at a coordinate. Cached briefly to avoid a network
-    call on every single GPS ping in the same neighbourhood."""
-    if not settings.OPENWEATHER_API_KEY:
+    call on every single GPS ping in the same neighbourhood. Real OpenWeatherMap
+    when keyed, else real Open-Meteo, else (offline/tests) the deterministic mock."""
+    if not settings.OPENWEATHER_API_KEY and settings.is_test:
         return mock_weather_risk(lat, lng)
 
     key = _cache_key(lat, lng)
@@ -95,7 +160,11 @@ def get_weather_risk(lat: float, lng: float) -> float:
     if cached and cached[1] > now:
         return cached[0]
 
-    risk = _fetch_openweathermap(lat, lng)
+    if settings.OPENWEATHER_API_KEY:
+        risk = _fetch_openweathermap(lat, lng)
+    else:
+        conditions = _fetch_open_meteo(lat, lng)
+        risk = _risk_from_conditions(conditions) if conditions else None
     if risk is None:
         return mock_weather_risk(lat, lng)
 
@@ -114,12 +183,13 @@ def fetch_current_conditions(lat: float, lng: float) -> dict | None:
     (extreme heat, dense fog, thunderstorm, ...) straight from what
     OpenWeatherMap actually reported for that spot.
 
-    None when no API key is configured or the request fails -- callers must
+    Uses OpenWeatherMap when keyed, else the free keyless Open-Meteo. None
+    when neither is reachable (or in the offline test suite) -- callers must
     treat that as "no data", never synthesize a hazard from nothing. Cached
     briefly (same TTL as the risk score) so scanning every zone on a
     disaster-feed tick doesn't multiply into one call per zone per minute.
     """
-    if not settings.OPENWEATHER_API_KEY:
+    if not settings.OPENWEATHER_API_KEY and settings.is_test:
         return None
 
     key = _cache_key(lat, lng)
@@ -127,6 +197,12 @@ def fetch_current_conditions(lat: float, lng: float) -> dict | None:
     now = time.monotonic()
     if cached and cached[1] > now:
         return cached[0]
+
+    if not settings.OPENWEATHER_API_KEY:
+        conditions = _fetch_open_meteo(lat, lng)
+        if conditions:
+            _conditions_cache[key] = (conditions, now + settings.WEATHER_CACHE_TTL_SECONDS)
+        return conditions
 
     try:
         resp = httpx.get(

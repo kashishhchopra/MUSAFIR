@@ -11,7 +11,9 @@ import PermitCard from '../../../components/PermitCard.jsx'
 import FairPriceCard from '../../../components/FairPriceCard.jsx'
 import CulturalEtiquetteCard from '../../../components/CulturalEtiquetteCard.jsx'
 import CurrencyCard from '../../../components/CurrencyCard.jsx'
-import { DEFAULT_MAP } from '../../../config.js'
+import { Card } from '../../../components/ui.jsx'
+import LocationStatus from '../../../components/LocationStatus.jsx'
+import useCurrentLocation from '../../../hooks/useCurrentLocation.js'
 
 // Explore: trip planning, crowd/queue forecasting, off-the-beaten-path
 // discovery, the multilingual phrasebook, a two-way voice translator, the
@@ -21,8 +23,14 @@ import { DEFAULT_MAP } from '../../../config.js'
 export default function ExploreTab({ data }) {
   const { t, i18n } = useTranslation()
   const { me, tid } = data
-  const lat = me?.last_lat ?? DEFAULT_MAP.center[0]
-  const lng = me?.last_lng ?? DEFAULT_MAP.center[1]
+  // The tourist's real position: their last tracked GPS fix, or one taken from the
+  // device on request. Never a default map centre -- without a real position the
+  // location-based cards ask for it instead of showing results for the wrong place.
+  const loc = useCurrentLocation()
+  const stored = me?.last_lat != null && me?.last_lng != null ? { lat: me.last_lat, lng: me.last_lng } : null
+  const here = stored || loc.position
+  const lat = here?.lat
+  const lng = here?.lng
   const lang = i18n.resolvedLanguage || i18n.language
 
   return (
@@ -32,9 +40,20 @@ export default function ExploreTab({ data }) {
 
       <TripPlannerCard touristId={tid} />
       <CrowdForecastCard />
-      <DiscoveryCard lat={lat} lng={lng} />
-      <OfflineTripCard touristId={tid} me={me} lat={lat} lng={lng} />
-      <FestivalCalendarCard lat={lat} lng={lng} />
+      {here ? (
+        <>
+          <DiscoveryCard lat={lat} lng={lng} />
+          <OfflineTripCard touristId={tid} me={me} lat={lat} lng={lng} />
+          <FestivalCalendarCard lat={lat} lng={lng} />
+        </>
+      ) : (
+        <Card title={t('explore.near_you', 'Near you')} icon="📍" iconColor="bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            {t('explore.needs_location', 'Hidden spots, local food, the offline trip pack and festivals nearby all depend on where you are. Share your location to see them.')}
+          </p>
+          <LocationStatus loc={loc} />
+        </Card>
+      )}
       <GuidePhrasebookCard lang={lang} />
       <TwoWayVoiceTranslator />
       <CulturalEtiquetteCard lang={lang} />
