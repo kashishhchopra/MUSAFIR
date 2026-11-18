@@ -312,31 +312,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "隐藏安全路线规划器",
     "plan_safe_route": "🧭 规划安全路线"
@@ -379,13 +354,12 @@
     "pending_count_other": "{{count}}条SOS警报仍在等待连接…",
     "queued_body": "您当前离线。您的SOS已保存在此设备上，一旦恢复在线将自动发送。",
     "queued_title": "📡 SOS 排队中 — 无连接",
-    "failed": "⚠️ SOS 未能发送。请再次点击 SOS，或立即联系紧急服务。",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "服务器没有响应。您的 SOS 已保存，将继续尝试发送。如情况紧急，请立即联系紧急服务。",
     "sent_title": "SOS 已发送",
     "speak": "🎤 改为语音输入",
     "voice_unsupported": "此设备不支持语音输入 — 请在上方输入。",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "位置权限被拒绝 — 请在浏览器设置中启用。",

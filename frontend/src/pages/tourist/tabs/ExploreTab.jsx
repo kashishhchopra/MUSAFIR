@@ -5,7 +5,6 @@ import CrowdForecastCard from '../../../components/CrowdForecastCard.jsx'
 import DiscoveryCard from '../../../components/DiscoveryCard.jsx'
 import OfflineTripCard from '../../../components/OfflineTripCard.jsx'
 import TwoWayVoiceTranslator from '../../../components/TwoWayVoiceTranslator.jsx'
-import PermitCard from '../../../components/PermitCard.jsx'
 import FairPriceCard from '../../../components/FairPriceCard.jsx'
 import CulturalEtiquetteCard from '../../../components/CulturalEtiquetteCard.jsx'
 import CurrencyCard from '../../../components/CurrencyCard.jsx'
@@ -56,7 +55,6 @@ export default function ExploreTab({ data }) {
       <CulturalEtiquetteCard lang={lang} />
       <CurrencyCard />
       <FairPriceCard touristId={tid} />
-      <PermitCard touristId={tid} />
     </div>
   )
 }

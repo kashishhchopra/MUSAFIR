@@ -276,3 +276,10 @@ The plain `/api/maps/search` used strict Nominatim only (no typo/partial-name to
 Now `/search` uses the same engine as `/suggest` (Photon -> Nominatim/Google, cached), and accepts the user's position (`lat`/`lng`) purely to rank nearby matches first. The Fair Price destination box also
 suggests places while typing. Verified in a real Chrome against the live services: "leela ambience", "Starbucks Connaught Place", "IIT Bombay", "Rajiv Chowk metro", "Cubbon Park Bengaluru", "Louvre", "Shibuya Crossing",
 "Sydney Opera House" all return real places; a nonsense name still (correctly) returns "No matching place found". Tests: 1 backend + 2 frontend new.
+
+---
+
+## Addendum: Permit & E-Pass Automation removed (2026-11-19, on request)
+
+The "Permit & E-Pass Automation" card was removed from the Explore tab (component, client code, test mock and its translations in all 21 languages). The Trip Planner's informational line
+("Permit may be required: ...") is unrelated to the card and stays. The backend permit endpoints and stored applications are unused but left in place (removing them would be a database decision).

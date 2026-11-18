@@ -312,31 +312,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "സുരക്ഷിത റൂട്ട് പ്ലാനർ മറയ്ക്കുക",
     "plan_safe_route": "🧭 സുരക്ഷിതമായ റൂട്ട് ആസൂത്രണം ചെയ്യുക"
@@ -379,13 +354,12 @@
     "pending_count_other": "{{count}} SOS-കൾ ഇപ്പോഴും കണക്ഷനായി കാത്തിരിക്കുന്നു…",
     "queued_body": "നിങ്ങൾ ഓഫ്‌ലൈനിലാണ്. നിങ്ങളുടെ SOS ഈ ഉപകരണത്തിൽ സംരക്ഷിച്ചിരിക്കുന്നു, നിങ്ങൾ വീണ്ടും ഓൺലൈനിൽ വരുമ്പോൾ സ്വയമേവ അയയ്ക്കും.",
     "queued_title": "📡 SOS ക്യൂവിലാണ് — കണക്ഷൻ ഇല്ല",
-    "failed": "⚠️ SOS അയച്ചില്ല. വീണ്ടും SOS അമർത്തുക അല്ലെങ്കിൽ ഇപ്പോൾ അടിയന്തര സേവനങ്ങളെ വിളിക്കുക.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "സെർവർ പ്രതികരിച്ചില്ല. നിങ്ങളുടെ SOS സേവ് ചെയ്തിട്ടുണ്ട്, അയയ്ക്കാനുള്ള ശ്രമം തുടരും. അത്യാവശ്യമെങ്കിൽ ഇപ്പോൾ അടിയന്തര സേവനങ്ങളെ വിളിക്കുക.",
     "sent_title": "SOS അയച്ചു",
     "speak": "🎤 പകരം സംസാരിക്കുക",
     "voice_unsupported": "ഈ ഉപകരണത്തിൽ വോയ്‌സ് ഇൻപുട്ട് പിന്തുണയ്ക്കുന്നില്ല — മുകളിൽ ടൈപ്പ് ചെയ്യുക.",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "ലൊക്കേഷൻ അനുമതി നിരസിച്ചു — നിങ്ങളുടെ ബ്രൗസർ ക്രമീകരണങ്ങളിൽ ഇത് പ്രവർത്തനക്ഷമമാക്കുക.",

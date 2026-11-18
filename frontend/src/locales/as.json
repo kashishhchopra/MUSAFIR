@@ -312,31 +312,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "সুৰক্ষিত পথ পৰিকল্পনাকাৰী লুকুৱাওক",
     "plan_safe_route": "🧭 সুৰক্ষিত পথ পৰিকল্পনা কৰক"
@@ -379,13 +354,12 @@
     "pending_count_other": "{{count}} টা SOS এতিয়াও সংযোগৰ অপেক্ষাত…",
     "queued_body": "আপুনি অফলাইনত আছে। আপোনাৰ SOS এই ডিভাইচত সংৰক্ষিত হৈছে আৰু আপুনি পুনৰ অনলাইনলৈ অহাৰ লগে লগে স্বয়ংক্ৰিয়ভাৱে পঠোৱা হ'ব।",
     "queued_title": "📡 SOS শাৰীত আছে — কোনো সংযোগ নাই",
-    "failed": "⚠️ SOS পঠোৱা নগ'ল। আকৌ SOS টিপক বা এতিয়াই জৰুৰীকালীন সেৱাক ফোন কৰক।",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "ছাৰ্ভাৰে সঁহাৰি জনোৱা নাই। আপোনাৰ SOS সংৰক্ষিত হৈছে আৰু পঠিয়াবলৈ আকৌ আকৌ চেষ্টা কৰি থাকিব। জৰুৰী হ'লে এতিয়াই জৰুৰীকালীন সেৱাক ফোন কৰক।",
     "sent_title": "SOS পঠোৱা হ'ল",
     "speak": "🎤 তাৰ পৰিবৰ্তে কথা কওক",
     "voice_unsupported": "এই ডিভাইচত ভইচ ইনপুট সমৰ্থিত নহয় — ওপৰত টাইপ কৰক।",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "অৱস্থানৰ অনুমতি নাকচ কৰা হৈছে — আপোনাৰ ব্ৰাউজাৰ ছেটিংছত ইয়াক সক্ষম কৰক।",

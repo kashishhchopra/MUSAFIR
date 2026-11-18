@@ -312,31 +312,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "Nascondi pianificatore percorso sicuro",
     "plan_safe_route": "🧭 Pianifica percorso sicuro"
@@ -379,13 +354,12 @@
     "pending_count_other": "{{count}} avvisi SOS ancora in attesa di connessione…",
     "queued_body": "Sei offline. Il tuo SOS è stato salvato su questo dispositivo e verrà inviato automaticamente non appena sarai di nuovo online.",
     "queued_title": "📡 SOS in coda — nessuna connessione",
-    "failed": "⚠️ SOS non inviato. Tocca di nuovo SOS o chiama subito i soccorsi.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "Il server non ha risposto. Il tuo SOS è salvato e l'invio verrà ritentato. Se è urgente, chiama subito i soccorsi.",
     "sent_title": "SOS inviato",
     "speak": "🎤 Parla invece",
     "voice_unsupported": "Input vocale non supportato su questo dispositivo — digita sopra.",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Permesso di localizzazione negato — attivalo nelle impostazioni del browser.",

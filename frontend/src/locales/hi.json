@@ -312,31 +312,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "सुरक्षित मार्ग योजनाकार छुपाएं",
     "plan_safe_route": "🧭 सुरक्षित मार्ग बनाएं"
@@ -379,13 +354,12 @@
     "pending_count_other": "{{count}} SOS अलर्ट अभी भी कतार में हैं, कनेक्शन की प्रतीक्षा है…",
     "queued_body": "आप ऑफ़लाइन हैं। आपका SOS इस डिवाइस पर सहेजा गया है और वापस ऑनलाइन आते ही स्वतः भेज दिया जाएगा।",
     "queued_title": "📡 SOS कतार में है — कोई कनेक्शन नहीं",
-    "failed": "⚠️ SOS नहीं भेजा जा सका। फिर से SOS दबाएँ या अभी आपातकालीन सेवाओं को कॉल करें।",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "सर्वर ने जवाब नहीं दिया। आपका SOS सहेजा गया है और भेजने की कोशिश जारी रहेगी। अगर यह ज़रूरी है तो अभी आपातकालीन सेवाओं को कॉल करें।",
     "sent_title": "SOS भेजा गया",
     "speak": "🎤 इसके बजाय बोलें",
     "voice_unsupported": "इस डिवाइस पर वॉइस इनपुट समर्थित नहीं है — ऊपर टाइप करें।",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "लोकेशन अनुमति अस्वीकृत — ट्रैक होने के लिए अपनी ब्राउज़र सेटिंग में इसे सक्षम करें।",

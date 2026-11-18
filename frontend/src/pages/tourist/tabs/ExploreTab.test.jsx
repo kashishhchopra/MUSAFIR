@@ -9,7 +9,6 @@ vi.mock('../../../components/CrowdForecastCard.jsx', () => ({ default: (p) => <d
 vi.mock('../../../components/DiscoveryCard.jsx', () => ({ default: (p) => <div data-testid="discovery" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/OfflineTripCard.jsx', () => ({ default: (p) => <div data-testid="offline" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/TwoWayVoiceTranslator.jsx', () => ({ default: (p) => <div data-testid="voice" data-lat={p.lat} data-lng={p.lng} /> }))
-vi.mock('../../../components/PermitCard.jsx', () => ({ default: (p) => <div data-testid="permit" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/FairPriceCard.jsx', () => ({ default: (p) => <div data-testid="fare" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/CulturalEtiquetteCard.jsx', () => ({ default: (p) => <div data-testid="etiquette" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/CurrencyCard.jsx', () => ({ default: (p) => <div data-testid="currency" data-lat={p.lat} data-lng={p.lng} /> }))
@@ -17,10 +16,12 @@ vi.mock('../../../components/CurrencyCard.jsx', () => ({ default: (p) => <div da
 afterEach(() => vi.restoreAllMocks())
 
 describe('ExploreTab removed features', () => {
-  it('no longer shows the Multilingual Guide or Festival & Local Events cards', () => {
-    const { queryByText } = render(<ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
+  it('no longer shows the Multilingual Guide, Festival & Local Events or Permit & E-Pass cards', () => {
+    const { queryByText, queryByTestId } = render(<ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
     expect(queryByText('Multilingual Guide')).not.toBeInTheDocument()
     expect(queryByText(/Festival & Local Events/)).not.toBeInTheDocument()
+    expect(queryByText(/Permit & E-Pass/)).not.toBeInTheDocument()
+    expect(queryByTestId('permit')).not.toBeInTheDocument()
   })
 })
 
