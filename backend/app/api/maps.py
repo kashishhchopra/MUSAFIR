@@ -44,6 +44,14 @@ def suggest_places(q: str, limit: int = 6, lat: float | None = None, lng: float 
     return {"results": maps.suggest_places(q, max(1, min(limit, 10)), near)}
 
 
+@router.get("/reverse")
+def reverse(lat: float = Query(ge=-90, le=90), lng: float = Query(ge=-180, le=180),
+            _: User = Depends(get_current_user)):
+    """The area/city/state/country a coordinate is in, or `{"place": null}` when
+    OpenStreetMap cannot say (never a guess)."""
+    return {"place": maps.reverse_geocode(lat, lng)}
+
+
 @router.get("/modes")
 def travel_modes(_: User = Depends(get_current_user)):
     """Travel modes that can return a real routed answer in this deployment

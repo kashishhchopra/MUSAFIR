@@ -468,3 +468,61 @@ def suggest_places(query: str, limit: int = 6, near: tuple[float, float] | None 
         if out:  # never cache a miss: it may be a transient failure
             _suggest_cache[key] = (now, out)
     return out
+
+
+# ------------------------------------------------- shared Nominatim access
+def nominatim_request(url: str, params: dict, timeout: float = 8.0):
+    """GET a Nominatim endpoint honouring its usage policy (<= 1 request/second
+    process-wide, identifying User-Agent). Raises httpx.HTTPError on failure."""
+    global _last_nominatim_call
+    with _nominatim_lock:
+        wait = _NOMINATIM_MIN_INTERVAL_S - (time.monotonic() - _last_nominatim_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_nominatim_call = time.monotonic()
+    resp = httpx.get(url, params=params, timeout=timeout,
+                     headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place discovery)"})
+    resp.raise_for_status()
+    return resp.json()
+
+
+_REVERSE_TTL_S = 24 * 3600
+_reverse_cache: dict[tuple[float, float], tuple[float, dict | None]] = {}
+
+
+def reverse_geocode(lat: float, lng: float) -> dict | None:
+    """Where is this point? -> {name, area, city, state, country, country_code} from
+    OpenStreetMap Nominatim, or None if it cannot be determined (callers then show
+    the coordinates; nothing is guessed). Cached ~1 km / 24 h."""
+    if settings.is_test:
+        return None
+    key = (round(lat, 2), round(lng, 2))
+    hit = _reverse_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _REVERSE_TTL_S:
+        return hit[1]
+    try:
+        d = nominatim_request(
+            settings.NOMINATIM_URL.replace("/search", "/reverse"),
+            {"lat": lat, "lon": lng, "format": "jsonv2", "zoom": 14, "addressdetails": 1, "accept-language": "en"},
+        )
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Reverse geocoding failed: %s", e)
+        return None
+    a = d.get("address") or {}
+    if not a:
+        return None
+    area = next((a[k] for k in ("suburb", "neighbourhood", "city_district", "quarter", "village", "town", "hamlet") if a.get(k)), None)
+    city = next((a[k] for k in ("city", "town", "village", "municipality", "state_district", "county") if a.get(k)), None)
+    parts: list[str] = []
+    for part in (area, city, a.get("state")):
+        if part and part not in parts:
+            parts.append(part)
+    out = {
+        "name": ", ".join(parts) or d.get("display_name", "")[:80], "area": area, "city": city,
+        "state": a.get("state"), "country": a.get("country"),
+        "country_code": (a.get("country_code") or "").upper() or None,
+    }
+    if len(_reverse_cache) > 500:
+        _reverse_cache.clear()
+    _reverse_cache[key] = (time.monotonic(), out)
+    return out

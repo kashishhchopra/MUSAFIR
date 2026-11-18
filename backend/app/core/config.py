@@ -179,6 +179,11 @@ class Settings(BaseSettings):
     # synchronously (falls back to the seeded/cached DB rows on any failure).
     DISCOVERY_LIVE_ENABLED: bool = True
     OVERPASS_API_URL: str = "https://overpass-api.de/api/interpreter"
+    # Comma-separated fallbacks tried in order after OVERPASS_API_URL. The public
+    # instances are fair-use and are often at capacity (HTTP 502/timeouts); an
+    # endpoint that fails is skipped for a couple of minutes. For real traffic run
+    # your own Overpass and put it first.
+    OVERPASS_API_URLS: str = "https://overpass.private.coffee/api/interpreter"
     # The public instance is shared/rate-limited and can be slow; a request
     # here blocks the Discovery API call, so this is a real timeout, not
     # a knob to raise indefinitely -- a slow response falls back to the
