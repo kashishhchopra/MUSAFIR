@@ -22,3 +22,9 @@ export function getEmergencyTrack(incidentId) {
 export function listLiveEmergencies() {
   return api.get('/incidents/live').then((r) => r.data)
 }
+
+// The tourist closes their own open SOS ("I'm safe"). The app has already walked them
+// through three separate confirmations; the server requires `confirmations: 3`.
+export function cancelSOS(tid) {
+  return api.post(`/tourists/${tid}/sos/cancel`, { confirmations: 3 }).then((r) => r.data)
+}

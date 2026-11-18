@@ -29,6 +29,7 @@ from app.schemas.incident import (
     IncidentOut,
     IncidentStatusUpdate,
     PoliceUnitOut,
+    SOSCancelRequest,
     SOSRequest,
 )
 from app.schemas.tourist import DuressSOSRequest
@@ -43,7 +44,7 @@ from app.services import (
 )
 from app.services.efir import file_efir, generate_efir
 from app.services.efir_pdf import render_efir_pdf
-from app.services.monitoring import trigger_sos
+from app.services.monitoring import _sos_lock, trigger_sos
 
 router = APIRouter(tags=["incidents"])
 
@@ -140,6 +141,70 @@ def duress_sos(tourist_id: int, payload: DuressSOSRequest, request: Request,
     audit.record(db, "duress_sos", actor=user.email, target=t.digital_id,
                 detail=payload.message, request=request)
     return result
+
+
+@router.post("/tourists/{tourist_id}/sos/cancel")
+def cancel_sos(tourist_id: int, payload: SOSCancelRequest, request: Request,
+               db: Session = Depends(get_db), user: User = Depends(require_self_or_admin)):
+    """The tourist closes their own open SOS ("I'm safe"), after the app's three
+    confirmations. Resolves the incident the way a responder would (workflow closed,
+    live sharing stopped, guardians and contacts told it is resolved) and additionally
+    tells the control room and the assigned unit to verify. A tourist closing their own
+    alert is NOT counted as a human acknowledgement (it must not feed response-time
+    statistics). Records who closed it and why.
+
+    A *silent/duress* SOS is never closed this way: whoever is forcing the tourist
+    could make them press the buttons, so only the control room can close it.
+
+    Safe to repeat: if the case is already closed (a lost response, or a responder got
+    there first) the call succeeds with `already_closed: true` instead of failing."""
+    t = db.get(Tourist, tourist_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tourist not found")
+    by_tourist = user.role == "tourist"
+    # Same per-tourist lock trigger_sos takes: a re-press of SOS cannot interleave with
+    # this check-then-close and leave the tourist believing a fresh SOS is live.
+    with _sos_lock(tourist_id):
+        open_sos = (
+            db.query(Incident)
+            .filter(Incident.tourist_id == tourist_id, Incident.type == "sos", Incident.status != "resolved")
+            .order_by(Incident.id.desc())
+            .all()
+        )
+        if not open_sos:
+            recent = (
+                db.query(Incident)
+                .filter(Incident.tourist_id == tourist_id, Incident.type == "sos", Incident.status == "resolved",
+                        Incident.resolved_at >= utc_now() - timedelta(minutes=10))
+                .order_by(Incident.id.desc())
+                .first()
+            )
+            if recent is not None:
+                return {"incident_id": recent.id, "status": "resolved", "already_closed": True}
+            raise HTTPException(status_code=404, detail="There is no open SOS to close")
+        visible = [i for i in open_sos if not i.silent]
+        if not visible:
+            raise HTTPException(status_code=409, detail="This alert can only be closed by the control room")
+        now = utc_now()
+        who = "the tourist" if by_tourist else f"{user.email} (on the tourist's behalf)"
+        for inc in visible:
+            inc.status = "resolved"
+            inc.resolved_at = now
+            escalation.close_workflow(db, inc, now)
+            emergency_location.stop_tracking(db, inc, "closed by the tourist (marked safe)")
+            db.add(IncidentEvent(incident_id=inc.id, status="resolved",
+                                 note=f"Closed by {who}: marked safe after 3 confirmations"))
+            notifications.notify_incident_update(db, inc, "resolved")
+            notifications.notify_sos_closed_by_tourist(db, inc, t)
+        # A silent/duress SOS may still be open: the tourist must keep showing as in danger.
+        if t.status == "sos" and not any(i.silent for i in open_sos):
+            t.status = "active"
+        db.commit()
+        first_id = visible[0].id
+    audit.record(db, "sos_closed_by_tourist" if by_tourist else "sos_closed_by_admin_via_tourist_endpoint",
+                 actor=user.email, target=t.digital_id,
+                 detail=f"incidents {', '.join(str(i.id) for i in visible)}", request=request)
+    return {"incident_id": first_id, "status": "resolved"}
 
 
 # ---------------- incidents ----------------

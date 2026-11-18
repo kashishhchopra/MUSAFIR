@@ -120,6 +120,9 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
 
   return {
     status, lastSentAt, demo, error,
+    // The case was closed (by the tourist): stop sharing and show "resolved" at once,
+    // without waiting for the server's websocket event.
+    markStopped: () => setStatus('stopped'),
     secondsSinceUpdate: lastSentAt ? Math.round((Date.now() - lastSentAt) / 1000) : null,
   }
 }

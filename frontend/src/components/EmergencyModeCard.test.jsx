@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor, screen, act } from '@testing-library/react'
+import { render, waitFor, screen, act, fireEvent } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import '../i18n' // initializes i18next so t() resolves real strings, not raw keys
 import api from '../api'
-import EmergencyModeCard, { RESOLVED_DISMISS_MS } from './EmergencyModeCard'
+import EmergencyModeCard, { RESOLVED_DISMISS_MS, CLOSE_STEP_DELAY_MS } from './EmergencyModeCard'
 
 let wsCallback = null
 vi.mock('../useWebSocket', () => ({
@@ -56,17 +56,18 @@ describe('EmergencyModeCard', () => {
     await waitFor(() => expect(screen.getAllByText('LIVE').length).toBeGreaterThan(0))
   })
 
-  it('gives the tourist no way to cancel or resolve the emergency, and says only the control room can', async () => {
+  it('offers a close-SOS button, but never closes anything without the three confirmations', async () => {
     mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
-    const { findByText, queryByText } = render(
+    const { findByText } = render(
       <EmergencyModeCard sosSent={sosSent} tid={1} posRef={{ current: [26.1445, 91.7362] }} />
     )
     await findByText('🚨 Emergency Mode')
-    expect(queryByText(/cancel/i)).not.toBeInTheDocument()
-    expect(queryByText(/tap again to confirm/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/Only the control room can close this emergency/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /I'm safe/ })).toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByText('Call Emergency Services')).toBeInTheDocument()
-    expect(mock.history.post.some((r) => r.url.includes('stop-tracking'))).toBe(false)
+    // The old "only the control room can close this" note is gone; nothing is sent by merely rendering.
+    expect(screen.queryByText(/Only the control room can close this emergency/)).not.toBeInTheDocument()
+    expect(mock.history.post.some((r) => r.url.includes('stop-tracking') || r.url.includes('/sos/cancel'))).toBe(false)
   })
 
   it('a repeat SOS press on the same open case restarts sharing after it was stopped', async () => {
@@ -140,4 +141,98 @@ describe('EmergencyModeCard', () => {
       await waitFor(() => expect(mock.history.post.some((r) => r.url === '/incidents/8/location')).toBe(true))
     })
   })
+})
+
+
+describe('closing the SOS from the tourist side (three confirmations)', () => {
+  const renderCard = () => render(
+    <EmergencyModeCard sosSent={sosSent} tid={1} posRef={{ current: [26.1445, 91.7362] }} />
+  )
+  const cancelCalls = () => mock.history.post.filter((r) => r.url === '/tourists/1/sos/cancel')
+  // A "continue" button is deliberately disabled for a moment after each screen appears.
+  const press = async (name) => {
+    const btn = await screen.findByRole('button', { name })
+    await waitFor(() => expect(btn).toBeEnabled(), { timeout: CLOSE_STEP_DELAY_MS + 3000 })
+    fireEvent.click(btn)
+  }
+  const openDialog = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: /I'm safe/ }))
+    await screen.findByRole('alertdialog')
+  }
+
+  it('asks three separate times, and only the third calls the server', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    mock.onPost('/tourists/1/sos/cancel').reply(200, { incident_id: 7, status: 'resolved' })
+    renderCard()
+    await openDialog()
+
+    expect(screen.getByText('Confirmation 1 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Close this SOS?')).toBeInTheDocument()
+    await press('Yes, continue')
+
+    expect(await screen.findByText('Confirmation 2 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Are you really safe?')).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+    await press('Yes, continue')
+
+    expect(await screen.findByText('Confirmation 3 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Final confirmation')).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+    await press('Yes, close SOS now')
+
+    await waitFor(() => expect(cancelCalls()).toHaveLength(1))
+    expect(JSON.parse(cancelCalls()[0].data)).toEqual({ confirmations: 3 })
+    await screen.findByText('Emergency Resolved')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  }, 20000)
+
+  it('a rapid triple-tap cannot skip the steps: continue is disabled right after each screen appears', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    renderCard()
+    await openDialog()
+    const btn = screen.getByRole('button', { name: 'Yes, continue' })
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    fireEvent.click(btn)
+    fireEvent.click(btn)
+    expect(screen.getByText('Confirmation 1 of 3')).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+  })
+
+  it('"No, keep SOS active" closes the dialog and sends nothing', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    renderCard()
+    await openDialog()
+    await press('Yes, continue')
+    await screen.findByText('Confirmation 2 of 3')
+    fireEvent.click(screen.getByRole('button', { name: 'No, keep SOS active' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByText('🚨 Emergency Mode')).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+  }, 15000)
+
+  it('Escape also keeps the SOS active', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    renderCard()
+    await openDialog()
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+  })
+
+  it('when the server cannot close it, says the SOS is still active and does not pretend', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    mock.onPost('/tourists/1/sos/cancel').reply(500, { detail: 'boom' })
+    renderCard()
+    await openDialog()
+    await press('Yes, continue')
+    await screen.findByText('Confirmation 2 of 3')
+    await press('Yes, continue')
+    await screen.findByText('Confirmation 3 of 3')
+    await press('Yes, close SOS now')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/still active/)
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.queryByText('Emergency Resolved')).not.toBeInTheDocument()
+  }, 20000)
 })

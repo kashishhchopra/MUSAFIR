@@ -568,6 +568,22 @@ _UPDATE_TEXT = {
 }
 
 
+def notify_sos_closed_by_tourist(db: Session, inc: Incident, tourist: Tourist) -> None:
+    """The tourist closed their own SOS. The control room and the assigned unit must
+    know -- a responder already on the way should not find out on arrival -- and are
+    told to verify, because a closed alert is the tourist's word, not a responder's."""
+    title = f"SOS closed by {tourist.full_name}"
+    body = (f"{tourist.full_name} marked themselves safe and closed SOS incident #{inc.id} after three "
+            f"confirmations. Please verify before standing down.")
+    common = dict(severity="high", incident=inc, tourist=tourist)
+    _push_fanout(db, _push_subs(db, user_roles=["admin"]), event_name="sos_closed_by_tourist", rtype="admin",
+                 title=title, body=body, url_for=lambda s: _admin_url(inc), **common)
+    if inc.assigned_unit_id:
+        _push_fanout(db, _push_subs(db, user_roles=["responder"], unit_id=inc.assigned_unit_id),
+                     event_name="sos_closed_by_tourist", rtype="responder", title=title, body=body,
+                     url_for=lambda s: _responder_url(inc), **common)
+
+
 def notify_incident_update(db: Session, inc: Incident, status: str) -> None:
     """Status change on an incident. SOS incidents keep the tourist and family
     informed; a manual dispatch tells the assigned unit's responders."""

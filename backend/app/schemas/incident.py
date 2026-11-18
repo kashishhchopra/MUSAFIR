@@ -96,6 +96,13 @@ class DispatchCandidateOut(BaseModel):
     available: bool
 
 
+class SOSCancelRequest(BaseModel):
+    """The tourist closing their own SOS. The app walks them through three
+    separate confirmations; the server requires the client to say it got all
+    three, so a stray or half-finished request can never close an emergency."""
+    confirmations: int = Field(..., ge=3, le=3)
+
+
 class SOSRequest(BaseModel):
     # Optional: an SOS must go out even when the phone has no GPS fix yet. The
     # server then uses the tourist's last known position, or raises the incident
