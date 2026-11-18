@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useVoiceAssistant from '../hooks/useVoiceAssistant'
+import useOverlay from '../hooks/useOverlay'
 
 // AI Safety Copilot: a small chat panel shared by the control-room (against
 // /copilot/ask) and the tourist app (against /tourists/{id}/copilot/ask).
@@ -24,6 +25,7 @@ const CopilotChat = forwardRef(function CopilotChat(
   const displayTitle = title ?? t('copilot.title')
   const displayPlaceholder = placeholder ?? t('copilot.placeholder')
   const [open, setOpen] = useState(false)
+  useOverlay(open, () => setOpen(false))
   useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), [])
   const [input, setInput] = useState('')
   const voice = useVoiceAssistant({ endpoint, lang })
@@ -45,7 +47,7 @@ const CopilotChat = forwardRef(function CopilotChat(
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className="fixed bottom-[17rem] right-4 md:bottom-6 md:right-6 z-[1500] bg-sky-600 hover:bg-sky-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl">
+        className="fixed bottom-[calc(17rem_+_var(--sysnav-h))] right-4 md:bottom-6 md:right-6 z-[1500] bg-sky-600 hover:bg-sky-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl">
         🤖
       </button>
 

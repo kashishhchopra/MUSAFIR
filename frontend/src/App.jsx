@@ -29,12 +29,13 @@ import { isNativeApp } from './lib/platform'
 
 function Protected({ role, children }) {
   const { user, ready } = useAuth()
+  const location = useLocation()
   // While the silent refresh against the httpOnly cookie is in flight (see
   // auth.jsx), a rehydrated `user` is only a hint -- rendering the
   // redirect-to-login too early would flash a logged-out screen on every
   // hard reload even for a valid session.
   if (!ready) return null
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   const allowed = Array.isArray(role) ? role.includes(user.role) : user.role === role
   if (role && !allowed) return <Navigate to="/" replace />
   return children

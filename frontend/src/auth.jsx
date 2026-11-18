@@ -1,3 +1,4 @@
+import { clearNavSession } from './lib/navSession'
 import { createContext, useContext, useEffect, useState } from 'react'
 import api, { refreshAccessToken, setAccessToken } from './api'
 import { isNativeApp } from './lib/platform'
@@ -79,6 +80,7 @@ export function AuthProvider({ children }) {
     }
     setAccessToken(null)
     localStorage.removeItem('user')
+    clearNavSession() // recent screens belong to the person who just left
     setUser(null)
   }
 

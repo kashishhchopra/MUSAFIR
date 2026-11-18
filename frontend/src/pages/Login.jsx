@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../auth.jsx'
 import { DEMO_LOGINS, SHOW_DEMO_LOGINS } from '../config'
@@ -26,6 +26,7 @@ export default function Login() {
   const { login } = useAuth()
   const { t } = useTranslation()
   const nav = useNavigate()
+  const location = useLocation()
   // Never prefill a password, demo or otherwise -- a shoulder-surfed or
   // screen-shared login screen shouldn't leak a working credential just by
   // being open. Demo buttons (below) still fill both fields on click.
@@ -39,7 +40,11 @@ export default function Login() {
     setLoading(true)
     try {
       const u = await login(emailValue, passwordValue)
-      nav(u.role === 'admin' ? '/admin' : u.role === 'responder' ? '/responder' : '/app')
+      // Come back to the screen they were heading for (only an in-app tourist path --
+      // never an arbitrary address).
+      const from = location.state?.from
+      const back = u.role === 'tourist' && typeof from === 'string' && /^\/app(\?tab=[a-z]+)?$/.test(from) ? from : null
+      nav(back || (u.role === 'admin' ? '/admin' : u.role === 'responder' ? '/responder' : '/app'))
       return true
     } catch (err) {
       setError(loginErrorMessage(err, t))

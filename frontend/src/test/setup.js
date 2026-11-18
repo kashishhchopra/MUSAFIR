@@ -25,6 +25,9 @@ if (typeof globalThis.URL.revokeObjectURL === 'undefined') {
   globalThis.URL.revokeObjectURL = () => {}
 }
 
+// jsdom does not implement window.scrollTo (it only logs); the navigation code scrolls on screen changes.
+window.scrollTo = () => {}
+
 // Unmount anything a test rendered, so cases cannot leak DOM into each other.
 afterEach(() => {
   cleanup()

@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
+import useOverlay from '../hooks/useOverlay'
 
 // A single reusable bottom sheet -- backdrop + slide-up panel, closes on
 // Escape or backdrop click, and moves focus into the panel while open so
 // keyboard/screen-reader users don't get stranded on the page behind it.
 export default function BottomSheet({ open, onClose, title, children }) {
   const panelRef = useRef(null)
+  useOverlay(open, onClose) // system Back / Home close it first
 
   useEffect(() => {
     if (!open) return undefined

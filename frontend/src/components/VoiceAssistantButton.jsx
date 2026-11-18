@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useVoiceAssistant from '../hooks/useVoiceAssistant'
+import useOverlay from '../hooks/useOverlay'
 import { SUPPORTED_LANGUAGES } from '../i18n'
 
 // Decorative level meter. The Web Speech API exposes no amplitude, so these
@@ -52,6 +53,7 @@ function storedFlag(key, fallback) {
 const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristId, lang = 'en', onAction }, ref) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  useOverlay(open, () => setOpen(false))
   // Hands-free is on by default: the mic opens when the app loads and
   // reopens after each answer, so nothing has to be tapped. It stays a
   // toggle because an always-listening microphone is the tourist's call,
@@ -129,7 +131,7 @@ const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristI
       <button
         onClick={startListening}
         aria-label={t('voice_assistant.aria_label')}
-        className={`fixed bottom-48 right-4 md:bottom-6 md:right-24 z-[1500] rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl text-white transition-colors ${
+        className={`fixed bottom-[calc(12rem_+_var(--sysnav-h))] right-4 md:bottom-6 md:right-24 z-[1500] rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl text-white transition-colors ${
           voice.listening
             ? 'bg-red-600 voice-listening-ring'
             : voice.speaking

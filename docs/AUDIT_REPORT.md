@@ -126,3 +126,22 @@ notifications are not implemented), transit routing (needs `GOOGLE_MAPS_API_KEY`
 **Limits:** public Photon/Nominatim/OSRM are fair-use — self-host and set `PHOTON_URL` / `NOMINATIM_URL` for real traffic.
 The route plan (geometry) is stored on the device only, so a journey resumed on a different device has no route line.
 New UI strings are English in the other 20 languages.
+
+---
+
+## Addendum: phone navigation bar (Back / Home / Recent screens)
+
+Tourist app, phone widths only (`md:hidden`; desktop layout untouched). Screens are now real URLs on the existing React
+Router (`/app`, `/app?tab=plan|explore|help|me`), so browser back, refresh and deep links work; unknown `tab` values fall
+back to Home. `hooks/useTouristNav.js` keeps an in-app history stack, a de-duplicated recent-screens list (sessionStorage,
+screen names only, wiped on logout) and per-screen scroll position. `lib/navBus.js` lets Back close the topmost open
+sheet/panel before changing screen and lets Home close them all without touching data, SOS or a running journey; the
+Android hardware back key uses the same path and only exits the app from the root. A logged-out visit to a protected URL
+goes to login and returns to it afterwards (tourist `/app…` paths only). Pinned controls (tab bar, SOS, assistants,
+journey strip, emergency card) reserve the bar's height through `--sysnav-h`.
+
+**Tested:** 37 new automated tests (jsdom) covering all three buttons, history, duplicates, deep links, overlay-first back,
+Home during an active SOS, recents, login return/redirect safety, hardware back; generated CSS checked.
+**Not tested:** visual layout on a real phone/emulator and the PWA install; Chrome device-mode check recommended.
+**Known limit:** tab *content* state (e.g. half-typed form text) is not kept when switching screens, only scroll position;
+journeys, SOS and data live above the tabs and are unaffected.

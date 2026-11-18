@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import TouristApp from './TouristApp.jsx'
 import { ThemeProvider } from '../../theme.jsx'
 
-const renderApp = () => render(<ThemeProvider><TouristApp /></ThemeProvider>)
+const renderApp = (url = '/app') => render(<MemoryRouter initialEntries={[url]}><ThemeProvider><TouristApp /></ThemeProvider></MemoryRouter>)
 
 vi.mock('../../auth.jsx', () => ({
   useAuth: () => ({ user: { tourist_id: 1, role: 'tourist', full_name: 'Aarav' }, logout: vi.fn() }),

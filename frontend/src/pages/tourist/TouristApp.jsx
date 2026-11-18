@@ -1,10 +1,14 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../auth.jsx'
 import { detectIntent, INTENTS } from '../../lib/voiceIntent'
 import useTouristData from './useTouristData.js'
 import TouristShell from './TouristShell.jsx'
-import TouristTabBar from './TouristTabBar.jsx'
+import TouristTabBar, { TABS } from './TouristTabBar.jsx'
+import SystemNavBar from '../../components/SystemNavBar.jsx'
+import RecentScreensPanel from '../../components/RecentScreensPanel.jsx'
+import useTouristNav from '../../hooks/useTouristNav.js'
+import { registerBack, runBack } from '../../lib/navBus'
 import HomeTab from './tabs/HomeTab.jsx'
 import PlanTab from './tabs/PlanTab.jsx'
 import ExploreTab from './tabs/ExploreTab.jsx'
@@ -31,7 +35,12 @@ export default function TouristApp() {
   const { user } = useAuth()
   const { t, i18n } = useTranslation()
   const tid = user.tourist_id
-  const [activeTab, setActiveTab] = useState('home')
+  // The current screen lives in the URL (/app?tab=plan), so browser Back, refresh and
+  // deep links work; useTouristNav adds the in-app history and the recent-screens list.
+  const nav = useTouristNav(tid)
+  const activeTab = nav.tab
+  const setActiveTab = nav.goTab
+  const [recentsOpen, setRecentsOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const copilotRef = useRef(null)
   const voiceRef = useRef(null)
@@ -46,6 +55,11 @@ export default function TouristApp() {
   // Walk-Me-Home is mounted here too: a running journey keeps sharing its
   // location and showing its timer on every tab. Deadlines are the server's.
   const walk = useWalkHome({ tid })
+
+  // Screen-history Back, registered first so every open sheet/panel (which register
+  // later) gets the press before it.
+  const { back: navBack } = nav
+  useEffect(() => registerBack(navBack), [navBack])
 
   // Voice action router: only commands the app itself must *carry out*
   // (switch tab, raise a real SOS) are handled here -- everything else,
@@ -80,7 +94,7 @@ export default function TouristApp() {
       default:
         return null
     }
-  }, [t, i18n.resolvedLanguage, i18n.language, sendSOS])
+  }, [t, i18n.resolvedLanguage, i18n.language, sendSOS, setActiveTab])
 
   if (!data.ready) {
     return <div className="p-6 text-center text-slate-500 dark:text-slate-400">{i18n.t('app.loading')}</div>
@@ -104,6 +118,15 @@ export default function TouristApp() {
       </TouristShell>
 
       <TouristTabBar active={activeTab} onChange={setActiveTab} />
+
+      {/* Phones: Back / Home / Recent screens. Nothing here touches data, the session,
+          an SOS or a running journey -- those live above, in this component. */}
+      <SystemNavBar onBack={runBack} onHome={nav.home} recentsOpen={recentsOpen}
+        onRecents={() => setRecentsOpen((o) => !o)} />
+      <RecentScreensPanel open={recentsOpen} onClose={() => setRecentsOpen(false)}
+        recents={nav.recents} current={activeTab}
+        screens={TABS.map((x) => ({ tab: x.key, icon: x.icon, label: t(x.labelKey) }))}
+        onSelect={(tab) => { setRecentsOpen(false); nav.goTab(tab) }} />
 
       <ReportSheet
         open={reportOpen}

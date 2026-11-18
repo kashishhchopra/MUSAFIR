@@ -53,7 +53,7 @@ export default function EmergencyModeCard({ sosSent, tid, posRef }) {
 
   if (resolved) {
     return (
-      <div className="fixed inset-x-4 bottom-40 z-[1400] max-w-sm mx-auto bg-slate-800 text-white rounded-2xl shadow-xl p-4 text-sm">
+      <div className="fixed inset-x-4 bottom-[calc(10rem_+_var(--sysnav-h))] z-[1400] max-w-sm mx-auto bg-slate-800 text-white rounded-2xl shadow-xl p-4 text-sm">
         <div className="font-bold">{t('emergency_mode.resolved_title')}</div>
         <div className="text-slate-300 mt-1">{t('emergency_mode.resolved_body')}</div>
       </div>
@@ -63,7 +63,7 @@ export default function EmergencyModeCard({ sosSent, tid, posRef }) {
   const meta = STATUS_META[tracking.status] || STATUS_META.connecting
 
   return (
-    <div className="fixed inset-x-4 bottom-40 z-[1400] max-w-sm mx-auto bg-red-700 text-white rounded-2xl shadow-2xl p-4 text-sm space-y-2.5">
+    <div className="fixed inset-x-4 bottom-[calc(10rem_+_var(--sysnav-h))] z-[1400] max-w-sm mx-auto bg-red-700 text-white rounded-2xl shadow-2xl p-4 text-sm space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="font-bold text-base">{t('emergency_mode.title')}</div>
         <span className={`flex items-center gap-1.5 text-xs font-bold ${meta.text}`}>

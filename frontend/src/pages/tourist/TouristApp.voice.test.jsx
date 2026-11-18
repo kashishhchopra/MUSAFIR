@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { ThemeProvider } from '../../theme.jsx'
 import TouristApp from './TouristApp'
+
+const Wrapper = ({ children }) => <MemoryRouter initialEntries={['/app']}><ThemeProvider>{children}</ThemeProvider></MemoryRouter>
 
 // Smoke test for the one thing that must be true on EVERY tourist screen:
 // the voice assistant button is mounted. Component-level tests already cover
@@ -39,12 +42,12 @@ vi.mock('./useTouristData.js', () => ({
 
 describe('TouristApp voice assistant wiring', () => {
   it('mounts the voice assistant button in the app shell', async () => {
-    const { getByLabelText } = render(<TouristApp />, { wrapper: ThemeProvider })
+    const { getByLabelText } = render(<TouristApp />, { wrapper: Wrapper })
     await waitFor(() => expect(getByLabelText('Voice assistant')).toBeInTheDocument())
   })
 
   it('keeps the voice button available alongside the SOS and chat buttons', async () => {
-    const { getByLabelText, getByText } = render(<TouristApp />, { wrapper: ThemeProvider })
+    const { getByLabelText, getByText } = render(<TouristApp />, { wrapper: Wrapper })
     await waitFor(() => expect(getByLabelText('Voice assistant')).toBeInTheDocument())
     expect(getByText('🤖')).toBeInTheDocument() // the typed-chat assistant
     expect(getByLabelText('Voice assistant').className).toContain('fixed')

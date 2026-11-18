@@ -10,7 +10,7 @@ export default function TouristShell({ digitalId, online, toast, onSOS, onReport
   const { t } = useTranslation()
 
   return (
-    <div data-role-theme="tourist" className="theme-surface min-h-screen bg-slate-100 dark:bg-slate-900 pb-40">
+    <div data-role-theme="tourist" className="theme-surface min-h-screen bg-slate-100 dark:bg-slate-900 pb-[calc(10rem_+_var(--sysnav-h))]">
       <div className="tourist-shell-header"
         style={{ background: 'linear-gradient(120deg, #0d4d47 0%, #0f766e 55%, #0e7c88 100%)', color: '#eafffb' }}>
         <div className="flex items-center justify-between px-5 py-4 max-w-md mx-auto">
@@ -42,7 +42,7 @@ export default function TouristShell({ digitalId, online, toast, onSOS, onReport
 
       {/* SOS button -- always fires immediately; "Add details" opens the
           optional Report sheet without blocking the SOS tap. */}
-      <div className="fixed bottom-14 left-0 right-0 p-4 bg-gradient-to-t from-slate-100 dark:from-slate-900 to-transparent pointer-events-none">
+      <div className="fixed bottom-[calc(3.5rem_+_var(--sysnav-h))] left-0 right-0 p-4 bg-gradient-to-t from-slate-100 dark:from-slate-900 to-transparent pointer-events-none">
         <div className="max-w-md mx-auto space-y-2 pointer-events-auto">
           <button onClick={onSOS}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-lg py-4 rounded-2xl shadow-lg sos-pulse">

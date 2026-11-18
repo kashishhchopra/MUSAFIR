@@ -13,7 +13,7 @@ export default function WalkHomeBanner({ walk, onOpen }) {
   const tone = escalated ? 'bg-red-700' : missed ? 'bg-amber-600' : 'bg-emerald-600'
   const time = missed ? walk.remaining.toEscalation : walk.remaining.toDeadline
   return (
-    <div className={`fixed left-3 right-3 bottom-[4.6rem] z-[1001] rounded-2xl text-white shadow-lg px-3 py-2 flex items-center gap-3 ${tone}`}
+    <div className={`fixed left-3 right-3 bottom-[calc(4.6rem_+_var(--sysnav-h))] z-[1001] rounded-2xl text-white shadow-lg px-3 py-2 flex items-center gap-3 ${tone}`}
       role="status" data-testid="wh-banner" data-phase={j.phase}>
       <button onClick={onOpen} className="flex-1 min-w-0 text-left">
         <div className="text-[11px] font-semibold opacity-90">
