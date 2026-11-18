@@ -39,6 +39,7 @@ from app.models.password_reset import PasswordResetToken
 from app.models.permit import Permit
 from app.models.privacy import ConsentRecord, DataExportRequest, PrivacyGrievance
 from app.models.safety_report import SafetyReport
+from app.models.saved_route import SavedRoute
 from app.models.tourist import IdBlock, LocationPing, Tourist
 from app.models.tourist_id import TouristIdScan, TouristIdToken
 from app.models.user import User
@@ -177,6 +178,9 @@ SOURCES: list[Source] = [
            "Safety reports you submitted", "Crowd-sourced safety data", "optional", "Admin", "None"),
     Source("fare_checks", FareCheck, _by_tid(FareCheck), "activity_records", "Fare checks",
            "Taxi fare fairness check", "optional", "You", "None"),
+    Source("saved_routes", SavedRoute, _by_tid(SavedRoute), "activity_records", "Saved routes",
+           "Keep the routes you chose to save (start, stops, destination, route line)", "optional",
+           "You", "None"),
     Source("permits", Permit, _by_tid(Permit), "activity_records", "Permit drafts",
            "Prepare permit applications", "optional", "You, admin", "None"),
     Source("itinerary_documents", ItineraryDocument, _by_tid(ItineraryDocument), "activity_records",
