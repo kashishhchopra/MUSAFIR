@@ -98,6 +98,8 @@ def public_config() -> dict:
         "location_interval_seconds": s.WALKHOME_LOCATION_INTERVAL_SECONDS,
         "location_stale_seconds": s.WALKHOME_LOCATION_STALE_SECONDS,
         "max_guardians": s.WALKHOME_MAX_GUARDIANS,
+        "route_buffer_percent": s.WALKHOME_ROUTE_BUFFER_PERCENT,
+        "route_buffer_min_minutes": s.WALKHOME_ROUTE_BUFFER_MIN_MINUTES,
     }
 
 
@@ -213,6 +215,17 @@ def history(db: Session, tourist_id: int, limit: int = 20) -> list[CheckIn]:
     return (db.query(CheckIn)
             .filter(CheckIn.tourist_id == tourist_id, CheckIn.kind == KIND)
             .order_by(CheckIn.id.desc()).limit(max(1, min(limit, 100))).all())
+
+
+def delete_history(db: Session, tourist_id: int) -> int:
+    """Erase the tourist's FINISHED journeys (never one that is still running)."""
+    n = (db.query(CheckIn)
+         .filter(CheckIn.tourist_id == tourist_id, CheckIn.kind == KIND, CheckIn.status.notin_(ACTIVE))
+         .delete(synchronize_session=False))
+    db.commit()
+    audit.record(db, "walk_home_history_deleted", actor=f"tourist:{tourist_id}",
+                 target=f"tourist:{tourist_id}", detail=f"deleted={n}")
+    return n
 
 
 def get_owned(db: Session, tourist_id: int, session_id: int) -> CheckIn:
@@ -426,7 +439,12 @@ def end(db: Session, tourist_id: int, session_id: int, outcome: str) -> CheckIn:
     now = utc_now()
     n = (db.query(CheckIn)
          .filter(CheckIn.id == c.id, CheckIn.status.in_(ACTIVE))
-         .update({"status": outcome, "ended_at": now}, synchronize_session=False))
+         # Data minimisation: the live position is only needed while the journey
+         # runs, so it is wiped the moment it ends (history keeps only name,
+         # times and outcome).
+         .update({"status": outcome, "ended_at": now, "last_lat": None, "last_lng": None,
+                  "last_accuracy_m": None, "last_loc_at": None, "start_lat": None, "start_lng": None},
+                 synchronize_session=False))
     if not n:
         db.rollback()
         db.refresh(c)

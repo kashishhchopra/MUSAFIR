@@ -36,6 +36,12 @@ export const listGuardians = (tid) =>
 export const addGuardian = (tid, body) =>
   api.post(`/tourists/${tid}/guardians`, body).then((r) => r.data)
 
+export const updateGuardian = (tid, id, body) =>
+  api.patch(`/tourists/${tid}/guardians/${id}`, body).then((r) => r.data)
+
+export const removeGuardian = (tid, id) =>
+  api.post(`/tourists/${tid}/guardians/${id}/revoke`).then((r) => r.data)
+
 // Existing map/geocode service (api/maps.py): {lat, lng} or nulls -- never a guess.
 export const geocodePlace = (place) =>
   api.get('/maps/geocode', { params: { place } }).then((r) => r.data)
@@ -45,9 +51,27 @@ export const getGuardianJourney = (token) =>
   api.get(`/guardian/${token}/journey`).then((r) => r.data)
 
 export const isNetworkError = (err) => !err?.response
-export const errorText = (err, fallback) => err?.response?.data?.detail
-  ? (typeof err.response.data.detail === 'string' ? err.response.data.detail : fallback)
-  : fallback
+// The server's own words: a plain string, or the first validation message
+// ("Value error, Enter a valid phone number" -> "Enter a valid phone number").
+export const errorText = (err, fallback) => {
+  const d = err?.response?.data?.detail
+  if (typeof d === 'string') return d
+  const first = Array.isArray(d) ? d[0]?.msg : null
+  return typeof first === 'string' ? first.replace(/^Value error,\s*/, '') : fallback
+}
+
+// A journey's route (geometry, mode, ETA) is not stored server-side, so keep it
+// on this device to draw the map, measure progress and spot a wrong turn.
+const planKey = (id) => `walkhome.plan.${id}`
+export function savePlan(id, plan) {
+  try { localStorage.setItem(planKey(id), JSON.stringify(plan)) } catch { /* private mode: plan is optional */ }
+}
+export function loadPlan(id) {
+  try { return JSON.parse(localStorage.getItem(planKey(id)) || 'null') } catch { return null }
+}
+export function clearPlan(id) {
+  try { localStorage.removeItem(planKey(id)) } catch { /* ignore */ }
+}
 
 // Seconds -> "m:ss" / "h:mm:ss".
 export function clock(totalSeconds) {

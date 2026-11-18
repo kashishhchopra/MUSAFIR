@@ -15,9 +15,38 @@ from app.db.session import get_db
 from app.models.guardian import TripGuardian
 from app.models.tourist import Tourist
 from app.models.user import User
-from app.schemas.guardian import TripGuardianCreate, TripGuardianOut
+from app.schemas.guardian import TripGuardianCreate, TripGuardianOut, TripGuardianUpdate
 
 router = APIRouter(tags=["guardian"])
+
+
+def _reject_duplicate(db: Session, tourist_id: int, name: str, contact: str, exclude_id: int | None = None) -> None:
+    """One live guardian per contact (or per name when there is no contact)."""
+    for g in db.query(TripGuardian).filter(TripGuardian.tourist_id == tourist_id,
+                                           TripGuardian.revoked.is_(False)).all():
+        if g.id == exclude_id:
+            continue
+        same_contact = bool(contact) and g.guardian_contact == contact
+        same_name_no_contact = not contact and not g.guardian_contact and g.guardian_name.lower() == name.lower()
+        if same_contact or same_name_no_contact:
+            raise HTTPException(status_code=409, detail=f"{g.guardian_name} is already in your trusted contacts.")
+
+
+@router.patch("/tourists/{tourist_id}/guardians/{guardian_id}", response_model=TripGuardianOut)
+def update_guardian(tourist_id: int, guardian_id: int, payload: TripGuardianUpdate,
+                    db: Session = Depends(get_db), _: User = Depends(require_self_or_admin)):
+    g = (db.query(TripGuardian)
+         .filter(TripGuardian.id == guardian_id, TripGuardian.tourist_id == tourist_id,
+                 TripGuardian.revoked.is_(False)).first())
+    if not g:
+        raise HTTPException(status_code=404, detail="Guardian share not found")
+    name = payload.guardian_name if payload.guardian_name is not None else g.guardian_name
+    contact = payload.guardian_contact if payload.guardian_contact is not None else g.guardian_contact
+    _reject_duplicate(db, tourist_id, name, contact, exclude_id=g.id)
+    g.guardian_name, g.guardian_contact = name, contact
+    db.commit()
+    db.refresh(g)
+    return g
 
 
 @router.post("/tourists/{tourist_id}/guardians", response_model=TripGuardianOut, status_code=201)
@@ -30,6 +59,7 @@ def create_guardian(tourist_id: int, payload: TripGuardianCreate, db: Session = 
 
     if is_withdrawn(db, tourist_id, "guardian_sharing"):
         raise HTTPException(status_code=403, detail="Guardian sharing consent is withdrawn. Grant it in Privacy settings first.")
+    _reject_duplicate(db, tourist_id, payload.guardian_name, payload.guardian_contact)
     guardian = TripGuardian(
         tourist_id=tourist_id, guardian_name=payload.guardian_name,
         guardian_contact=payload.guardian_contact,

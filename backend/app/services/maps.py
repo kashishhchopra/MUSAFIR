@@ -377,7 +377,7 @@ def search_places(query: str, limit: int = 5) -> list[dict]:
         _last_nominatim_call = time.monotonic()
     try:
         resp = httpx.get(
-            "https://nominatim.openstreetmap.org/search",
+            settings.NOMINATIM_URL,
             params={"q": name, "format": "json", "limit": limit, "viewbox": "68,37,97,6", "bounded": 0},
             headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place search)"}, timeout=5.0,
         )
@@ -389,3 +389,84 @@ def search_places(query: str, limit: int = 5) -> list[dict]:
     except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
         logger.warning("Place search (Nominatim) failed: %s", e)
         return []
+
+
+# --------------------------------------------------------------- type-ahead
+_SUGGEST_TTL_S = 600
+_SUGGEST_MAX = 500
+_suggest_cache: dict[tuple, tuple[float, list[dict]]] = {}
+_suggest_lock = threading.Lock()
+
+
+def clear_suggest_cache() -> None:
+    with _suggest_lock:
+        _suggest_cache.clear()
+
+
+def _photon_label(p: dict) -> str:
+    """"Leela Ambience Hotel, Sector 24, Gurugram, Haryana, India" from Photon's fields."""
+    parts: list[str] = []
+    for key in ("name", "street", "district", "locality", "city", "county", "state", "country"):
+        v = p.get(key)
+        if v and v not in parts:
+            parts.append(str(v))
+    if p.get("housenumber") and p.get("street") and parts:
+        parts[0] = f"{parts[0]} {p['housenumber']}" if parts[0] == p.get("street") else parts[0]
+    return ", ".join(parts)
+
+
+def _photon(query: str, limit: int, near: tuple[float, float] | None) -> list[dict] | None:
+    """Type-ahead matches from Photon, or None when the service did not answer
+    (so the caller can fall back). An empty list means 'answered: nothing found'."""
+    params: dict = {"q": query, "limit": limit, "lang": "en"}
+    if near:
+        params["lat"], params["lon"] = near  # a soft bias towards the user, not a filter
+    try:
+        resp = httpx.get(
+            settings.PHOTON_URL, params=params, timeout=5.0,
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place suggestions)"},
+        )
+        resp.raise_for_status()
+        out: list[dict] = []
+        for f in resp.json().get("features", []):
+            lng, lat = f["geometry"]["coordinates"][:2]
+            label = _photon_label(f.get("properties", {}))
+            if label:
+                out.append({"name": label, "lat": float(lat), "lng": float(lng), "demo": False})
+        return out
+    except (httpx.HTTPError, KeyError, ValueError, TypeError, IndexError) as e:
+        logger.warning("Place suggestions (Photon) failed, falling back: %s", e)
+        return None
+
+
+def suggest_places(query: str, limit: int = 6, near: tuple[float, float] | None = None) -> list[dict]:
+    """Live suggestions while the user types: [{name, lat, lng, demo}].
+
+    Photon (built for type-ahead, tolerant of partial words and small typos)
+    first; if it is unreachable, the normal place search. Cached for a few
+    minutes so retyping or backspacing never repeats a request. Real data only:
+    nothing is returned unless a service actually found it."""
+    q = " ".join(query.split())
+    if len(q) < 2:
+        return []
+    key = (q.lower(), limit, round(near[0], 1) if near else None, round(near[1], 1) if near else None)
+    now = time.monotonic()
+    with _suggest_lock:
+        hit = _suggest_cache.get(key)
+        if hit and now - hit[0] < _SUGGEST_TTL_S:
+            return hit[1]
+    out: list[dict] | None = None
+    if settings.PHOTON_URL and not settings.is_test:
+        out = _photon(q, limit, near)
+    if out is None:  # Photon off/unreachable -> the regular search (Google or Nominatim)
+        out = search_places(q, limit)
+    else:
+        # Photon answered but found nothing: one more try with the stricter search
+        # (it tokenises addresses differently), so a miss here is a real miss.
+        out = out or search_places(q, limit)
+    with _suggest_lock:
+        if len(_suggest_cache) >= _SUGGEST_MAX:
+            _suggest_cache.clear()
+        if out:  # never cache a miss: it may be a transient failure
+            _suggest_cache[key] = (now, out)
+    return out

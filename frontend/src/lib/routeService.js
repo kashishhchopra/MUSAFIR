@@ -8,6 +8,13 @@ import api from '../api'
 export const searchPlaces = (q, limit = 5) =>
   api.get('/maps/search', { params: { q, limit }, timeout: 12000 }).then((r) => r.data.results)
 
+// Live type-ahead: real suggestions for a partial name. `near` ({lat,lng}) only
+// biases ranking; `signal` lets the caller cancel a superseded request.
+export const suggestPlaces = (q, { near, signal, limit = 6 } = {}) =>
+  api.get('/maps/suggest', {
+    params: { q, limit, ...(near ? { lat: near.lat, lng: near.lng } : {}) }, timeout: 12000, signal,
+  }).then((r) => r.data.results)
+
 export const listTravelModes = () => api.get('/maps/modes').then((r) => r.data.modes)
 
 export const getRoute = (from, to, mode = 'driving') =>

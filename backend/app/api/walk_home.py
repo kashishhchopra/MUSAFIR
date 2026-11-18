@@ -81,6 +81,14 @@ def journey_history(tourist_id: int, limit: int = 20, db: Session = Depends(get_
     return [svc.serialize(db, c) for c in svc.history(db, tourist_id, limit)]
 
 
+@router.delete("/tourists/{tourist_id}/walk-home")
+def delete_journey_history(tourist_id: int, db: Session = Depends(get_db),
+                           _: User = Depends(require_self_or_admin)):
+    """Clear finished journeys. A journey that is still running is kept."""
+    _enabled()
+    return {"deleted": svc.delete_history(db, tourist_id)}
+
+
 @router.post("/tourists/{tourist_id}/walk-home/{session_id}/checkin")
 def checkin(tourist_id: int, session_id: int, db: Session = Depends(get_db),
             _: User = Depends(require_self_or_admin)):

@@ -1,28 +1,70 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { searchPlaces } from '../lib/routeService.js'
+import { searchPlaces, suggestPlaces } from '../lib/routeService.js'
 import { openPlace } from '../lib/mapsLinks.js'
 
 // Type a place name -> real candidate matches (Google/OpenStreetMap) -> tap the
 // right one. Nothing is guessed: if the search finds nothing the tourist is
 // told, and `onSelect` only ever receives a place with real coordinates.
 // `selected` is {name, lat, lng} | null.
-export default function PlaceSearch({ selected, onSelect, placeholder }) {
+//
+// With `autocomplete`, suggestions appear while typing (>= 3 characters, 450 ms
+// after the last keystroke, previous request cancelled, answers cached) so the
+// free OpenStreetMap services are never hit per keystroke. `near` ({lat,lng})
+// only biases ranking towards the user.
+const MIN_CHARS = 3
+const DEBOUNCE_MS = 450
+export default function PlaceSearch({ selected, onSelect, placeholder, autocomplete = false, near = null }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
+  const NONE = t('place_search.none', "No matching place found -- try a more specific name (add the city).")
+
+  const cache = useRef(new Map())
+  const abort = useRef(null)
+  const typed = useRef(false)
+
+  useEffect(() => {
+    if (!autocomplete || !typed.current) return undefined
+    const q = query.trim()
+    if (q.length < MIN_CHARS) { setResults([]); setMessage(''); setBusy(false); return undefined }
+    const hit = cache.current.get(q.toLowerCase())
+    if (hit) { setResults(hit); setMessage(hit.length ? '' : NONE); return undefined }
+    const timer = setTimeout(async () => {
+      abort.current?.abort()
+      const ctl = new AbortController()
+      abort.current = ctl
+      setBusy(true)
+      try {
+        const found = await suggestPlaces(q, { near, signal: ctl.signal })
+        if (ctl.signal.aborted) return
+        cache.current.set(q.toLowerCase(), found)
+        setResults(found)
+        setMessage(found.length ? '' : NONE)
+      } catch (err) {
+        if (ctl.signal.aborted || err?.code === 'ERR_CANCELED') return
+        setMessage(t('place_search.failed', "Couldn't search for places right now. Check your connection and try again."))
+      } finally {
+        if (!ctl.signal.aborted) setBusy(false)
+      }
+    }, DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [query, autocomplete]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => abort.current?.abort(), [])
+
   const search = async (e) => {
     e?.preventDefault()
     if (!query.trim() || busy) return
+    abort.current?.abort()
     setBusy(true)
     setMessage('')
     setResults([])
     try {
       const found = await searchPlaces(query.trim())
-      if (!found.length) setMessage(t('place_search.none', "No matching place found -- try a more specific name (add the city)."))
+      if (!found.length) setMessage(NONE)
       setResults(found)
     } catch {
       setMessage(t('place_search.failed', "Couldn't search for places right now. Check your connection and try again."))
@@ -49,7 +91,7 @@ export default function PlaceSearch({ selected, onSelect, placeholder }) {
   return (
     <div className="space-y-1.5">
       <form onSubmit={search} className="flex gap-2">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={placeholder}
+        <input value={query} onChange={(e) => { typed.current = true; setQuery(e.target.value) }} aria-label={placeholder}
           placeholder={placeholder || t('place_search.placeholder', 'Search a place')}
           className="flex-1 min-w-0 text-sm border border-slate-200 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-2 py-1.5" />
         <button disabled={busy || !query.trim()}
@@ -64,7 +106,12 @@ export default function PlaceSearch({ selected, onSelect, placeholder }) {
             <li key={`${r.lat},${r.lng},${i}`}>
               <button type="button" onClick={() => { onSelect(r); setResults([]) }}
                 className="w-full text-left text-xs px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                📍 {r.name}
+                <span className="font-semibold">📍 {r.name.split(', ')[0]}</span>
+                {r.name.includes(', ') && (
+                  <span className="block text-slate-500 dark:text-slate-400 pl-5 truncate">
+                    {r.name.slice(r.name.indexOf(', ') + 2)}
+                  </span>
+                )}
               </button>
             </li>
           ))}

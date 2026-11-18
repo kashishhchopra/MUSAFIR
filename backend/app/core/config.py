@@ -463,6 +463,17 @@ class Settings(BaseSettings):
     # payload so the frontend can say so, not silently pass mock data off
     # as live.
     GOOGLE_MAPS_API_KEY: str = ""
+    # Free, keyless OpenStreetMap services. The public instances are fair-use
+    # only (Nominatim forbids type-ahead; Photon asks for modest traffic), so a
+    # production deployment with many users should point these at its own
+    # instances. Leave PHOTON_URL empty to disable type-ahead (then only the
+    # explicit Search button, via Nominatim, is used).
+    PHOTON_URL: str = "https://photon.komoot.io/api/"
+    NOMINATIM_URL: str = "https://nominatim.openstreetmap.org/search"
+    # Walk-Me-Home deadline = routed travel time + this buffer (the larger of the
+    # percentage and the minimum), so small delays do not trigger an alert.
+    WALKHOME_ROUTE_BUFFER_PERCENT: int = 25
+    WALKHOME_ROUTE_BUFFER_MIN_MINUTES: int = 5
     GOOGLE_TRANSLATE_API_KEY: str = ""
     SPEECH_TO_TEXT_API_KEY: str = ""
     TEXT_TO_SPEECH_API_KEY: str = ""

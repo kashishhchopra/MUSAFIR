@@ -35,6 +35,15 @@ def search_places(q: str, limit: int = 5, _: User = Depends(get_current_user)):
     return {"results": maps.search_places(q, max(1, min(limit, 10)))}
 
 
+@router.get("/suggest")
+def suggest_places(q: str, limit: int = 6, lat: float | None = None, lng: float | None = None,
+                   _: User = Depends(get_current_user)):
+    """Type-ahead: live suggestions for a partial place name (debounced by the
+    client). `lat`/`lng` (the user's position) only bias the ranking."""
+    near = (lat, lng) if lat is not None and lng is not None and -90 <= lat <= 90 and -180 <= lng <= 180 else None
+    return {"results": maps.suggest_places(q, max(1, min(limit, 10)), near)}
+
+
 @router.get("/modes")
 def travel_modes(_: User = Depends(get_current_user)):
     """Travel modes that can return a real routed answer in this deployment
