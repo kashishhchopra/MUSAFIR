@@ -354,8 +354,6 @@ def parse_natural_language(text: str, today=None, geocode=True) -> dict:
     carried_time: str | None = None
     all_dates: list[str] = []
 
-    pending_date: str | None = None
-    pending_time: str | None = None
     for raw in clauses:
         clause, d = _pull_date(raw, today)
         clause, tm = _pull_time(clause)

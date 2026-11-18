@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_self_admin_or_responder, require_self_or_admin
@@ -21,10 +22,11 @@ from app.models.tourist import Tourist
 from app.models.user import User
 from app.schemas.itinerary import ExtractedItinerary, ItineraryDocumentOut
 from app.schemas.tourist import Waypoint
-from pydantic import BaseModel, Field
-
 from app.services.itinerary_extract import (
-    ExtractionError, extract_text, parse_itinerary_text, parse_natural_language,
+    ExtractionError,
+    extract_text,
+    parse_itinerary_text,
+    parse_natural_language,
 )
 
 router = APIRouter(prefix="/tourists/{tourist_id}/itinerary-documents", tags=["itinerary"])

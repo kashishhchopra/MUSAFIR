@@ -44,12 +44,12 @@ def test_trip_legs_totals():
 
 
 def test_route_endpoint(client, tourist_headers):
-    r = client.get("/api/maps/route", params=dict(olat=26.14, olng=91.73, dlat=26.2, dlng=91.8, mode="walking"),
+    r = client.get("/api/maps/route", params={"olat": 26.14, "olng": 91.73, "dlat": 26.2, "dlng": 91.8, "mode": "walking"},
                    headers=tourist_headers)
     assert r.status_code == 200 and r.json()["distance_km"] > 0
-    bad = client.get("/api/maps/route", params=dict(olat=99, olng=91.73, dlat=26.2, dlng=91.8), headers=tourist_headers)
+    bad = client.get("/api/maps/route", params={"olat": 99, "olng": 91.73, "dlat": 26.2, "dlng": 91.8}, headers=tourist_headers)
     assert bad.status_code == 422
-    transit = client.get("/api/maps/route", params=dict(olat=26.14, olng=91.73, dlat=26.2, dlng=91.8, mode="transit"),
+    transit = client.get("/api/maps/route", params={"olat": 26.14, "olng": 91.73, "dlat": 26.2, "dlng": 91.8, "mode": "transit"},
                          headers=tourist_headers)
     assert transit.status_code == 422  # not offered without a Google key -- never faked
 
