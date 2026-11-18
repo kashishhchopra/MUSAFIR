@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS कतार में है — कोई कनेक्शन नहीं",
     "sent_title": "SOS भेजा गया",
     "speak": "🎤 इसके बजाय बोलें",
-    "voice_unsupported": "इस डिवाइस पर वॉइस इनपुट समर्थित नहीं है — ऊपर टाइप करें।"
+    "voice_unsupported": "इस डिवाइस पर वॉइस इनपुट समर्थित नहीं है — ऊपर टाइप करें।",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "लोकेशन अनुमति अस्वीकृत — ट्रैक होने के लिए अपनी ब्राउज़र सेटिंग में इसे सक्षम करें।",

@@ -96,6 +96,51 @@ describe('useTouristData', () => {
     expect(result.current.sosQueued).toBe(false)
   })
 
+  describe('SOS for a tourist whose first GPS fix has not been stored yet', () => {
+    const noPos = { ...meResponse, last_lat: null, last_lng: null }
+    const setGeo = (impl) => Object.defineProperty(navigator, 'geolocation', {
+      value: { getCurrentPosition: impl, watchPosition: vi.fn(() => 1), clearWatch: vi.fn() }, configurable: true,
+    })
+
+    it('gets a real fix from the device and sends it (never null coordinates)', async () => {
+      mockLoadEndpoints()
+      mock.onGet('/tourists/1').reply(200, noPos)
+      mock.onPost('/tourists/1/sos').reply(200, { nearest_unit: null, notified_contacts: [] })
+      setGeo((ok) => ok({ coords: { latitude: 27.18, longitude: 78.01, accuracy: 9 }, timestamp: Date.now() }))
+      const { result } = renderHook(() => useTouristData(1))
+      await waitFor(() => expect(result.current.ready).toBe(true))
+      await act(async () => { await result.current.sendSOS() })
+      const body = JSON.parse(mock.history.post.filter((r) => r.url === '/tourists/1/sos').at(-1).data)
+      expect(body.lat).toBe(27.18)
+      expect(body.lng).toBe(78.01)
+    })
+
+    it('with no fix available it says so clearly and does not post an unusable SOS', async () => {
+      mockLoadEndpoints()
+      mock.onGet('/tourists/1').reply(200, noPos)
+      mock.onPost('/tourists/1/sos').reply(200, {})
+      setGeo((_ok, fail) => fail({ code: 1 }))
+      const { result } = renderHook(() => useTouristData(1))
+      await waitFor(() => expect(result.current.ready).toBe(true))
+      let caught
+      await act(async () => { await result.current.sendSOS().catch((e) => { caught = e }) })
+      expect(caught.message).toBe('sos-no-location')
+      expect(mock.history.post.filter((r) => r.url === '/tourists/1/sos')).toHaveLength(0)
+      await waitFor(() => expect(result.current.toast).toMatch(/call 112/))
+    })
+  })
+
+  it('tells the tourist when the server rejects the SOS', async () => {
+    mockLoadEndpoints()
+    mock.onPost('/tourists/1/sos').reply(500, { detail: 'boom' })
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    let caught
+    await act(async () => { await result.current.sendSOS().catch((e) => { caught = e }) })
+    expect(caught).toBeTruthy()
+    await waitFor(() => expect(result.current.toast).toMatch(/SOS could not be sent/))
+  })
+
   it('toggleTracking flips state and informs the backend', async () => {
     mockLoadEndpoints()
     mock.onPost(/\/tourists\/1\/tracking/).reply(200, {})

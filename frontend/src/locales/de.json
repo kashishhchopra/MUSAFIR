@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS in Warteschlange — keine Verbindung",
     "sent_title": "SOS gesendet",
     "speak": "🎤 Stattdessen sprechen",
-    "voice_unsupported": "Spracheingabe auf diesem Gerät nicht unterstützt — oben tippen."
+    "voice_unsupported": "Spracheingabe auf diesem Gerät nicht unterstützt — oben tippen.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Standortberechtigung verweigert — aktivieren Sie sie in Ihren Browsereinstellungen.",

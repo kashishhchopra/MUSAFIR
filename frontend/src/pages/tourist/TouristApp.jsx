@@ -94,7 +94,7 @@ export default function TouristApp() {
         digitalId={data.me.digital_id}
         online={data.online}
         toast={data.toast}
-        onSOS={data.sendSOS}
+        onSOS={() => Promise.resolve(data.sendSOS()).catch(() => {})}
         onReport={() => setReportOpen(true)}
         tid={tid}
         posRef={data.posRef}

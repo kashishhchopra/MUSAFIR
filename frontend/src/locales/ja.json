@@ -414,7 +414,9 @@
     "queued_title": "📡 SOSは保留中 — 接続なし",
     "sent_title": "SOSを送信しました",
     "speak": "🎤 代わりに話す",
-    "voice_unsupported": "このデバイスでは音声入力に対応していません — 上に入力してください。"
+    "voice_unsupported": "このデバイスでは音声入力に対応していません — 上に入力してください。",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "位置情報の許可が拒否されました — ブラウザの設定で有効にしてください。",

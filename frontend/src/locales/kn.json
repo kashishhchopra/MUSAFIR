@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS ಸರತಿಯಲ್ಲಿದೆ — ಸಂಪರ್ಕ ಇಲ್ಲ",
     "sent_title": "SOS ಕಳುಹಿಸಲಾಗಿದೆ",
     "speak": "🎤 ಬದಲಿಗೆ ಮಾತನಾಡಿ",
-    "voice_unsupported": "ಈ ಸಾಧನದಲ್ಲಿ ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ — ಮೇಲೆ ಟೈಪ್ ಮಾಡಿ."
+    "voice_unsupported": "ಈ ಸಾಧನದಲ್ಲಿ ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ — ಮೇಲೆ ಟೈಪ್ ಮಾಡಿ.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "ಸ್ಥಳ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ — ನಿಮ್ಮ ಬ್ರೌಸರ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಅದನ್ನು ಸಕ್ರಿಯಗೊಳಿಸಿ.",

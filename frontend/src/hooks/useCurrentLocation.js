@@ -28,6 +28,23 @@ export function statusFromError(err) {
   return LOCATION_STATUS.UNAVAILABLE
 }
 
+// Promise form of the same one-shot fix, for code that is not a component (e.g.
+// SOS: it must not leave the tourist waiting on a slow GPS). Resolves
+// {lat, lng, accuracy, timestamp}, or null if no real fix could be had.
+export function getCurrentFix({ timeout = 8_000, maximumAge = 60_000 } = {}) {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy, timestamp: pos.timestamp,
+      }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout, maximumAge },
+    )
+  })
+}
+
 export default function useCurrentLocation({ auto = false } = {}) {
   const [status, setStatus] = useState(LOCATION_STATUS.IDLE)
   const [position, setPosition] = useState(null) // {lat, lng, accuracy, timestamp}

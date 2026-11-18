@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS કતારમાં — કોઈ કનેક્શન નથી",
     "sent_title": "SOS મોકલાયું",
     "speak": "🎤 તેના બદલે બોલો",
-    "voice_unsupported": "આ ઉપકરણ પર વૉઇસ ઇનપુટ સપોર્ટેડ નથી — ઉપર ટાઇપ કરો."
+    "voice_unsupported": "આ ઉપકરણ પર વૉઇસ ઇનપુટ સપોર્ટેડ નથી — ઉપર ટાઇપ કરો.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "લોકેશન પરવાનગી નકારાઈ — તમારા બ્રાઉઝર સેટિંગ્સમાં તેને સક્ષમ કરો.",

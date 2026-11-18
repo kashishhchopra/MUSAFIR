@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS ਕਤਾਰ ਵਿੱਚ — ਕੋਈ ਕਨੈਕਸ਼ਨ ਨਹੀਂ",
     "sent_title": "SOS ਭੇਜਿਆ ਗਿਆ",
     "speak": "🎤 ਇਸਦੀ ਬਜਾਏ ਬੋਲੋ",
-    "voice_unsupported": "ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਵੌਇਸ ਇਨਪੁੱਟ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ — ਉੱਪਰ ਟਾਈਪ ਕਰੋ।"
+    "voice_unsupported": "ਇਸ ਡਿਵਾਈਸ 'ਤੇ ਵੌਇਸ ਇਨਪੁੱਟ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ — ਉੱਪਰ ਟਾਈਪ ਕਰੋ।",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "ਟਿਕਾਣਾ ਇਜਾਜ਼ਤ ਤੋਂ ਇਨਕਾਰ ਕੀਤਾ ਗਿਆ — ਆਪਣੇ ਬ੍ਰਾਊਜ਼ਰ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਇਸਨੂੰ ਸਮਰੱਥ ਕਰੋ।",

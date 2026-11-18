@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS வரிசையில் — இணைப்பு இல்லை",
     "sent_title": "SOS அனுப்பப்பட்டது",
     "speak": "🎤 அதற்கு பதிலாக பேசவும்",
-    "voice_unsupported": "இந்த சாதனத்தில் குரல் உள்ளீடு ஆதரிக்கப்படவில்லை — மேலே தட்டச்சு செய்யவும்."
+    "voice_unsupported": "இந்த சாதனத்தில் குரல் உள்ளீடு ஆதரிக்கப்படவில்லை — மேலே தட்டச்சு செய்யவும்.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "இருப்பிட அனுமதி மறுக்கப்பட்டது — உங்கள் உலாவி அமைப்புகளில் இதை இயக்கவும்.",

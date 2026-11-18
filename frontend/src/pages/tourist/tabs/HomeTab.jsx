@@ -109,7 +109,7 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
                 {bandLabel(score.score)}
               </span>
             </div>
-            <SOSButton onSOS={sendSOS} />
+            <SOSButton onSOS={() => Promise.resolve(sendSOS()).catch(() => {})} />
           </div>
         </div>
 

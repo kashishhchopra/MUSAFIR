@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS en attente — pas de connexion",
     "sent_title": "SOS envoyé",
     "speak": "🎤 Parler à la place",
-    "voice_unsupported": "Saisie vocale non prise en charge sur cet appareil — tapez ci-dessus."
+    "voice_unsupported": "Saisie vocale non prise en charge sur cet appareil — tapez ci-dessus.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Autorisation de localisation refusée — activez-la dans les paramètres de votre navigateur pour être suivi.",

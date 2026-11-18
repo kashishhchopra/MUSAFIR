@@ -73,3 +73,7 @@ export async function loadMapConfig(apiGet) {
   }
   return _cachedMap
 }
+
+// India's single national emergency number -- injected into messages, never hard-coded in
+// translated text (see i18n.test.js).
+export const NATIONAL_EMERGENCY_NUMBER = '112'

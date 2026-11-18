@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../../api'
 import { pointInPoly, haversineKm } from '../../components/geo'
-import { HEARTBEAT_MS, TRACK_INTERVAL_MS, SIMULATE_GPS } from '../../config'
+import { HEARTBEAT_MS, TRACK_INTERVAL_MS, SIMULATE_GPS, NATIONAL_EMERGENCY_NUMBER } from '../../config'
+import i18n from 'i18next'
 import useGeolocation from '../../hooks/useGeolocation'
+import { getCurrentFix } from '../../hooks/useCurrentLocation'
 import useOnlineStatus from '../../hooks/useOnlineStatus'
 import useWebSocket from '../../useWebSocket'
 import { enqueueSOS, flushQueue, queueLength } from '../../lib/offlineQueue'
 import { useRoutePicker } from '../../components/RoutePicker.jsx'
+
+// Translated string with a guaranteed fallback (safety messages must never be blank).
+const tr = (key, fallback, opts = {}) =>
+  i18n.t(key, { defaultValue: fallback, ...opts })
+  || fallback.replace(/\{\{(\w+)\}\}/g, (_, k) => opts[k] ?? '')
 
 // All the tourist app's live data + mutations, extracted out of the screen
 // component so it's testable without mounting a Leaflet map (there was no
@@ -123,7 +130,22 @@ export default function useTouristData(tid) {
   // voice assistant reads it aloud -- can use the actual result rather than
   // waiting on state. Existing button callers ignore the return value.
   const sendSOS = async () => {
-    const [lat, lng] = posRef.current
+    // An SOS needs coordinates (the server dispatches the nearest unit from
+    // them). With no stored position yet -- a brand-new tourist whose first GPS
+    // fix hasn't arrived -- get one from the device right now instead of posting
+    // nulls the server would reject.
+    let [lat, lng] = posRef.current || [null, null]
+    if (lat == null || lng == null) {
+      const fix = await getCurrentFix()
+      if (fix) {
+        lat = fix.lat
+        lng = fix.lng
+        posRef.current = [lat, lng]
+      } else {
+        showToast(tr('sos.no_location', "Can't find your location. Turn on GPS and try again -- or call {{number}} now.", { number: NATIONAL_EMERGENCY_NUMBER }), 8000)
+        throw new Error('sos-no-location')
+      }
+    }
     const message = emergencyMessage.trim() || 'Emergency! Need help.'
     const payload = { lat, lng, message }
     let result = null
@@ -145,6 +167,8 @@ export default function useTouristData(tid) {
         setSosQueued(true)
         result = { queued: true }
       } else {
+        // The server answered with an error -- say so; a silent failed SOS is the worst outcome.
+        showToast(tr('sos.failed', 'SOS could not be sent. Try again, or call {{number}} now.', { number: NATIONAL_EMERGENCY_NUMBER }), 8000)
         throw err
       }
     }

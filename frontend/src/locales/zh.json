@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS 排队中 — 无连接",
     "sent_title": "SOS 已发送",
     "speak": "🎤 改为语音输入",
-    "voice_unsupported": "此设备不支持语音输入 — 请在上方输入。"
+    "voice_unsupported": "此设备不支持语音输入 — 请在上方输入。",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "位置权限被拒绝 — 请在浏览器设置中启用。",

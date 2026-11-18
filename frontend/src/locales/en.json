@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS queued — no connection",
     "sent_title": "SOS Sent",
     "speak": "🎤 Speak instead",
-    "voice_unsupported": "Voice input not supported on this device — type above."
+    "voice_unsupported": "Voice input not supported on this device — type above.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Location permission denied — enable it in your browser settings to be tracked.",

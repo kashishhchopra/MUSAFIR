@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS في قائمة الانتظار — لا يوجد اتصال",
     "sent_title": "تم إرسال SOS",
     "speak": "🎤 تحدث بدلاً من ذلك",
-    "voice_unsupported": "الإدخال الصوتي غير مدعوم على هذا الجهاز — اكتب أعلاه."
+    "voice_unsupported": "الإدخال الصوتي غير مدعوم على هذا الجهاز — اكتب أعلاه.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "تم رفض إذن الموقع — فعّله من إعدادات متصفحك.",

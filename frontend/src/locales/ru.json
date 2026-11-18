@@ -414,7 +414,9 @@
     "queued_title": "📡 SOS в очереди — нет соединения",
     "sent_title": "SOS отправлен",
     "speak": "🎤 Говорить вместо этого",
-    "voice_unsupported": "Голосовой ввод не поддерживается на этом устройстве — введите текст выше."
+    "voice_unsupported": "Голосовой ввод не поддерживается на этом устройстве — введите текст выше.",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Доступ к геолокации запрещён — включите его в настройках браузера.",
