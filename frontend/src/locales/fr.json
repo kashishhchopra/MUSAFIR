@@ -323,31 +323,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "Masquer le planificateur d'itinéraire sûr",
     "plan_safe_route": "🧭 Planifier un itinéraire sûr"
@@ -390,13 +365,12 @@
     "pending_count_other": "{{count}} alertes SOS toujours en attente d'une connexion…",
     "queued_body": "Vous êtes hors ligne. Votre SOS a été enregistré sur cet appareil et sera envoyé automatiquement dès que vous serez de nouveau en ligne.",
     "queued_title": "📡 SOS en attente — pas de connexion",
-    "failed": "⚠️ SOS non envoyé. Appuyez de nouveau sur SOS ou appelez les secours maintenant.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "Le serveur n'a pas répondu. Votre SOS est enregistré et son envoi sera retenté. Si c'est urgent, appelez les secours maintenant.",
     "sent_title": "SOS envoyé",
     "speak": "🎤 Parler à la place",
     "voice_unsupported": "Saisie vocale non prise en charge sur cet appareil — tapez ci-dessus.",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "Autorisation de localisation refusée — activez-la dans les paramètres de votre navigateur pour être suivi.",

@@ -323,31 +323,6 @@
     "online_data": "🟢 Online data",
     "saved_places": "Saved nearby places"
   },
-  "permits": {
-    "applicant_label": "Applicant",
-    "apply_button": "Apply",
-    "apply_failed": "Couldn't submit the application right now.",
-    "applying": "Applying…",
-    "cancel": "Cancel",
-    "card_title": "Permit & E-Pass Automation",
-    "confirm_open_portal": "Confirm & Open Official Portal",
-    "confirming": "Confirming…",
-    "demo_notice": "Demo auto-approval — not a real government permit.",
-    "destination_label": "Destination",
-    "destination_placeholder": "Destination (optional)",
-    "failed": "Couldn't load permits right now.",
-    "honesty_notice": "This app has no official government integration -- confirming only reviews your draft and opens the real official portal for you to finish the actual application.",
-    "intro": "Pre-fill a permit application from your profile — review and submit in seconds.",
-    "local_reference": "Local tracking reference (not a government ID): {{ref}}",
-    "none_yet": "No permit applications yet.",
-    "open_portal_again": "Open {{name}}",
-    "reference": "Reference: {{ref}}",
-    "review_edit": "Review / Edit",
-    "save_review": "Save",
-    "start_draft_button": "Start draft application",
-    "status_draft": "Draft",
-    "status_reviewed": "Reviewed"
-  },
   "plan": {
     "hide_route_planner": "సురక్షిత మార్గ ప్రణాళికను దాచు",
     "plan_safe_route": "🧭 సురక్షిత మార్గాన్ని ప్రణాళిక చేయండి"
@@ -390,13 +365,12 @@
     "pending_count_other": "{{count}} SOS లు ఇంకా కనెక్షన్ కోసం వేచి ఉన్నాయి…",
     "queued_body": "మీరు ఆఫ్‌లైన్‌లో ఉన్నారు. మీ SOS ఈ పరికరంలో సేవ్ చేయబడింది, మీరు మళ్లీ ఆన్‌లైన్‌కు వచ్చిన వెంటనే స్వయంచాలకంగా పంపబడుతుంది.",
     "queued_title": "📡 SOS క్యూలో ఉంది — కనెక్షన్ లేదు",
-    "failed": "⚠️ SOS పంపబడలేదు. మళ్లీ SOS నొక్కండి లేదా ఇప్పుడే అత్యవసర సేవలకు కాల్ చేయండి.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now.",
     "retry_body": "సర్వర్ స్పందించలేదు. మీ SOS సేవ్ చేయబడింది, పంపే ప్రయత్నం కొనసాగుతుంది. అత్యవసరమైతే ఇప్పుడే అత్యవసర సేవలకు కాల్ చేయండి.",
     "sent_title": "SOS పంపబడింది",
     "speak": "🎤 బదులుగా మాట్లాడండి",
     "voice_unsupported": "ఈ పరికరంలో వాయిస్ ఇన్‌పుట్ మద్దతు లేదు — పైన టైప్ చేయండి.",
-    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
-    "failed": "SOS could not be sent. Try again, or call {{number}} now."
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "లొకేషన్ అనుమతి తిరస్కరించబడింది — మీ బ్రౌజర్ సెట్టింగ్‌లలో దీన్ని ప్రారంభించండి.",
