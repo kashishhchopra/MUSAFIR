@@ -73,7 +73,7 @@ function Setup({ walk }) {
 
   // When the route cannot give a time (or the traveller prefers their own), the
   // manual picker is the explicit fallback -- never an invented duration.
-  const needManual = plan.dest && (plan.state === 'error' || (plan.state === 'idle' && plan.dest) || plan.tooLong)
+  const needManual = plan.dest && (plan.state === 'error' || plan.tooLong)
   const useManual = manual || needManual
   const duration = useManual ? manualMin : plan.minutes
   const toggle = (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
@@ -81,15 +81,14 @@ function Setup({ walk }) {
   const problem = () => {
     if (!plan.dest) return t('walk_home.set_dest_first')
     const bad = (v, sp) => !Number.isFinite(v) || v < sp.min || v > sp.max
-    if (duration == null || plan.state === 'loading') return t('walk_home.route_loading')
+    if (duration == null) return plan.state === 'idle' ? t('walk_home.route_need_start') : t('walk_home.route_loading')
     if (bad(duration, config.duration)) return `${t('walk_home.duration')}: ${config.duration.min}–${config.duration.max}`
     if (bad(interval, config.interval)) return `${t('walk_home.interval')}: ${config.interval.min}–${config.interval.max}`
     if (bad(grace, config.grace)) return `${t('walk_home.grace')}: ${config.grace.min}–${config.grace.max}`
     return null
   }
 
-  const review = (e) => {
-    e.preventDefault()
+  const review = () => {
     const p = problem()
     setLocalError(p)
     if (!p) setStep('review')
@@ -153,7 +152,7 @@ function Setup({ walk }) {
   }
 
   return (
-    <form onSubmit={review} noValidate className="space-y-4">
+    <div className="space-y-4" data-testid="wh-setup">
       <p className="text-xs text-slate-500 dark:text-slate-400">{t('walk_home.intro')}</p>
 
       <WalkHomeRoutePlanner config={config} onPlan={setPlan} />
@@ -191,10 +190,11 @@ function Setup({ walk }) {
         onRemoved={(id) => setPicked((p) => p.filter((x) => x !== id))} />
 
       {(localError || error) && <p role="alert" className="text-xs text-red-600">{localError || errorMessage(t, error)}</p>}
-      <button className="w-full text-sm font-bold text-white bg-gradient-to-r from-sky-500 to-indigo-500 py-2.5 rounded-xl">
+      <button type="button" onClick={review} data-testid="wh-review-btn"
+        className="w-full text-sm font-bold text-white bg-gradient-to-r from-sky-500 to-indigo-500 py-2.5 rounded-xl">
         {t('walk_home.review')}
       </button>
-    </form>
+    </div>
   )
 }
 

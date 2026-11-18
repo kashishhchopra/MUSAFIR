@@ -239,20 +239,44 @@ describe('Walk-Me-Home — setup', () => {
     expect(body(mock.history.post[0]).duration_minutes).toBe(60)
   })
 
-  it('without a GPS fix it says so (no fake start point) and falls back to the manual time', async () => {
+  it('without a GPS fix it asks where you start from and still calculates the time automatically', async () => {
     geo.getCurrentPosition = vi.fn((_ok, fail) => fail({ code: 1 }))
-    stubMaps()
+    const KOCHI = { name: 'Kochi Metro Station, Kochi, Kerala, India', lat: 9.97, lng: 76.28, demo: false }
+    mock.onGet('/maps/suggest').reply((c) => [200, { results: c.params.q.startsWith('Koc') ? [KOCHI] : [HOSPITAL] }])
+    mock.onGet('/maps/route').reply(200, ROUTE)
+    mock.onPost('/tourists/1/walk-home').reply(201, J())
     await mount()
     await typeAndPick('City Hosp')
-    expect(mock.history.get.filter((c) => c.url === '/maps/route')).toHaveLength(0)
-    expect(screen.getByTestId('wh-need-location')).toBeInTheDocument()
+    expect(mock.history.get.filter((c) => c.url === '/maps/route')).toHaveLength(0) // no fake start point
     expect(screen.getByText(/Location permission is off/)).toBeInTheDocument()
+    expect(screen.getByTestId('wh-need-location')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '60 min' })).toBeNull() // not asked to guess a time
+    // pick a starting place instead
+    fireEvent.change(screen.getByPlaceholderText(/Search your starting place/), { target: { value: 'Kochi Metro' } })
+    await advance(500)
+    fireEvent.click(screen.getByText('Kochi Metro Station', { exact: false }))
+    await flush()
+    await flush()
+    expect(mock.history.get.filter((c) => c.url === '/maps/route')[0].params).toMatchObject({ olat: 9.97, olng: 76.28 })
+    expect(screen.getByTestId('wh-deadline')).toHaveTextContent('17 min')
     fireEvent.click(screen.getByText('Review journey'))
     fireEvent.click(screen.getByTestId('wh-start'))
     await flush()
     const sent = body(mock.history.post[0])
-    expect(sent).not.toHaveProperty('start_lat')
-    expect(sent.duration_minutes).toBe(30)
+    expect(sent.duration_minutes).toBe(17)
+    expect(sent).not.toHaveProperty('start_lat') // GPS gave nothing; nothing invented
+  })
+
+  it('does not show the time picker while the location is still being found', async () => {
+    geo.getCurrentPosition = vi.fn() // never answers
+    stubMaps()
+    await mount()
+    await typeAndPick('City Hosp')
+    expect(screen.queryByRole('button', { name: '60 min' })).toBeNull()
+    expect(screen.getByText('Review journey')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Review journey'))
+    expect(screen.queryByTestId('wh-review')).toBeNull() // blocked until a start point exists
+    expect(screen.getByRole('alert')).toHaveTextContent(/starting point/i)
   })
 
   it('labels a straight-line estimate as one', async () => {
@@ -310,6 +334,21 @@ describe('Walk-Me-Home — setup', () => {
 })
 
 describe('Walk-Me-Home — trusted contacts', () => {
+  it('the Add guardian button never submits a surrounding form (no page refresh)', async () => {
+    mock.onPost('/tourists/1/guardians').reply(201, { id: 9, guardian_name: 'Sis', guardian_contact: '' })
+    await mount()
+    for (const f of document.querySelectorAll('form')) expect(f.parentElement.closest('form')).toBeNull() // no nested forms
+    const submits = []
+    const onSubmit = (e) => { submits.push(e.target); e.preventDefault() }
+    document.addEventListener('submit', onSubmit)
+    fireEvent.change(screen.getByLabelText('Name (e.g. Mum)'), { target: { value: 'Sis' } })
+    fireEvent.click(screen.getByText('Add guardian'))
+    await flush()
+    document.removeEventListener('submit', onSubmit)
+    expect(posts('/guardians')).toHaveLength(1)
+    expect(submits.length).toBeLessThanOrEqual(1) // at most the contacts form itself, never a parent form
+  })
+
   it('shows each contact once with its number — no duplicate "myself" rows', async () => {
     await mount()
     const rows = screen.getAllByTestId('wh-contact')

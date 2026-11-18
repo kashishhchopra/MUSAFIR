@@ -38,7 +38,11 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
   const [dest, setDest] = useState(null)
   const [mode, setMode] = useState('walking')
   const [modes, setModes] = useState(['walking', 'bicycling', 'driving'])
-  const here = loc.position
+  const [startPlace, setStartPlace] = useState(null) // chosen start, when GPS cannot give one
+  const [pickStart, setPickStart] = useState(false)
+  const gpsFailed = ['denied', 'unavailable', 'timeout', 'unsupported'].includes(loc.status)
+  // The route starts from a place the traveller chose, else from the live GPS fix.
+  const here = startPlace || loc.position
   const { state, route, error, retry } = useJourneyRoute({ from: here, to: dest, mode })
 
   // Picking a destination is the user's own action, so asking for the device
@@ -70,7 +74,29 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
           placeholder={t('walk_home.dest_search_ph')} />
       </div>
 
-      <LocationStatus loc={loc} />
+      {!startPlace && <LocationStatus loc={loc} />}
+
+      {dest && (gpsFailed || pickStart || startPlace) && (
+        <div data-testid="wh-start-picker">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+            {t('walk_home.start_from')}
+          </label>
+          <PlaceSearch autocomplete selected={startPlace} onSelect={setStartPlace}
+            placeholder={t('walk_home.start_search_ph')} />
+          {startPlace && loc.position && (
+            <button type="button" onClick={() => { setStartPlace(null); setPickStart(false) }}
+              className="mt-1 text-xs font-semibold text-sky-700 dark:text-sky-400 underline">
+              {t('walk_home.use_my_location')}
+            </button>
+          )}
+        </div>
+      )}
+      {dest && !gpsFailed && !pickStart && !startPlace && loc.position && (
+        <button type="button" onClick={() => setPickStart(true)} data-testid="wh-change-start"
+          className="text-xs font-semibold text-sky-700 dark:text-sky-400 underline">
+          {t('walk_home.start_elsewhere')}
+        </button>
+      )}
 
       {dest && (
         <>
@@ -87,6 +113,9 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
             <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="wh-need-location">
               {t('walk_home.route_need_location')}
             </p>
+          )}
+          {!here && loc.status === 'locating' && (
+            <p className="text-xs text-slate-500" role="status">{t('walk_home.route_loading')}</p>
           )}
           {state === 'loading' && (
             <p className="text-xs text-slate-500" role="status">{t('walk_home.route_loading')}</p>
