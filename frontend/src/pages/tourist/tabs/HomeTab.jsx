@@ -13,49 +13,6 @@ import RecommendedPlaces from '../../../components/RecommendedPlaces.jsx'
 import SafetyAssistantCard from '../../../components/SafetyAssistantCard.jsx'
 import { TILE_ATTRIBUTION, TILE_SUBDOMAINS, TILE_URL } from "../../../lib/mapConfig"
 
-// Quick-action row: the handful of things a tourist reaches for constantly,
-// one tap away from the home screen, without cluttering it with full panels
-// -- each button either opens the relevant tool in place (voice assistant)
-// or jumps to the tab that has it (Plan/Help), so nothing here duplicates
-// functionality that already lives elsewhere. SOS is deliberately NOT in
-// this grid -- it has its own single circular button at the top of the
-// screen instead (see SOSButton below); having it in two places on the
-// same screen was confusing, not reassuring.
-const QUICK_ACTIONS = [
-  { key: 'voice', icon: '🎙️', labelKey: 'home.quick_voice' },
-  { key: 'nav', icon: '🗺️', labelKey: 'home.quick_navigate' },
-  { key: 'hospital', icon: '🏥', labelKey: 'home.quick_hospital' },
-  { key: 'pharmacy', icon: '💊', labelKey: 'home.quick_pharmacy' },
-  { key: 'transport', icon: '🚕', labelKey: 'home.quick_transport' },
-  { key: 'translate', icon: '🌐', labelKey: 'home.quick_translate' },
-  { key: 'itinerary', icon: '📄', labelKey: 'home.quick_itinerary' },
-]
-
-function QuickActions({ onVoice, onNavigateTab, setRoutePickerOpen }) {
-  const { t } = useTranslation()
-  const go = (key) => {
-    switch (key) {
-      case 'voice': onVoice(); break
-      case 'nav': setRoutePickerOpen(true); onNavigateTab('plan'); break
-      case 'hospital': case 'pharmacy': case 'transport': case 'translate':
-        onNavigateTab('help'); break
-      case 'itinerary': onNavigateTab('plan'); break
-      default: break
-    }
-  }
-  return (
-    <div className="grid grid-cols-4 gap-2">
-      {QUICK_ACTIONS.map((a) => (
-        <button key={a.key} onClick={() => go(a.key)}
-          className="flex flex-col items-center gap-1 rounded-2xl py-2.5 text-xs font-medium bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm">
-          <span className="text-lg leading-none">{a.icon}</span>
-          {t(a.labelKey)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // The one SOS button for this screen: circular, top of the page, big enough
 // to hit without looking -- not a full-width card. The word "SOS" is spelled
 // out in bold rather than relying on an emoji glyph, so it reads clearly at
@@ -137,9 +94,6 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
           <ScoreExplanation explanation={score.breakdown.explanation} />
         </div>
       </div>
-
-      <QuickActions onVoice={onVoice} onNavigateTab={onNavigateTab}
-        setRoutePickerOpen={setRoutePickerOpen} />
 
       {/* Walk-Me-Home: monitored journey with live guardian tracking. */}
       {data.walk && <WalkHomeCard walk={data.walk} onSOS={(msg) => sendSOS(msg)} />}
