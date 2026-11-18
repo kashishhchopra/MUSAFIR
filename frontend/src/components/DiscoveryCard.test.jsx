@@ -11,7 +11,7 @@ vi.mock('react-leaflet', async () => {
   return {
     MapContainer: ({ children }) => <div data-testid="leaflet">{children}</div>,
     TileLayer: () => null,
-    Marker: React.forwardRef(({ position, icon, children, eventHandlers }, ref) => {
+    Marker: React.forwardRef(function MockMarker({ position, icon, children, eventHandlers }, ref) {
       React.useImperativeHandle(ref, () => ({ openPopup: () => {} }))
       return (
         <div data-testid="marker" data-pos={position.join(',')} data-glyph={glyph(icon)}

@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from './ui.jsx'
-import PlaceSearch from './PlaceSearch.jsx'
-import LocationStatus from './LocationStatus.jsx'
+import SearchCenterPanel from './SearchCenterPanel.jsx'
 import DiscoveryMap from './DiscoveryMap.jsx'
 import DiscoveryPlaceCard, { CATEGORY_ICON } from './DiscoveryPlaceCard.jsx'
 import useOnlineStatus from '../hooks/useOnlineStatus.js'
-import useCurrentLocation from '../hooks/useCurrentLocation.js'
+import useSearchCenter from '../hooks/useSearchCenter.js'
 import useDiscovery, { DISCOVERY_CATEGORIES } from '../hooks/useDiscovery.js'
 import { openDirections } from '../lib/mapsLinks.js'
 
@@ -46,17 +45,13 @@ const SORTERS = {
 export default function DiscoveryCard() {
   const { t } = useTranslation()
   const online = useOnlineStatus()
-  const loc = useCurrentLocation({ quick: true })
-  const [manual, setManual] = useState(null) // {name, lat, lng} chosen by the tourist
-  const [changing, setChanging] = useState(false)
+  const sc = useSearchCenter()
+  const { loc, gps, center } = sc
   const [prefs, setPrefs] = useState(readPrefs)
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(null)
   const [limit, setLimit] = useState(PAGE)
-
-  // Open the card -> ask the device where we are (the browser/OS shows its own permission prompt).
-  useEffect(() => { loc.request() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const setPref = (k, v) => setPrefs((p) => {
     const next = { ...p, [k]: v }
@@ -64,8 +59,6 @@ export default function DiscoveryCard() {
     return next
   })
 
-  const gps = !manual && loc.position ? { lat: loc.position.lat, lng: loc.position.lng } : null
-  const center = manual ? { lat: manual.lat, lng: manual.lng } : gps
   const d = useDiscovery({ center, radiusKm: prefs.radius })
 
   useEffect(() => { setLimit(PAGE) }, [category, query, prefs.sort, prefs.radius, center?.lat, center?.lng])
@@ -79,9 +72,7 @@ export default function DiscoveryCard() {
   }, [d.places, category, query, prefs.sort])
 
   const label = (c) => t(`discovery.category_${c}`)
-  const areaName = manual
-    ? manual.name.split(', ').slice(0, 2).join(', ')
-    : d.meta.region?.name
+  const areaName = d.meta.region?.name
   const nextRadius = RADII.find((r) => r > prefs.radius)
 
   const directions = (p) => openDirections({
@@ -89,41 +80,13 @@ export default function DiscoveryCard() {
     destination: p, mode: p.distance_km <= 2 ? 'walking' : 'driving',
   })
   const showOnMap = (p) => { setPref('view', 'map'); setSelectedId(p.id) }
-  const useMyLocation = () => { setManual(null); setChanging(false); loc.request() }
   const refresh = () => { if (gps) loc.request(); d.refresh() }
 
   const loading = d.status === 'loading'
   const total = d.places.length
 
   // ------------------------------------------------------------------ pieces
-  const locationPanel = (
-    <div className="space-y-2 mb-3" data-testid="discovery-location">
-      {center ? (
-        <div className="flex items-center justify-between gap-2 text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-900 dark:text-emerald-200 rounded-lg px-2.5 py-2">
-          <span className="min-w-0 truncate" data-testid="discovery-area">
-            📍 {manual ? t('discovery.searching_near', 'Searching near') : t('discovery.you_are_near', 'You are near')}{' '}
-            <strong>{areaName || `${center.lat.toFixed(3)}, ${center.lng.toFixed(3)}`}</strong>
-          </span>
-          <span className="flex gap-3 shrink-0 font-semibold">
-            {manual && <button type="button" onClick={useMyLocation} data-testid="use-my-location" className="underline">{t('discovery.use_my_location', 'Use my location')}</button>}
-            <button type="button" onClick={() => setChanging((c) => !c)} data-testid="change-location" className="underline">{t('discovery.change', 'Change')}</button>
-          </span>
-        </div>
-      ) : (
-        <>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            {t('discovery.need_location', 'Share your location to see places around you — or search for a city or area below.')}
-          </p>
-          <LocationStatus loc={loc} autoIfGranted={false} />
-        </>
-      )}
-      {(!center || changing) && (
-        <PlaceSearch autocomplete selected={null} icon="📍" near={center}
-          onSelect={(p) => { setManual({ name: p.name, lat: p.lat, lng: p.lng }); setChanging(false) }}
-          placeholder={t('discovery.search_location_ph', 'Search a city or area…')} />
-      )}
-    </div>
-  )
+  const locationPanel = <SearchCenterPanel sc={sc} areaName={areaName} />
 
   const noticeClass = 'text-xs rounded-lg px-2.5 py-2 mb-2'
   const notices = (
@@ -205,7 +168,7 @@ export default function DiscoveryCard() {
                 {t('discovery.expand', 'Search within {{km}} km', { km: nextRadius })}
               </button>
             )}
-            <button type="button" onClick={() => setChanging(true)} className="text-sky-700 dark:text-sky-400 underline">
+            <button type="button" onClick={() => sc.setChanging(true)} className="text-sky-700 dark:text-sky-400 underline">
               {t('discovery.change_location', 'Change location')}
             </button>
           </div>

@@ -23,7 +23,7 @@ export default function HelpTab({ data, onAskAI }) {
 
       <SafetyCardPanel touristId={data.tid} />
       <ConsularCard touristId={data.tid} />
-      <NearbyPlacesCard touristId={data.tid} />
+      <NearbyPlacesCard />
       <TranslateCard />
       <WomensSafetyCard touristId={data.tid} posRef={posRef} />
       {data.fall && <FallDetectionCard fall={data.fall} />}
