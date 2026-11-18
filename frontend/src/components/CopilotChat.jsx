@@ -47,7 +47,7 @@ const CopilotChat = forwardRef(function CopilotChat(
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(17rem_+_var(--sysnav-h))] right-4 md:bottom-6 md:right-6 z-[1500] bg-sky-600 hover:bg-sky-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl">
+        className="fixed bottom-[calc(17rem_+_var(--sysnav-h))] right-4 md:bottom-[calc(1.5rem_+_var(--sysnav-h))] md:right-6 z-[1500] bg-sky-600 hover:bg-sky-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl">
         🤖
       </button>
 

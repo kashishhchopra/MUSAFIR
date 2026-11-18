@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Android-style three-button navigation: Back (◁), Home (○), Recent screens (▢).
-// Phones only (`md:hidden`): on desktop the normal layout is left alone.
+// Shown at every width in the tourist app (which is a phone-style column even on a
+// desktop browser). To hide it on desktop again, add `md:hidden` here and wrap the
+// rules in index.css in `@media (max-width: 767.98px)`.
 //
 // While mounted it adds `has-sysnav` to <body>, which publishes the bar's height
 // as --sysnav-h (see index.css). Everything else that is pinned to the bottom --
@@ -42,7 +44,7 @@ export default function SystemNavBar({ onBack, onHome, onRecents, recentsOpen = 
 
   return (
     <nav aria-label={t('sysnav.aria', 'Navigation buttons')} data-testid="sysnav"
-      className="fixed bottom-0 inset-x-0 z-[2100] md:hidden bg-slate-950 border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+      className="fixed bottom-0 inset-x-0 z-[2100] bg-slate-950 border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
       {notice && (
         <div role="status" data-testid="sysnav-notice"
           className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-800 text-slate-100 text-xs px-3 py-1.5 shadow-lg">

@@ -52,12 +52,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('three-button navigation bar — presence', () => {
-  it('shows Back, Home and Recent screens, phones only, and publishes its height to the layout', () => {
+  it('shows Back, Home and Recent screens and publishes its height to the layout', () => {
     renderApp()
     const bar = screen.getByTestId('sysnav')
     expect(within(bar).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
       .toEqual(['Back', 'Home', 'Recent screens'])
-    expect(bar.className).toContain('md:hidden') // desktop keeps its normal layout
+    expect(bar.className).not.toContain('hidden') // visible at every width in the tourist app
     expect(bar.className).toContain('fixed')
     expect(bar.className).toContain('safe-area-inset-bottom') // clear of the gesture area
     expect(document.body.classList.contains('has-sysnav')).toBe(true) // -> --sysnav-h for pinned controls

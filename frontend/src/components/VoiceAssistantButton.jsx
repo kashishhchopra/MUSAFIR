@@ -131,7 +131,7 @@ const VoiceAssistantButton = forwardRef(function VoiceAssistantButton({ touristI
       <button
         onClick={startListening}
         aria-label={t('voice_assistant.aria_label')}
-        className={`fixed bottom-[calc(12rem_+_var(--sysnav-h))] right-4 md:bottom-6 md:right-24 z-[1500] rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl text-white transition-colors ${
+        className={`fixed bottom-[calc(12rem_+_var(--sysnav-h))] right-4 md:bottom-[calc(1.5rem_+_var(--sysnav-h))] md:right-24 z-[1500] rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl text-white transition-colors ${
           voice.listening
             ? 'bg-red-600 voice-listening-ring'
             : voice.speaking
