@@ -4,11 +4,9 @@ import { useAuth } from '../../auth.jsx'
 import { detectIntent, INTENTS } from '../../lib/voiceIntent'
 import useTouristData from './useTouristData.js'
 import TouristShell from './TouristShell.jsx'
-import TouristTabBar, { TABS } from './TouristTabBar.jsx'
-import SystemNavBar from '../../components/SystemNavBar.jsx'
-import RecentScreensPanel from '../../components/RecentScreensPanel.jsx'
+import TouristTabBar from './TouristTabBar.jsx'
 import useTouristNav from '../../hooks/useTouristNav.js'
-import { registerBack, runBack } from '../../lib/navBus'
+import { registerBack } from '../../lib/navBus'
 import { startDeviceLocation } from '../../lib/deviceLocation'
 import HomeTab from './tabs/HomeTab.jsx'
 import PlanTab from './tabs/PlanTab.jsx'
@@ -44,7 +42,6 @@ export default function TouristApp() {
   useEffect(() => { startDeviceLocation() }, [])
   const activeTab = nav.tab
   const setActiveTab = nav.goTab
-  const [recentsOpen, setRecentsOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const copilotRef = useRef(null)
   const voiceRef = useRef(null)
@@ -126,14 +123,8 @@ export default function TouristApp() {
 
       <TouristTabBar active={activeTab} onChange={setActiveTab} />
 
-      {/* Phones: Back / Home / Recent screens. Nothing here touches data, the session,
-          an SOS or a running journey -- those live above, in this component. */}
-      <SystemNavBar onBack={runBack} onHome={nav.home} recentsOpen={recentsOpen}
-        onRecents={() => setRecentsOpen((o) => !o)} />
-      <RecentScreensPanel open={recentsOpen} onClose={() => setRecentsOpen(false)}
-        recents={nav.recents} current={activeTab}
-        screens={TABS.map((x) => ({ tab: x.key, icon: x.icon, label: t(x.labelKey) }))}
-        onSelect={(tab) => { setRecentsOpen(false); nav.goTab(tab) }} />
+      {/* No on-screen Back / Home / Recent buttons: the phone has its own. The Android
+          hardware Back key still walks the in-app history through registerBack above. */}
 
       <ReportSheet
         open={reportOpen}

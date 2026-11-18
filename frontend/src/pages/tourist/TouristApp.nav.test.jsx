@@ -3,7 +3,7 @@ import { render, fireEvent, screen, within, act } from '@testing-library/react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import TouristApp from './TouristApp.jsx'
 import { ThemeProvider } from '../../theme.jsx'
-import { clearNavSession, readRecents } from '../../lib/navSession'
+import { clearNavSession } from '../../lib/navSession'
 import { runBack, closeAllOverlays } from '../../lib/navBus'
 
 vi.mock('../../auth.jsx', () => ({
@@ -39,9 +39,8 @@ const renderApp = (url = '/app') => render(
 const url = () => screen.getByTestId('url').textContent
 const tabBar = () => within(document.querySelector('.tourist-tabbar'))
 const go = (label) => fireEvent.click(tabBar().getByText(label))
-const back = () => fireEvent.click(screen.getByTestId('sysnav-back'))
-const home = () => fireEvent.click(screen.getByTestId('sysnav-home'))
-const recents = () => fireEvent.click(screen.getByTestId('sysnav-recents'))
+// The Android hardware Back key goes through this shared handler (lib/navBus).
+const back = () => { let handled; act(() => { handled = runBack() }); return handled }
 const shown = () => ['home', 'plan', 'explore', 'help', 'me'].filter((k) => screen.queryByTestId(`tab-${k}`))
 
 beforeEach(() => {
@@ -51,21 +50,14 @@ beforeEach(() => {
 })
 afterEach(() => vi.useRealTimers())
 
-describe('three-button navigation bar — presence', () => {
-  it('shows Back, Home and Recent screens and publishes its height to the layout', () => {
+describe('the on-screen Back / Home / Recent bar is gone', () => {
+  it('shows no navigation bar, and leaves no layout offset behind', () => {
     renderApp()
-    const bar = screen.getByTestId('sysnav')
-    expect(within(bar).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Back', 'Home', 'Recent screens'])
-    expect(bar.className).not.toContain('hidden') // visible at every width in the tourist app
-    expect(bar.className).toContain('fixed')
-    expect(bar.className).toContain('safe-area-inset-bottom') // clear of the gesture area
-    expect(document.body.classList.contains('has-sysnav')).toBe(true) // -> --sysnav-h for pinned controls
-  })
-
-  it('removes its layout offset when it goes away', () => {
-    const { unmount } = renderApp()
-    unmount()
+    expect(screen.queryByTestId('sysnav')).toBeNull()
+    expect(screen.queryByTestId('sysnav-back')).toBeNull()
+    expect(screen.queryByTestId('sysnav-home')).toBeNull()
+    expect(screen.queryByTestId('sysnav-recents')).toBeNull()
+    expect(screen.queryByLabelText('Recent screens')).toBeNull()
     expect(document.body.classList.contains('has-sysnav')).toBe(false)
   })
 
@@ -75,45 +67,38 @@ describe('three-button navigation bar — presence', () => {
     expect(sos).toBeInTheDocument()
     expect(document.querySelector('.tourist-tabbar')).toBeInTheDocument()
     expect(screen.getByLabelText(/voice/i, { selector: 'button' })).toBeInTheDocument()
-    // every pinned control reserves room for the bar rather than sitting under it
-    const pinned = [...document.querySelectorAll('.fixed')].filter((e) => !e.matches('[data-testid="sysnav"]'))
-    expect(pinned.some((e) => e.className.includes('var(--sysnav-h)'))).toBe(true)
     fireEvent.click(sos)
-    expect(mockData.sendSOS).toHaveBeenCalled() // still one tap, bar or no bar
+    expect(mockData.sendSOS).toHaveBeenCalled() // still one tap
   })
 })
 
-describe('Back', () => {
+describe('hardware Back (Android key) still walks the in-app history', () => {
   it('returns to the previous screen, following the real history', () => {
     renderApp()
     go('Plan')
     go('Help')
     expect(shown()).toEqual(['help'])
-    back()
+    expect(back()).toBe(true)
     expect(shown()).toEqual(['plan'])
     expect(url()).toBe('/app?tab=plan')
-    back()
+    expect(back()).toBe(true)
     expect(shown()).toEqual(['home'])
     expect(url()).toBe('/app')
   })
 
-  it('at the very start it stays in the app and says so', () => {
-    vi.useFakeTimers()
+  it('at the very start there is nothing to go back to, so the native layer may exit', () => {
     renderApp()
-    back()
+    expect(back()).toBe(false)
     expect(shown()).toEqual(['home'])
-    expect(screen.getByTestId('sysnav-notice')).toHaveTextContent(/already on the Home screen/i)
-    act(() => { vi.advanceTimersByTime(2500) })
-    expect(screen.queryByTestId('sysnav-notice')).toBeNull()
   })
 
   it('opened on a deep link, Back goes Home (not out of the app, not to login)', () => {
     renderApp('/app?tab=help')
     expect(shown()).toEqual(['help'])
-    back()
+    expect(back()).toBe(true)
     expect(shown()).toEqual(['home'])
     expect(url()).toBe('/app')
-    back() // now at the root: nothing happens except the notice
+    expect(back()).toBe(false) // now at the root
     expect(shown()).toEqual(['home'])
   })
 
@@ -127,17 +112,6 @@ describe('Back', () => {
     expect(shown()).toEqual(['plan']) // the first press only closed the sheet
     back()
     expect(shown()).toEqual(['home'])
-  })
-
-  it('also works through the shared handler the Android hardware back key uses', () => {
-    renderApp()
-    go('Me')
-    let handled
-    act(() => { handled = runBack() })
-    expect(handled).toBe(true)
-    expect(shown()).toEqual(['home'])
-    act(() => { handled = runBack() })
-    expect(handled).toBe(false) // root: the native layer may then exit the app
   })
 
   it('follows the browser back button too (same history)', () => {
@@ -158,98 +132,6 @@ describe('Back', () => {
   })
 })
 
-describe('Home', () => {
-  it('jumps to the main screen from any depth', () => {
-    renderApp()
-    go('Plan'); go('Explore'); go('Help'); go('Me')
-    home()
-    expect(shown()).toEqual(['home'])
-    expect(url()).toBe('/app')
-    back() // the trail is still there: Home is a step, not a reset
-    expect(shown()).toEqual(['me'])
-  })
-
-  it('closes sheets and panels but keeps an active SOS and the session', () => {
-    mockData.sosSent = { incident_id: 9 }
-    renderApp()
-    go('Help')
-    fireEvent.click(screen.getByText(/Add details before sending/))
-    recents()
-    expect(screen.getByTestId('recents-panel')).toBeInTheDocument()
-    home()
-    expect(screen.queryByTestId('recents-panel')).toBeNull()
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(shown()).toEqual(['home'])
-    expect(screen.getByTestId('emergency-active')).toBeInTheDocument() // emergency untouched
-    expect(mockData.sendSOS).not.toHaveBeenCalled()
-  })
-
-  it('on Home already: just clears overlays and scrolls to the top', () => {
-    renderApp()
-    const spy = vi.spyOn(window, 'scrollTo')
-    home()
-    expect(spy).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
-    expect(shown()).toEqual(['home'])
-    expect(url()).toBe('/app')
-  })
-})
-
-describe('Recent screens', () => {
-  it('lists each visited screen once, newest first, and marks the current one', () => {
-    renderApp()
-    go('Plan'); go('Explore'); go('Plan'); go('Help')
-    recents()
-    const items = screen.getAllByTestId(/^recent-/).map((e) => e.getAttribute('data-testid'))
-    expect(items).toEqual(['recent-help', 'recent-plan', 'recent-explore', 'recent-home'])
-    expect(screen.getByTestId('recent-help')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByTestId('recent-help')).toHaveTextContent('Current screen')
-  })
-
-  it('shows names and icons, and tapping one opens it and closes the panel', () => {
-    renderApp()
-    go('Plan'); go('Explore')
-    recents()
-    expect(screen.getByTestId('recent-plan')).toHaveTextContent('Plan')
-    expect(screen.getByTestId('recent-plan')).toHaveTextContent('🧭')
-    fireEvent.click(screen.getByTestId('recent-plan'))
-    expect(screen.queryByTestId('recents-panel')).toBeNull()
-    expect(shown()).toEqual(['plan'])
-    expect(url()).toBe('/app?tab=plan')
-    back() // the jump is a real history step
-    expect(shown()).toEqual(['explore'])
-  })
-
-  it('can be closed with ×, the backdrop, Escape, the button again, or Back', () => {
-    renderApp()
-    go('Me')
-    const open = () => { recents(); expect(screen.getByTestId('recents-panel')).toBeInTheDocument() }
-    const closed = () => expect(screen.queryByTestId('recents-panel')).toBeNull()
-    open(); fireEvent.click(screen.getByTestId('recents-close')); closed()
-    open(); fireEvent.click(screen.getByTestId('recents-backdrop')); closed()
-    open(); fireEvent.keyDown(document, { key: 'Escape' }); closed()
-    open(); recents(); closed()
-    open(); back(); closed()
-    expect(shown()).toEqual(['me']) // closing never navigated anywhere
-  })
-
-  it('survives a refresh within the session and never lists an unknown screen', () => {
-    sessionStorage.setItem('musafir.nav.recents.1', JSON.stringify([{ tab: 'help', at: Date.now() }, { tab: 'secret-admin', at: 1 }]))
-    renderApp('/app?tab=plan')
-    recents()
-    const items = screen.getAllByTestId(/^recent-/).map((e) => e.getAttribute('data-testid'))
-    expect(items).toEqual(['recent-plan', 'recent-help']) // current first, then remembered; junk ignored
-    expect(readRecents(1).map((r) => r.tab)).toContain('plan')
-  })
-
-  it('is wiped on logout so the next person never sees it', () => {
-    renderApp()
-    go('Plan')
-    expect(readRecents(1).length).toBeGreaterThan(0)
-    clearNavSession()
-    expect(readRecents(1)).toEqual([])
-  })
-})
-
 describe('direct URLs and refresh', () => {
   it.each([['plan'], ['explore'], ['help'], ['me']])('opens /app?tab=%s directly', (t) => {
     renderApp(`/app?tab=${t}`)
@@ -261,7 +143,7 @@ describe('direct URLs and refresh', () => {
     expect(shown()).toEqual(['home'])
   })
 
-  it('the bar keeps working after landing on a deep link', () => {
+  it('Back still works after landing on a deep link', () => {
     renderApp('/app?tab=me')
     go('Plan')
     back()
@@ -273,11 +155,9 @@ describe('overlay bus', () => {
   it('closeAllOverlays closes every registered panel and nothing else', () => {
     renderApp()
     go('Plan')
-    recents()
     fireEvent.click(screen.getByText(/Add details before sending/))
     expect(screen.getByRole('dialog', { name: /describe|SOS|details/i })).toBeInTheDocument()
     act(() => closeAllOverlays())
-    expect(screen.queryByTestId('recents-panel')).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(shown()).toEqual(['plan'])
   })
