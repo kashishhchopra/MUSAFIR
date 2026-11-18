@@ -44,6 +44,8 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Voice translator speech-to-text (runtime prompt, asked when the feature is used). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Capacitor requests this together with RECORD_AUDIO for any WebView audio capture. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <!-- Android 11+ package visibility: without these the app cannot see the

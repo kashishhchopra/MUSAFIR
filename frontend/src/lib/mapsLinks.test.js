@@ -1,4 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const env = vi.hoisted(() => ({ native: false }))
+vi.mock('./platform', () => ({ isNativeApp: () => env.native }))
+
 import { placeUrl, directionsUrl, openDirections } from './mapsLinks'
 
 describe('mapsLinks', () => {
@@ -24,14 +28,33 @@ describe('mapsLinks', () => {
     expect(u.searchParams.get('travelmode')).toBe('driving')
   })
 
-  it('falls back to same-window navigation when popups are blocked', () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
-    const loc = window.location
-    delete window.location
-    window.location = { href: '' }
-    openDirections({ destination: { lat: 5, lng: 6 } })
-    expect(window.location.href).toContain('google.com/maps/dir')
-    window.location = loc
-    open.mockRestore()
+  describe('opening a link', () => {
+    let assign
+    beforeEach(() => {
+      env.native = false
+      assign = vi.fn()
+      vi.spyOn(window, 'location', 'get').mockReturnValue({ assign, href: '' })
+    })
+
+    it('opens a new tab in the browser and does not navigate the app away', () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue({})
+      openDirections({ destination: { lat: 5, lng: 6 } })
+      expect(open).toHaveBeenCalledWith(expect.stringContaining('google.com/maps/dir'), '_blank')
+      expect(assign).not.toHaveBeenCalled()
+    })
+
+    it('falls back to same-tab navigation only when the popup was really blocked', () => {
+      vi.spyOn(window, 'open').mockReturnValue(null)
+      openDirections({ destination: { lat: 5, lng: 6 } })
+      expect(assign).toHaveBeenCalledWith(expect.stringContaining('google.com/maps/dir'))
+    })
+
+    it('in the Android app hands the URL to the system via navigation (Maps app opens), never window.open', () => {
+      env.native = true
+      const open = vi.spyOn(window, 'open')
+      openDirections({ destination: { lat: 5, lng: 6 } })
+      expect(open).not.toHaveBeenCalled()
+      expect(assign).toHaveBeenCalledWith(expect.stringContaining('google.com/maps/dir'))
+    })
   })
 })

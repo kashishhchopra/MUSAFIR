@@ -2,6 +2,8 @@
 // these links -- on Android the Maps app opens directly). Plain universal
 // links: no API key, work in the browser and inside the Capacitor WebView.
 
+import { isNativeApp } from './platform'
+
 const GOOGLE_MODE = { driving: 'driving', walking: 'walking', bicycling: 'bicycling', transit: 'transit' }
 const fmt = (p) => `${p.lat},${p.lng}`
 
@@ -23,10 +25,21 @@ export function directionsUrl({ origin, destination, stops = [], mode = 'driving
 }
 
 export function openUrl(url) {
-  // _blank hands the link to the system (Maps app on Android) instead of
-  // navigating the app's own WebView away from the UI.
-  const w = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!w) window.location.href = url
+  // In the Android app, navigating to an off-origin URL is intercepted by
+  // Capacitor and handed to the system (ACTION_VIEW) -- the Maps app opens and
+  // our WebView stays where it is. window.open is not wired up there.
+  if (isNativeApp()) {
+    window.location.assign(url)
+    return
+  }
+  // Browser: a new tab. (No 'noopener' feature -- it makes window.open return
+  // null even on success, which would look like a blocked popup.)
+  const w = window.open(url, '_blank')
+  if (w) {
+    try { w.opener = null } catch { /* cross-origin proxy -- nothing to do */ }
+  } else {
+    window.location.assign(url) // popup blocked: fall back to same-tab navigation
+  }
 }
 
 export const openPlace = (p) => openUrl(placeUrl(p))

@@ -49,3 +49,37 @@ def test_search_endpoint(client, tourist_headers):
     r = client.get("/api/maps/search", params={"q": "taj mahal"}, headers=tourist_headers)
     assert r.status_code == 200 and r.json()["results"][0]["lat"] == 27.1751
     assert client.get("/api/maps/search", params={"q": "  "}, headers=tourist_headers).status_code == 422
+
+
+def test_trip_legs_keep_order_when_fetched_concurrently(monkeypatch):
+    calls = []
+
+    def fake(a, b, c, d, mode="driving"):
+        calls.append((a, b))
+        return {"distance_km": float(c), "duration_min": float(d), "demo": False, "geometry": None}
+
+    monkeypatch.setattr(maps, "directions", fake)
+    pts = [(0.0, 0.0), (1.0, 10.0), (2.0, 20.0), (3.0, 30.0), (4.0, 40.0), (5.0, 50.0)]
+    trip = maps.trip_legs(pts, "walking")
+    assert [leg["distance_km"] for leg in trip["legs"]] == [1.0, 2.0, 3.0, 4.0, 5.0]  # order preserved
+    assert trip["total_distance_km"] == 15.0
+    assert sorted(calls) == sorted(pts[:-1])
+
+
+def test_osrm_results_are_cached_and_failures_are_not(monkeypatch):
+    maps.clear_route_cache()
+    n = {"calls": 0}
+    good = {"distance_km": 1.0, "duration_min": 2.0, "demo": False, "steps": None, "provider": "osrm", "geometry": [[0, 0]]}
+
+    def uncached(*a, **k):
+        n["calls"] += 1
+        return good if n["calls"] != 1 else None  # first call fails
+
+    monkeypatch.setattr(maps, "_osrm_route_uncached", uncached)
+    assert maps._osrm_route(1, 2, 3, 4, "driving") is None     # failure
+    assert maps._osrm_route(1, 2, 3, 4, "driving") == good     # retried (not cached), now succeeds
+    assert maps._osrm_route(1, 2, 3, 4, "driving") == good     # served from cache
+    assert n["calls"] == 2
+    assert maps._osrm_route(1, 2, 3, 4, "walking") == good     # different mode = different key
+    assert n["calls"] == 3
+    maps.clear_route_cache()

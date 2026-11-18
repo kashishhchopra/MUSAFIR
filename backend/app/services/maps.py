@@ -17,6 +17,7 @@ import logging
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
@@ -196,7 +197,38 @@ def available_modes() -> list[str]:
     return modes
 
 
+# Short-lived cache of routed answers: the same leg is asked repeatedly (editing
+# an itinerary re-times the same stops, several tourists plan the same landmarks)
+# and the free public OSRM servers ask clients to be gentle. Only successes are
+# cached; coordinates are rounded to ~1 m so a GPS jitter doesn't defeat it.
+_ROUTE_CACHE_TTL_S = 300
+_ROUTE_CACHE_MAX = 500
+_route_cache: dict[tuple, tuple[float, dict]] = {}
+_route_cache_lock = threading.Lock()
+
+
 def _osrm_route(olat, olng, dlat, dlng, mode: str) -> dict | None:
+    key = (round(olat, 5), round(olng, 5), round(dlat, 5), round(dlng, 5), mode)
+    now = time.monotonic()
+    with _route_cache_lock:
+        hit = _route_cache.get(key)
+        if hit and hit[0] > now:
+            return dict(hit[1])
+    result = _osrm_route_uncached(olat, olng, dlat, dlng, mode)
+    if result:
+        with _route_cache_lock:
+            if len(_route_cache) >= _ROUTE_CACHE_MAX:
+                _route_cache.clear()
+            _route_cache[key] = (now + _ROUTE_CACHE_TTL_S, result)
+    return result
+
+
+def clear_route_cache() -> None:
+    with _route_cache_lock:
+        _route_cache.clear()
+
+
+def _osrm_route_uncached(olat, olng, dlat, dlng, mode: str) -> dict | None:
     """Real road/footpath routing via the free OSRM instances run by
     routing.openstreetmap.de (no key). Returns distance, duration, the full
     route geometry and turn-by-turn steps, or None on any failure."""
@@ -291,13 +323,16 @@ def directions(
 def trip_legs(points: list[tuple[float, float]], mode: str = "driving") -> dict:
     """Leg-by-leg distance/time through an ordered list of (lat, lng) stops,
     plus totals. `demo` is True if ANY leg fell back to an estimate."""
-    legs = []
-    for a, b in zip(points, points[1:], strict=False):
-        d = directions(a[0], a[1], b[0], b[1], mode)
-        legs.append({
-            "distance_km": d["distance_km"], "duration_min": d["duration_min"],
-            "demo": d["demo"], "geometry": d.get("geometry"),
-        })
+    pairs = list(zip(points, points[1:], strict=False))
+    # Legs are independent -- fetch them concurrently (a 15-stop trip would
+    # otherwise take 14 round-trips in sequence). map() preserves leg order.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda ab: directions(ab[0][0], ab[0][1], ab[1][0], ab[1][1], mode), pairs))
+    legs = [
+        {"distance_km": d["distance_km"], "duration_min": d["duration_min"],
+         "demo": d["demo"], "geometry": d.get("geometry")}
+        for d in results
+    ]
     return {
         "mode": mode, "legs": legs,
         "total_distance_km": round(sum(x["distance_km"] for x in legs), 2),
