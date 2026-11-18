@@ -184,6 +184,9 @@ class Settings(BaseSettings):
     # endpoint that fails is skipped for a couple of minutes. For real traffic run
     # your own Overpass and put it first.
     OVERPASS_API_URLS: str = "https://overpass.private.coffee/api/interpreter"
+    # Nearby (hospital / pharmacy / police / transport) lookups, same free OSM services.
+    NEARBY_LIVE_ENABLED: bool = True
+    NEARBY_CACHE_TTL_SECONDS: int = 1800
     # The public instance is shared/rate-limited and can be slow; a request
     # here blocks the Discovery API call, so this is a real timeout, not
     # a knob to raise indefinitely -- a slow response falls back to the

@@ -17,6 +17,7 @@ from app.api import (
     devices,
     disaster,
     discovery,
+    nearby,
     emergency,
     etiquette,
     evaluation,
@@ -289,6 +290,7 @@ app.include_router(anchor.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(trip_planner.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(crowd_forecast.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(discovery.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(nearby.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(festivals.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(permits.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(safety_reports.router, prefix=PREFIX, dependencies=_rl)

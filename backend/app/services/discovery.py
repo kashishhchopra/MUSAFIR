@@ -19,7 +19,6 @@ Overpass endpoint is skipped for a couple of minutes, and a stale copy is served
 from __future__ import annotations
 
 import logging
-import math
 import threading
 import time
 
@@ -28,23 +27,18 @@ import httpx
 from app.core.config import settings
 from app.core.time import utc_now
 from app.services import discovery_tags as tags_mod
-from app.services import maps
+from app.services import maps, osm_source
 from app.services.geo import haversine_m
+from app.services.osm_source import ProviderError
 
 logger = logging.getLogger(__name__)
 
 DISCOVERY_CATEGORIES = tags_mod.CATEGORIES
 MAX_RADIUS_KM = 50.0
 _RESULT_CAP = 200          # places returned per request
-_RAW_CAP = 1500            # Overpass elements read per category (it does not sort by distance)
 _STALE_OK_S = 24 * 3600
-_ENDPOINT_DOWN_S = 120
 _NOMINATIM_LIMIT = 40
 _NOMINATIM_BUDGET_S = 30.0
-
-
-class ProviderError(Exception):
-    """One data source could not answer."""
 
 
 class DiscoveryUnavailable(Exception):
@@ -53,15 +47,14 @@ class DiscoveryUnavailable(Exception):
 
 _lock = threading.Lock()
 _cache: dict[tuple, dict] = {}            # key -> {places, provider, at}
-_down_until: dict[str, float] = {}        # overpass endpoint -> monotonic time it may be retried
 _indoor_cache: dict[tuple, tuple[list[dict], float]] = {}
 
 
 def clear_cache() -> None:
     with _lock:
         _cache.clear()
-        _down_until.clear()
         _indoor_cache.clear()
+    osm_source.reset()
     maps.clear_suggest_cache()
 
 
@@ -70,48 +63,12 @@ def _enabled() -> bool:
 
 
 # ------------------------------------------------------------------ Overpass
-def _endpoints() -> list[str]:
-    urls = [settings.OVERPASS_API_URL] + [u.strip() for u in (settings.OVERPASS_API_URLS or "").split(",")]
-    seen: list[str] = []
-    for u in urls:
-        if u and u not in seen:
-            seen.append(u)
-    return seen
-
-
 def _overpass_post(query: str) -> list[dict]:
-    """Run a query on the first healthy endpoint. An endpoint that errors or times
-    out is skipped for _ENDPOINT_DOWN_S so one overloaded server cannot slow every
-    request. Raises ProviderError when none answers."""
-    now = time.monotonic()
-    errors: list[str] = []
-    tried = 0
-    for url in _endpoints():
-        if _down_until.get(url, 0) > now:
-            errors.append(f"{url}: skipped (recently failed)")
-            continue
-        # The first healthy-looking endpoint gets the full time; a second one is only a
-        # short extra try, so a dead pair cannot hold the request up for long.
-        read = settings.OVERPASS_TIMEOUT_SECONDS if tried == 0 else 5.0
-        tried += 1
-        try:
-            resp = httpx.post(
-                url, data={"data": query}, timeout=httpx.Timeout(read, connect=4.0),
-                headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place discovery)"},
-            )
-            resp.raise_for_status()
-            return resp.json().get("elements", [])
-        except (httpx.HTTPError, ValueError) as e:
-            _down_until[url] = time.monotonic() + _ENDPOINT_DOWN_S
-            errors.append(f"{url}: {type(e).__name__}")
-            logger.warning("Overpass endpoint %s failed: %s", url, e)
-    raise ProviderError("Overpass unavailable (" + "; ".join(errors) + ")")
+    return osm_source.overpass_post(query)
 
 
 def _overpass_query(category: str, lat: float, lng: float, radius_km: float) -> str:
-    around = f"(around:{int(radius_km * 1000)},{lat:.6f},{lng:.6f})"
-    body = "\n".join(f"  nwr{sel}{around};" for sel in tags_mod.OVERPASS_SELECTORS[category])
-    return f"[out:json][timeout:{int(settings.OVERPASS_TIMEOUT_SECONDS)}];\n(\n{body}\n);\nout center tags {_RAW_CAP};"
+    return osm_source.overpass_query(tags_mod.OVERPASS_SELECTORS[category], lat, lng, radius_km)
 
 
 def _overpass_places(category: str, lat: float, lng: float, radius_km: float) -> list[dict]:
@@ -125,17 +82,9 @@ def _overpass_places(category: str, lat: float, lng: float, radius_km: float) ->
 
 
 # ----------------------------------------------------------------- Nominatim
-def _bbox(lat: float, lng: float, radius_km: float) -> str:
-    dlat = radius_km / 111.0
-    dlng = radius_km / (111.0 * max(0.05, math.cos(math.radians(lat))))
-    return f"{lng - dlng:.6f},{lat + dlat:.6f},{lng + dlng:.6f},{lat - dlat:.6f}"  # left,top,right,bottom
-
-
 def _nominatim_places(category: str, lat: float, lng: float, radius_km: float) -> list[dict]:
     """Category searches in the bounding box. If the very first request fails the
     source is unavailable; once some answered, a later failure just yields fewer places."""
-    url = settings.NOMINATIM_URL
-    box = _bbox(lat, lng, radius_km)
     started = time.monotonic()
     out: list[dict] = []
     answered = 0
@@ -143,10 +92,7 @@ def _nominatim_places(category: str, lat: float, lng: float, radius_km: float) -
         if time.monotonic() - started > _NOMINATIM_BUDGET_S:
             break
         try:
-            rows = maps.nominatim_request(url, {
-                "q": q, "format": "jsonv2", "viewbox": box, "bounded": 1, "limit": _NOMINATIM_LIMIT,
-                "addressdetails": 0, "extratags": 1, "accept-language": "en",
-            }, timeout=10.0)
+            rows = osm_source.nominatim_rows(q, lat, lng, radius_km, _NOMINATIM_LIMIT)
         except (httpx.HTTPError, ValueError) as e:
             logger.warning("Nominatim category search %s failed: %s", q, e)
             if not answered:
@@ -154,13 +100,8 @@ def _nominatim_places(category: str, lat: float, lng: float, radius_km: float) -
             continue
         answered += 1
         for r in rows:
-            tags = dict(r.get("extratags") or {})
-            if r.get("category") and r.get("type"):
-                tags.setdefault(r["category"], r["type"])
-            tags["name"] = r.get("name") or tags.get("name") or ""
-            disp = r.get("display_name", "")
-            hint = ", ".join(disp.split(", ")[1:4]) or None  # area after the name; from OSM's own display name
-            p = tags_mod.build_place(r.get("osm_type", "node"), r.get("osm_id"), r.get("lat"), r.get("lon"), tags, hint)
+            p = tags_mod.build_place(r.get("osm_type", "node"), r.get("osm_id"), r.get("lat"), r.get("lon"),
+                                     osm_source.row_to_tags(r), osm_source.row_area_hint(r))
             if p and p["category"] == category:
                 out.append(p)
     return out
@@ -186,7 +127,8 @@ def _dedupe(places: list[dict]) -> list[dict]:
 
 
 def _cache_key(category: str, lat: float, lng: float, radius_km: float) -> tuple:
-    return (category, round(lat, 2), round(lng, 2), radius_km)
+    n = osm_source.cache_precision(radius_km)
+    return (category, round(lat, n), round(lng, n), radius_km)
 
 
 def _category_places(category: str, lat: float, lng: float, radius_km: float, refresh: bool) -> dict:
