@@ -41,7 +41,8 @@ export default function FairPriceCard({ touristId }) {
   }
   useEffect(load, [touristId])
 
-  const ready = loc.status === LOCATION_STATUS.OK && destination && Number(quotedFare) > 0
+  // A fare check needs where the tourist is NOW: a remembered or approximate position is not enough.
+  const ready = loc.status === LOCATION_STATUS.OK && !loc.stale && loc.source === 'gps' && destination && Number(quotedFare) > 0
 
   const submit = async (e) => {
     e.preventDefault()

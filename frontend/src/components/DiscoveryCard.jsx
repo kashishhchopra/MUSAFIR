@@ -76,7 +76,7 @@ export default function DiscoveryCard() {
   const nextRadius = RADII.find((r) => r > prefs.radius)
 
   const directions = (p) => openDirections({
-    origin: gps || undefined, // a typed location is not where the tourist is standing: let Maps use the live position
+    origin: gps?.precise ? gps : undefined, // a typed location is not where the tourist is standing: let Maps use the live position
     destination: p, mode: p.distance_km <= 2 ? 'walking' : 'driving',
   })
   const showOnMap = (p) => { setPref('view', 'map'); setSelectedId(p.id) }

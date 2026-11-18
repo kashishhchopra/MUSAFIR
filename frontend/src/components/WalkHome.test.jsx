@@ -303,11 +303,13 @@ describe('Walk-Me-Home — setup', () => {
     const btn = screen.getByTestId('wh-detect')
     expect(btn).not.toBeDisabled()
     expect(screen.getByText(/choose Allow/i)).toBeInTheDocument()
-    fireEvent.click(btn) // retry while pending is allowed
-    expect(geo.getCurrentPosition.mock.calls.length).toBe(2)
+    fireEvent.click(btn) // tapping again while a request is pending shares it (the app asks the device once)
+    expect(geo.getCurrentPosition.mock.calls.length).toBe(1)
     await advance(14_000) // 10 s browser timeout + 3 s watchdog
     expect(screen.getByText(/took too long/i)).toBeInTheDocument()
     expect(screen.getByTestId('wh-detect')).not.toBeDisabled()
+    fireEvent.click(screen.getByTestId('wh-detect')) // once it has given up, tapping asks again
+    expect(geo.getCurrentPosition.mock.calls.length).toBe(2)
   })
 
   it('does not show the time picker while the location is still being found', async () => {

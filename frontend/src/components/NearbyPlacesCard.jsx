@@ -100,7 +100,7 @@ export default function NearbyPlacesCard() {
       .catch(() => setRoutes((r) => ({ ...r, [p.id]: { status: 'error', mode } })))
   }
   const directions = (p) => openDirections({
-    origin: gps || undefined, // a typed place is not where the tourist is standing: let Maps use the live position
+    origin: gps?.precise ? gps : undefined, // a typed place is not where the tourist is standing: let Maps use the live position
     destination: p, mode: p.distance_km <= 2 ? 'walking' : 'driving',
   })
   const showOnMap = (p) => { setPref('view', 'map'); setSelectedId(p.id) }

@@ -237,3 +237,22 @@ tests. **Live** (real weather + OSM, Delhi / Tokyo / Sydney / Paris / Manali): c
 **Limits:** it is an estimate, not a count; the busyness ceiling and the factor weights are modelling choices, not calibrated against real footfall. **Public holidays need one optional
 package:** the code uses the open-source `python-holidays` library if installed (covers India and ~200 countries, no key) and otherwise the Calendarific-key service; with neither, the card
 states that holidays are not factored in. Install with `pip install holidays` and add it to `requirements.txt`. The old per-zone endpoints (`/crowd/forecast`, queue estimates) remain on the server but the app no longer uses them.
+
+---
+
+## Addendum: "Translation is unavailable" and endless "Getting your location…"
+
+**Translation.** The only free fallback was MyMemory, which is a crowd-sourced phrase *memory*, not a translator. For many sentences (e.g. "I want to buy this item", English to Hindi,
+with the source language given, as the voice translator does) it has no machine translation and returns a poor transliteration ("mai ye nahe chahta hun", match 0.9). The code rightly refuses such guesses, so
+the user saw "unavailable". Fix: a source chain -- official Google key -> your own LibreTranslate (`LIBRETRANSLATE_URL`) -> MyMemory (trusted entries only) -> Google's public web endpoint -> honest "unavailable"
+(the answer reports its `provider`). The public Lingva and LibreTranslate servers were tested and are unusable (down / key required). **The web endpoint is unofficial** (no guarantee, may be rate-limited or blocked, terms are for
+Google's own apps): it is on by default for development/demos and switched off with `TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE=false`; production should use the key or a LibreTranslate server. Also fixed: its parser would have shown "n" for a malformed answer.
+
+**Location.** Every card (Nearby, Discovery, Crowd, Fair Price, itinerary, Walk-Me-Home...) asked the browser for the position on its own, all at once, each with its own spinner; a slow or unanswered request
+left them all spinning. Now `lib/deviceLocation.js` is the single place that asks: one shared request for the whole app, started when the app opens; the last good position is remembered on the device (6 h), so after the
+first success every screen has a position *instantly*, labelled "last known (age) -- updating" until the live fix replaces it; an unanswered request gives up after 13 s (a late answer, e.g. after clicking Allow, is still
+accepted; granting permission later fetches the position by itself); a wait longer than 4 s explains why (waiting for the permission pop-up vs. the computer not answering -- with the macOS Location Services path) and offers an
+**approximate, city-level location** from the internet connection (free keyless services; this sends the user's IP address to them, so it runs only when the user taps the button, is labelled approximate and is never cached).
+Refused permission is respected: the remembered position is dropped and no workaround is offered. Fair Price still requires a fresh GPS fix; directions to Maps only pass a precise fix as the start.
+**Tested:** 25 + 14 new frontend tests (shared request, instant start, stale/refresh, watchdog, late answer, permission change, approximate, every message) + 14 backend provider-chain tests; live check of the new translation fallback.
+**Not verified:** on a real phone / the user's own Mac -- whether the OS answers is outside the app's control; the approximate option exists for exactly that case.

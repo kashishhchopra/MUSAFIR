@@ -9,6 +9,7 @@ import SystemNavBar from '../../components/SystemNavBar.jsx'
 import RecentScreensPanel from '../../components/RecentScreensPanel.jsx'
 import useTouristNav from '../../hooks/useTouristNav.js'
 import { registerBack, runBack } from '../../lib/navBus'
+import { startDeviceLocation } from '../../lib/deviceLocation'
 import HomeTab from './tabs/HomeTab.jsx'
 import PlanTab from './tabs/PlanTab.jsx'
 import ExploreTab from './tabs/ExploreTab.jsx'
@@ -38,6 +39,9 @@ export default function TouristApp() {
   // The current screen lives in the URL (/app?tab=plan), so browser Back, refresh and
   // deep links work; useTouristNav adds the in-app history and the recent-screens list.
   const nav = useTouristNav(tid)
+  // Ask the device where it is as soon as the app opens, so every location-based screen already has
+  // the answer (or a remembered last position) when it is first shown.
+  useEffect(() => { startDeviceLocation() }, [])
   const activeTab = nav.tab
   const setActiveTab = nav.goTab
   const [recentsOpen, setRecentsOpen] = useState(false)
