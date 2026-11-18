@@ -45,7 +45,11 @@ export function getCurrentFix({ timeout = 8_000, maximumAge = 60_000 } = {}) {
   })
 }
 
-export default function useCurrentLocation({ auto = false } = {}) {
+// `quick`: desktop-friendly fix -- network/Wi-Fi accuracy is fine for a route start,
+// so do not insist on GPS hardware (which a laptop does not have and which makes the
+// browser hang), and give up after 10 s so the caller can offer another way.
+export default function useCurrentLocation({ auto = false, quick = false } = {}) {
+  const options = quick ? { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 } : OPTIONS
   const [status, setStatus] = useState(LOCATION_STATUS.IDLE)
   const [position, setPosition] = useState(null) // {lat, lng, accuracy, timestamp}
   const mounted = useRef(true)
@@ -71,10 +75,10 @@ export default function useCurrentLocation({ auto = false } = {}) {
           if (mounted.current) setStatus(statusFromError(err))
           resolve(null)
         },
-        OPTIONS,
+        options,
       )
     })
-  }, [])
+  }, [quick])
 
   useEffect(() => {
     if (auto) request()

@@ -120,7 +120,7 @@ export const WALK_HOME_STRINGS_EN = {
   route_failed: 'We could not calculate the route ({{why}}). Set the time yourself below, or try again.',
   route_need_destination: 'Choose a destination to see the route and time.',
   route_need_location: 'We could not get your location, so search the place you are starting from below and the time is calculated from there.',
-  route_need_start: 'Waiting for your starting point — allow location, or search where you are starting from.',
+  route_need_start: 'Choose where you are starting from (or wait for your location) so the time can be calculated.',
   start_from: 'Starting from',
   start_search_ph: 'Search your starting place…',
   start_elsewhere: 'Starting from somewhere else?',

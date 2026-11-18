@@ -276,7 +276,10 @@ describe('Walk-Me-Home — setup', () => {
     expect(screen.getByText('Review journey')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Review journey'))
     expect(screen.queryByTestId('wh-review')).toBeNull() // blocked until a start point exists
-    expect(screen.getByRole('alert')).toHaveTextContent(/starting point/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/where you are starting from/i)
+    // a start box is offered straight away -- the traveller is never stuck waiting on GPS
+    expect(screen.getByTestId('wh-start-picker')).toBeInTheDocument()
+    expect(screen.queryByText('Calculating route…')).toBeNull()
   })
 
   it('labels a straight-line estimate as one', async () => {

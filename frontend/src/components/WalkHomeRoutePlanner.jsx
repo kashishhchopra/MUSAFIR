@@ -34,7 +34,7 @@ export function thin(path, max = 400) {
 // travel mode changes. `onPlan` receives the current state of all of that.
 export default function WalkHomeRoutePlanner({ config, onPlan }) {
   const { t } = useTranslation()
-  const loc = useCurrentLocation()
+  const loc = useCurrentLocation({ quick: true })
   const [dest, setDest] = useState(null)
   const [mode, setMode] = useState('walking')
   const [modes, setModes] = useState(['walking', 'bicycling', 'driving'])
@@ -76,7 +76,7 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
 
       {!startPlace && <LocationStatus loc={loc} />}
 
-      {dest && (gpsFailed || pickStart || startPlace) && (
+      {dest && (!loc.position || pickStart || startPlace) && (
         <div data-testid="wh-start-picker">
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
             {t('walk_home.start_from')}
@@ -109,13 +109,10 @@ export default function WalkHomeRoutePlanner({ config, onPlan }) {
             ))}
           </div>
 
-          {!here && loc.status !== 'locating' && (
+          {!here && gpsFailed && (
             <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="wh-need-location">
               {t('walk_home.route_need_location')}
             </p>
-          )}
-          {!here && loc.status === 'locating' && (
-            <p className="text-xs text-slate-500" role="status">{t('walk_home.route_loading')}</p>
           )}
           {state === 'loading' && (
             <p className="text-xs text-slate-500" role="status">{t('walk_home.route_loading')}</p>
