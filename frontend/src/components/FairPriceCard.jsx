@@ -96,7 +96,9 @@ export default function FairPriceCard({ touristId }) {
             <option key={tt} value={tt}>{TRANSPORT_ICON[tt]} {t(`fair_price.transport_${tt}`, tt.replace(/_/g, ' '))}</option>
           ))}
         </select>
-        <PlaceSearch selected={destination} onSelect={setDestination}
+        {/* Suggestions appear while typing, ranked towards where the tourist is; any place worldwide works. */}
+        <PlaceSearch autocomplete selected={destination} onSelect={setDestination}
+          near={loc.position ? { lat: loc.position.lat, lng: loc.position.lng } : null}
           placeholder={t('fair_price.destination_placeholder')} />
         <input type="number" min="1" step="1" value={quotedFare} onChange={(e) => setQuotedFare(e.target.value)}
           placeholder={t('fair_price.quoted_fare_placeholder')}

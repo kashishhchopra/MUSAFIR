@@ -26,6 +26,7 @@ beforeEach(() => {
   mock.onGet('/fare/transport-types').reply(200, ['auto_rickshaw', 'taxi'])
   mock.onGet('/tourists/1/fare-checks').reply(200, [])
   mock.onGet('/maps/search').reply(200, { results: [{ name: 'Taj Mahal, Agra', lat: 27.1751, lng: 78.0421, demo: false }] })
+  mock.onGet('/maps/suggest').reply(200, { results: [{ name: 'Taj Mahal, Agra', lat: 27.1751, lng: 78.0421, demo: false }] })
   delete navigator.permissions
 })
 afterEach(() => vi.restoreAllMocks())
@@ -38,6 +39,31 @@ async function pickDestinationAndQuote(utils, quote = '150') {
 }
 
 describe('FairPriceCard destination search', () => {
+  it('suggests places while typing (after a pause), ranked towards the tourist, not only on Search', async () => {
+    mock.onGet('/maps/suggest').reply(200, { results: [{ name: 'The Leela, Ambience Island, Gurgaon, Haryana, India', lat: 28.506, lng: 77.096, demo: false }] })
+    stubGeo({ lat: 28.6082, lng: 77.0672 })
+    const utils = render(<FairPriceCard touristId={1} />)
+    fireEvent.click(utils.getByText(/Use my current location/))
+    await utils.findByText(/Using your live location/)
+    fireEvent.change(utils.getByLabelText('Destination (place name)'), { target: { value: 'leela ambience' } })
+    expect(await utils.findByText(/The Leela/, {}, { timeout: 2000 })).toBeInTheDocument()
+    const call = mock.history.get.find((c) => c.url === '/maps/suggest')
+    expect(call.params).toMatchObject({ q: 'leela ambience', lat: 28.6082, lng: 77.0672 })
+    expect(mock.history.get.some((c) => c.url === '/maps/search')).toBe(false) // no Search tap needed
+  })
+
+  it('the Search button sends the position too, so ranking is the same', async () => {
+    stubGeo({ lat: 28.6082, lng: 77.0672 })
+    const utils = render(<FairPriceCard touristId={1} />)
+    fireEvent.click(utils.getByText(/Use my current location/))
+    await utils.findByText(/Using your live location/)
+    fireEvent.change(utils.getByLabelText('Destination (place name)'), { target: { value: 'Taj Mahal' } })
+    fireEvent.click(utils.getByText('Search'))
+    await utils.findByText(/Taj Mahal/)
+    expect(mock.history.get.find((c) => c.url === '/maps/search').params).toMatchObject({ q: 'Taj Mahal', lat: 28.6082, lng: 77.0672 })
+  })
+
+
   it('has no form inside a form (that made the browser reload the page on Search)', () => {
     const { container } = render(<FairPriceCard touristId={1} />)
     expect(container.querySelectorAll('form form')).toHaveLength(0)

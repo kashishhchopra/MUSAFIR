@@ -62,7 +62,7 @@ export default function PlaceSearch({ selected, onSelect, placeholder, autocompl
     setMessage('')
     setResults([])
     try {
-      const found = await searchPlaces(query.trim())
+      const found = await searchPlaces(query.trim(), 5, near)
       if (!found.length) setMessage(NONE)
       setResults(found)
     } catch {

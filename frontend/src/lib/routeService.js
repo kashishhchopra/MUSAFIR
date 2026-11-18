@@ -5,8 +5,10 @@ import api from '../api'
 // carry `demo: true` when only a straight-line estimate was possible -- callers
 // must say so rather than present it as a road distance.
 
-export const searchPlaces = (q, limit = 5) =>
-  api.get('/maps/search', { params: { q, limit }, timeout: 12000 }).then((r) => r.data.results)
+export const searchPlaces = (q, limit = 5, near) =>
+  api.get('/maps/search', {
+    params: { q, limit, ...(near ? { lat: near.lat, lng: near.lng } : {}) }, timeout: 12000,
+  }).then((r) => r.data.results)
 
 // Live type-ahead: real suggestions for a partial name. `near` ({lat,lng}) only
 // biases ranking; `signal` lets the caller cancel a superseded request.

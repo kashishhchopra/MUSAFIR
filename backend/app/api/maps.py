@@ -27,12 +27,16 @@ def geocode_place(place: str, _: User = Depends(get_current_user)):
 
 
 @router.get("/search")
-def search_places(q: str, limit: int = 5, _: User = Depends(get_current_user)):
-    """Candidate matches for a place name, so the client can show a picker."""
+def search_places(q: str, limit: int = 5, lat: float | None = Query(None, ge=-90, le=90),
+                  lng: float | None = Query(None, ge=-180, le=180), _: User = Depends(get_current_user)):
+    """Candidate matches for a place name, so the client can show a picker. Uses the same engine as
+    /suggest (Photon -- partial names, typos, worldwide -- then Nominatim/Google), so a place that
+    one finds, the other finds. `lat`/`lng` (the user's position) only bias the ranking."""
     q = q.strip()
     if not q:
         raise HTTPException(status_code=422, detail="Enter a place name.")
-    return {"results": maps.search_places(q, max(1, min(limit, 10)))}
+    near = (lat, lng) if lat is not None and lng is not None else None
+    return {"results": maps.suggest_places(q, max(1, min(limit, 10)), near)}
 
 
 @router.get("/suggest")

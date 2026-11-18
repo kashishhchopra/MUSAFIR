@@ -267,3 +267,12 @@ because the simulated browser (jsdom) is lenient about nested forms. Reproduced 
 check the page did not reload).
 **Fix:** `PlaceSearch` is no longer a form (Enter and the button are handled explicitly), so it can never nest. A sweep of every tab in the real browser found no other nested form and no DOM-nesting warnings.
 **Tests:** 6 regression tests that fail on the old code and pass on the new (search box is never a form; button and Enter search without submitting an outer form; Fair Price has no form inside a form).
+
+---
+
+## Addendum: Fair Price "No matching place found" for "leela ambience"
+
+The plain `/api/maps/search` used strict Nominatim only (no typo/partial-name tolerance), while the type-ahead (`/api/maps/suggest`, Photon) found "The Leela, Ambience Island, Gurgaon" for the same words.
+Now `/search` uses the same engine as `/suggest` (Photon -> Nominatim/Google, cached), and accepts the user's position (`lat`/`lng`) purely to rank nearby matches first. The Fair Price destination box also
+suggests places while typing. Verified in a real Chrome against the live services: "leela ambience", "Starbucks Connaught Place", "IIT Bombay", "Rajiv Chowk metro", "Cubbon Park Bengaluru", "Louvre", "Shibuya Crossing",
+"Sydney Opera House" all return real places; a nonsense name still (correctly) returns "No matching place found". Tests: 1 backend + 2 frontend new.

@@ -103,3 +103,28 @@ def test_osrm_results_are_cached_and_failures_are_not(monkeypatch):
     assert maps._osrm_route(1, 2, 3, 4, "walking") == good     # different mode = different key
     assert n["calls"] == 3
     maps.clear_route_cache()
+
+
+# ---- the plain search uses the same engine as type-ahead (a place one finds, the other finds) ----
+def test_search_endpoint_finds_what_strict_geocoding_misses(client, tourist_headers, monkeypatch):
+    """"leela ambience" (sic) is not found by Nominatim but is by Photon; /search must use Photon too."""
+    maps.clear_suggest_cache()
+    monkeypatch.setattr(maps.settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(maps.settings, "PHOTON_URL", "http://photon.test/api/")
+    seen = {}
+
+    def photon(q, limit, near):
+        seen["near"] = near
+        return [{"name": "The Leela, Ambience Island, Gurgaon, Haryana, India", "lat": 28.506, "lng": 77.096, "demo": False}]
+    monkeypatch.setattr(maps, "_photon", photon)
+    monkeypatch.setattr(maps, "search_places", lambda q, limit=5: [])  # the strict search finds nothing
+    r = client.get("/api/maps/search", headers=tourist_headers, params={"q": "leela ambience", "lat": 28.6, "lng": 77.2})
+    assert r.status_code == 200
+    assert [p["name"] for p in r.json()["results"]] == ["The Leela, Ambience Island, Gurgaon, Haryana, India"]
+    assert seen["near"] == (28.6, 77.2)  # the user's position only biases the ranking
+    maps.clear_suggest_cache()
+
+
+def test_search_endpoint_validates_position_and_still_requires_a_query(client, tourist_headers):
+    assert client.get("/api/maps/search", headers=tourist_headers, params={"q": "x", "lat": 95, "lng": 0}).status_code == 422
+    assert client.get("/api/maps/search", headers=tourist_headers, params={"q": "  "}).status_code == 422
