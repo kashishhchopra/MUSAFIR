@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  addGuardian, cancelJourney, checkInJourney, endJourney, errorText, extendJourney,
+  addGuardian, cancelJourney, clearPlan, deleteJourneyHistory, loadPlan, removeGuardian, savePlan, updateGuardian, checkInJourney, endJourney, errorText, extendJourney,
   getActiveJourney, getWalkHomeConfig, isNetworkError, listGuardians, listJourneys,
   shareJourneyLocation, startJourney,
 } from '../lib/walkHomeService'
@@ -213,7 +213,7 @@ export default function useWalkHome({ tid }) {
     )
   })
 
-  const start = useCallback(async (form) => {
+  const start = useCallback(async (form, plan = null) => {
     if (busy) return null
     setBusy('start')
     setError(null)
@@ -223,6 +223,7 @@ export default function useWalkHome({ tid }) {
       const body = { ...form }
       if (here) { body.start_lat = here.lat; body.start_lng = here.lng }
       const j = await startJourney(tid, body)
+      if (plan) savePlan(j.id, plan)
       apply(j)
       return j
     } catch (e) {
@@ -244,27 +245,49 @@ export default function useWalkHome({ tid }) {
     if (!j) return null
     const out = await run(kind, () => (kind === 'end' ? endJourney : cancelJourney)(tid, j.id),
       kind === 'end' ? 'ended_ok' : 'ended_cancelled')
-    if (out) refreshHistory()
+    if (out) { clearPlan(j.id); refreshHistory() }
     return out
   }, [run, tid, refreshHistory])
   const end = useCallback(() => finish('end'), [finish])
   const cancel = useCallback(() => finish('cancel'), [finish])
 
-  const createGuardian = useCallback(async (name, contact) => {
+  // Contact changes return {ok, error} so the form can show the server's reason
+  // (invalid phone, already added...) right next to the field.
+  const contactCall = useCallback(async (fn) => {
     try {
-      const g = await addGuardian(tid, { guardian_name: name, guardian_contact: contact })
+      const g = await fn()
       await refreshGuardians()
-      return g
+      return { ok: true, guardian: g }
+    } catch (e) {
+      return { ok: false, error: msg(e, 'generic') || 'offline' }
+    }
+  }, [refreshGuardians])
+  const createGuardian = useCallback(
+    (name, contact) => contactCall(() => addGuardian(tid, { guardian_name: name, guardian_contact: contact })),
+    [contactCall, tid])
+  const editGuardian = useCallback(
+    (id, name, contact) => contactCall(() => updateGuardian(tid, id, { guardian_name: name, guardian_contact: contact })),
+    [contactCall, tid])
+  const deleteGuardian = useCallback((id) => contactCall(() => removeGuardian(tid, id)), [contactCall, tid])
+  const clearHistory = useCallback(async () => {
+    try {
+      await deleteJourneyHistory(tid)
+      setHistory([])
+      setNotice('history_deleted')
+      return true
     } catch (e) {
       setError(msg(e, 'generic') || 'offline')
-      return null
+      return false
     }
-  }, [tid, refreshGuardians])
+  }, [tid])
+  // Replace the stored route of the running journey (after "recalculate").
+  const updatePlan = useCallback((id, plan) => savePlan(id, plan), [])
 
   return {
     enabled: !!config?.enabled, config, loaded, journey, active, remaining, sharing,
     guardians, history, busy, error, notice, clearNotice: () => setNotice(null),
     clearError: () => setError(null),
-    start, checkIn, extend, end, cancel, createGuardian, refresh, refreshGuardians,
+    start, checkIn, extend, end, cancel, createGuardian, editGuardian, deleteGuardian, clearHistory,
+    updatePlan, loadPlan, refresh, refreshGuardians,
   }
 }

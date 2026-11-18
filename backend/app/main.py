@@ -17,6 +17,7 @@ from app.api import (
     devices,
     disaster,
     discovery,
+    nearby,
     emergency,
     etiquette,
     evaluation,
@@ -34,6 +35,7 @@ from app.api import (
     police_network,
     privacy,
     safety_reports,
+    saved_routes,
     simulation,
     tourist_id,
     tourists,
@@ -288,10 +290,12 @@ app.include_router(anchor.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(trip_planner.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(crowd_forecast.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(discovery.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(nearby.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(festivals.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(permits.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(safety_reports.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(fare.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(saved_routes.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(etiquette.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(currency.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(simulation.router, prefix=PREFIX, dependencies=_rl)

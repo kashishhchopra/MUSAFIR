@@ -27,6 +27,8 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("DISCOVERY_LIVE_ENABLED", "false")
 # Same for Open-Meteo live weather (services/weather.py): no network in tests.
 os.environ.setdefault("OPEN_METEO_ENABLED", "false")
+os.environ.setdefault("NEARBY_LIVE_ENABLED", "false")
+os.environ.setdefault("TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE", "false")
 # Hermetic notifications: a developer's real backend/.env (Twilio keys, an SMS
 # allowlist, NOTIFICATION_CHANNEL=twilio ...) must never leak into the tests,
 # or a test could text a real number / be silently blocked by the allowlist.

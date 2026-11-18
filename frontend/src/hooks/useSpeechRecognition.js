@@ -1,13 +1,28 @@
 import { useCallback, useRef, useState } from 'react'
 import { SpeechRecognition as NativeSpeech } from '@capacitor-community/speech-recognition'
 import { isNativeApp } from '../lib/platform'
+import { requestMicPermission } from '../lib/micPermission'
 
-// Thin wrapper over the Web Speech API for voice-driven emergency reporting.
-// Browser support is inconsistent (no Firefox, prefixed in Chrome/Safari), so
-// callers must check `supported` and fall back to a text input when false --
-// this is a progressive enhancement, never the only way to send an SOS.
-// Android WebView has no Web Speech API, so the app uses the phone's own
-// recognizer through a Capacitor plugin, behind the same interface.
+// Thin wrapper over speech recognition. In a browser it is the Web Speech API
+// (no Firefox; prefixed in Chrome/Safari); in the Android app it is the phone's
+// own recognizer through a Capacitor plugin, behind the same interface. Callers
+// must check `supported` and offer a typed fallback when false.
+//
+// `error` is the raw code; `errorKind` is what the UI should tell the user:
+//   permission | no-mic | network | no-speech | language | unavailable | failed
+// (null when there is no error).
+export function classifyError(code) {
+  const c = String(code || '').toLowerCase()
+  if (!c) return null
+  if (/not-?allowed|permission|denied|service-not-allowed/.test(c)) return 'permission'
+  if (/audio-capture|notfound|no.?mic|microphone/.test(c)) return 'no-mic'
+  if (/network|connection|timeout|server/.test(c)) return 'network'
+  if (/no-speech|no.?match|nomatch|didn't hear|speech.?timeout/.test(c)) return 'no-speech'
+  if (/language/.test(c)) return 'language'
+  if (/not.?available|unavailable|not.?supported|service-unavailable|recognizer/.test(c)) return 'unavailable'
+  return 'failed'
+}
+
 export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -24,6 +39,14 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   const startNative = useCallback(async () => {
     setListening(true)
     try {
+      // Android 11+ shows no recognizer if Google's speech service is missing/disabled.
+      let available = true
+      try { ({ available } = await NativeSpeech.available()) } catch { /* unknown -- try anyway */ }
+      if (available === false) {
+        setError('not-available')
+        return
+      }
+      // Real Android runtime permission prompt (RECORD_AUDIO).
       const { speechRecognition } = await NativeSpeech.requestPermissions()
       if (speechRecognition !== 'granted') {
         setError('not-allowed')
@@ -32,7 +55,9 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       const { matches } = await NativeSpeech.start({
         language: lang, maxResults: 1, partialResults: false, popup: false,
       })
-      setTranscript((matches?.[0] || '').trim())
+      const heard = (matches?.[0] || '').trim()
+      if (heard) setTranscript(heard)
+      else setError('no-speech')
     } catch (e) {
       setError(e?.message || 'speech-recognition-error')
     } finally {
@@ -53,10 +78,9 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
         .trim()
       setTranscript(text)
     }
-    // Without this, a failure (mic permission denied, no microphone, the
-    // browser refusing a second concurrent session) left the button stuck
-    // showing "Listening..." forever with no visible error and no way to
-    // retry -- indistinguishable from the button simply not working.
+    // A failure (mic permission denied, no microphone, the browser refusing a
+    // second concurrent session) must surface, or the button would look stuck
+    // on "Listening..." with no way to retry.
     recognition.onerror = (event) => {
       setError(event.error || 'speech-recognition-error')
       setListening(false)
@@ -68,9 +92,8 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       recognition.start()
       setListening(true)
     } catch (e) {
-      // Some browsers throw synchronously (e.g. InvalidStateError) instead
-      // of firing onerror -- must still be caught, or the button would look
-      // clickable but silently do nothing.
+      // Some browsers throw synchronously (e.g. InvalidStateError) instead of
+      // firing onerror -- must still be caught.
       setError(e?.name || 'speech-recognition-error')
       setListening(false)
     }
@@ -84,18 +107,13 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
       return
     }
 
-    // SpeechRecognition is supposed to trigger the browser's own mic
-    // permission prompt on first use, but that path has proven unreliable
-    // in the wild -- some builds silently do nothing (no prompt, no error)
-    // when the request wasn't preceded by a plain getUserMedia call on the
-    // same origin. Asking via getUserMedia first forces the standard,
-    // well-tested permission UI to appear; once it resolves, SpeechRecognition
-    // reuses that same granted permission instead of re-requesting it.
+    // SpeechRecognition is supposed to trigger the browser's own mic prompt on
+    // first use, but that has proven unreliable -- some builds silently do
+    // nothing. Asking via getUserMedia first forces the standard permission UI;
+    // SpeechRecognition then reuses that grant.
     if (navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then((stream) => {
-          // Only needed the prompt/grant, not the audio itself --
-          // SpeechRecognition opens its own capture internally.
           stream.getTracks().forEach((t) => t.stop())
           beginRecognition()
         })
@@ -117,6 +135,10 @@ export default function useSpeechRecognition({ lang = 'en-IN' } = {}) {
   }, [native])
 
   const reset = useCallback(() => setTranscript(''), [])
+  const clearError = useCallback(() => setError(null), [])
 
-  return { supported, listening, transcript, error, start, stop, reset }
+  return {
+    supported, listening, transcript, error, errorKind: classifyError(error),
+    start, stop, reset, clearError, requestPermission: requestMicPermission,
+  }
 }

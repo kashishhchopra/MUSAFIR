@@ -26,7 +26,12 @@ class FareCheckOut(BaseModel):
     tourist_id: int
     transport_type: str
     pickup_name: str
+    pickup_lat: float
+    pickup_lng: float
     destination_name: str
+    destination_lat: float
+    destination_lng: float
+    route_estimated: bool = False
     distance_km: float
     duration_min: float
     estimated_min: float

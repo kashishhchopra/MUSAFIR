@@ -179,6 +179,14 @@ class Settings(BaseSettings):
     # synchronously (falls back to the seeded/cached DB rows on any failure).
     DISCOVERY_LIVE_ENABLED: bool = True
     OVERPASS_API_URL: str = "https://overpass-api.de/api/interpreter"
+    # Comma-separated fallbacks tried in order after OVERPASS_API_URL. The public
+    # instances are fair-use and are often at capacity (HTTP 502/timeouts); an
+    # endpoint that fails is skipped for a couple of minutes. For real traffic run
+    # your own Overpass and put it first.
+    OVERPASS_API_URLS: str = "https://overpass.private.coffee/api/interpreter"
+    # Nearby (hospital / pharmacy / police / transport) lookups, same free OSM services.
+    NEARBY_LIVE_ENABLED: bool = True
+    NEARBY_CACHE_TTL_SECONDS: int = 1800
     # The public instance is shared/rate-limited and can be slow; a request
     # here blocks the Discovery API call, so this is a real timeout, not
     # a knob to raise indefinitely -- a slow response falls back to the
@@ -490,7 +498,25 @@ class Settings(BaseSettings):
     PHOTON_URL: str = "https://photon.komoot.io/api/"
     PLACE_SEARCH_TIMEOUT_SECONDS: float = 5.0
     PLACE_SEARCH_BIAS_RADIUS_M: int = 50_000
+    # Nominatim (explicit place search / reverse geocoding), used with the Photon type-ahead above.
+    # The public instances are fair-use only (Nominatim forbids type-ahead; Photon asks for modest
+    # traffic), so a production deployment with many users should point these at its own instances.
+    # Leave PHOTON_URL empty to disable Photon.
+    NOMINATIM_URL: str = "https://nominatim.openstreetmap.org/search"
+    # Walk-Me-Home deadline = routed travel time + this buffer (the larger of the
+    # percentage and the minimum), so small delays do not trigger an alert.
+    WALKHOME_ROUTE_BUFFER_PERCENT: int = 25
+    WALKHOME_ROUTE_BUFFER_MIN_MINUTES: int = 5
     GOOGLE_TRANSLATE_API_KEY: str = ""
+    # Optional self-hosted LibreTranslate (https://libretranslate.com, open source): its URL
+    # (e.g. http://localhost:5000) and, if you set one, its API key. Tried before the free fallbacks.
+    LIBRETRANSLATE_URL: str = ""
+    LIBRETRANSLATE_API_KEY: str = ""
+    # Last-resort free fallback: Google Translate's public web endpoint (no key). It is NOT an
+    # official API -- no guarantee, may be rate-limited or blocked, and its terms are for Google's
+    # own apps -- so it is a stop-gap for development/demos. For real use set GOOGLE_TRANSLATE_API_KEY
+    # (official) or LIBRETRANSLATE_URL (your own server) and switch this off.
+    TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE: bool = True
     SPEECH_TO_TEXT_API_KEY: str = ""
     TEXT_TO_SPEECH_API_KEY: str = ""
     # Itinerary document upload: max file size accepted for extraction.

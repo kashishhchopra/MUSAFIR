@@ -42,6 +42,7 @@ def create_fare_check(
         destination_lng=payload.destination_lng,
         distance_km=result["distance_km"], duration_min=result["duration_min"],
         estimated_min=result["estimated_min"], estimated_max=result["estimated_max"],
+        route_estimated=result["route_demo"],
         quoted_fare=payload.quoted_fare, verdict=result["verdict"], percent_diff=result["percent_over"],
     )
     db.add(check)

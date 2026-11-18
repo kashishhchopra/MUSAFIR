@@ -346,9 +346,12 @@ def describe_nearest_help(db: Session, tourist: Tourist, lang: str) -> dict:
 
 
 def describe_nearby_food(db: Session, lat: float, lng: float, lang: str, radius_km: float = 10.0) -> dict:
-    """Food category: real nearby eateries (live OpenStreetMap, DB fallback
-    -- see services/discovery.py) near the tourist's current location."""
-    places = discovery.find_discovery(db, lat, lng, radius_km=radius_km, categories=["regional_food"])
+    """Food category: real nearby eateries (live OpenStreetMap --
+    see services/discovery.py) near the tourist's current location."""
+    try:
+        places = discovery.find_discovery(lat, lng, radius_km=radius_km, categories=["regional_food"])
+    except discovery.DiscoveryUnavailable:
+        places = []  # sources unreachable: same honest "nothing to suggest" as an empty result
     names = [p["name"] for p in places[:3]]
     if not names:
         text, demo = _template("food_empty", lang)

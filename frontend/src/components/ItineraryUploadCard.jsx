@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from './ui.jsx'
-import { uploadItineraryDocument, updateItineraryDocument, confirmItineraryDocument } from '../lib/itineraryService.js'
+import {
+  uploadItineraryDocument, updateItineraryDocument, confirmItineraryDocument, createItineraryFromText,
+} from '../lib/itineraryService.js'
+import TripTravelInfo from './TripTravelInfo.jsx'
 import { geocodePlace } from '../lib/mapsService.js'
 
 // Itinerary document upload: PDF/DOCX/text/photo -> real text extraction
@@ -23,6 +26,9 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
   const [locating, setLocating] = useState(null) // index currently being located
   const [autoProgress, setAutoProgress] = useState(null) // {done, total} while auto-locating
   const fileRef = useRef(null)
+  const [source, setSource] = useState('upload') // 'upload' | 'type'
+  const [planText, setPlanText] = useState('')
+  const [building, setBuilding] = useState(false)
 
   // Locate every destination the parser couldn't already place, one at a
   // time (politeness towards the free Nominatim geocoding service, and so
@@ -68,6 +74,39 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
     } finally {
       setUploading(false)
     }
+  }
+
+  // Typed natural language ("visit the Taj Mahal tomorrow, then Agra Fort at 5pm")
+  // -> the same reviewable document an upload produces.
+  const buildFromText = async (e) => {
+    e?.preventDefault()
+    if (!planText.trim() || building) return
+    setError('')
+    setBuilding(true)
+    setConfirmed(false)
+    try {
+      const data = await createItineraryFromText(touristId, planText.trim())
+      setDoc(data)
+      if (data.status === 'failed') setError(data.error)
+      else await autoLocateAll(data.extracted.destinations)
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : t('itinerary_upload.build_failed', "Couldn't build your itinerary. Check your connection and try again."))
+    } finally {
+      setBuilding(false)
+    }
+  }
+
+  const setDestinations = (list) => setDoc((prev) => ({ ...prev, extracted: { ...prev.extracted, destinations: list } }))
+  const updateField = (i, field, value) => setDestinations(
+    doc.extracted.destinations.map((d, j) => (j === i ? { ...d, [field]: value || null } : d)),
+  )
+  const moveDestination = (i, dir) => {
+    const list = [...doc.extracted.destinations]
+    const j = i + dir
+    if (j < 0 || j >= list.length) return
+    ;[list[i], list[j]] = [list[j], list[i]]
+    setDestinations(list)
   }
 
   const updateDestination = (i, name) => {
@@ -135,6 +174,7 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
     setError('')
     setConfirmed(false)
     setUnresolvedCount(0)
+    setPlanText('')
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -149,6 +189,35 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
         <div className="mt-3">
           <Card title={t('itinerary_upload.card_title')}>
             {!doc && (
+              <div className="flex gap-1.5 mb-3" role="tablist" aria-label={t('itinerary_upload.source', 'How do you want to add your itinerary?')}>
+                {[['upload', t('itinerary_upload.tab_upload', '📄 Upload a file')], ['type', t('itinerary_upload.tab_type', '✍️ Type your plan')]].map(([key, label]) => (
+                  <button key={key} type="button" role="tab" aria-selected={source === key} onClick={() => setSource(key)}
+                    className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border ${source === key
+                      ? 'bg-sky-600 text-white border-sky-600' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!doc && source === 'type' && (
+              <form onSubmit={buildFromText} className="space-y-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t('itinerary_upload.type_intro', 'Write your plans in your own words — one place or several, with dates and times if you like. We find each place on the map and work out the travel time from where you are.')}
+                </p>
+                <textarea value={planText} onChange={(e) => setPlanText(e.target.value)} rows={4} maxLength={2000}
+                  aria-label={t('itinerary_upload.type_label', 'Your travel plan')}
+                  placeholder={t('itinerary_upload.type_placeholder', 'e.g. I want to visit the Taj Mahal tomorrow morning, then Agra Fort at 5pm')}
+                  className="w-full text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg px-2 py-1.5" />
+                {error && <div className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</div>}
+                <button disabled={building || !planText.trim()}
+                  className="w-full text-sm font-semibold bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white py-2 rounded-lg">
+                  {building ? t('itinerary_upload.building', 'Finding your places…') : t('itinerary_upload.build', 'Build my itinerary')}
+                </button>
+              </form>
+            )}
+
+            {!doc && source === 'upload' && (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {t('itinerary_upload.intro')}
@@ -186,7 +255,8 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                   )}
                   <div className="space-y-1.5">
                     {doc.extracted.destinations.map((d, i) => (
-                      <div key={i} className="flex items-center gap-1.5">
+                      <div key={i} className="space-y-1">
+                      <div className="flex items-center gap-1.5">
                         <span className="text-xs text-slate-400 w-4">{i + 1}.</span>
                         <input value={d.name} onChange={(e) => updateDestination(i, e.target.value)}
                           disabled={!!autoProgress}
@@ -200,7 +270,21 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                             {locating === i ? t('itinerary_upload.locating') : t('itinerary_upload.locate_button')}
                           </button>
                         )}
-                        <button onClick={() => removeDestination(i)} disabled={!!autoProgress} className="text-xs text-red-500 disabled:opacity-50">✕</button>
+                        <button onClick={() => moveDestination(i, -1)} disabled={!!autoProgress || i === 0}
+                          aria-label={t('itinerary_upload.move_up', 'Move up')} className="text-xs text-slate-500 disabled:opacity-30">▲</button>
+                        <button onClick={() => moveDestination(i, 1)} disabled={!!autoProgress || i === doc.extracted.destinations.length - 1}
+                          aria-label={t('itinerary_upload.move_down', 'Move down')} className="text-xs text-slate-500 disabled:opacity-30">▼</button>
+                        <button onClick={() => removeDestination(i)} disabled={!!autoProgress}
+                          aria-label={t('itinerary_upload.remove', 'Remove stop')} className="text-xs text-red-500 disabled:opacity-50">✕</button>
+                      </div>
+                      <div className="flex gap-1.5 pl-5">
+                        <input type="date" value={d.date || ''} onChange={(e) => updateField(i, 'date', e.target.value)}
+                          aria-label={t('itinerary_upload.date_for', 'Date for stop {{n}}', { n: i + 1 })}
+                          className="border border-slate-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg px-1.5 py-0.5 text-[11px]" />
+                        <input type="time" value={d.time || ''} onChange={(e) => updateField(i, 'time', e.target.value)}
+                          aria-label={t('itinerary_upload.time_for', 'Preferred time for stop {{n}}', { n: i + 1 })}
+                          className="border border-slate-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg px-1.5 py-0.5 text-[11px]" />
+                      </div>
                       </div>
                     ))}
                     {doc.extracted.destinations.length === 0 && (
@@ -240,6 +324,8 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                   </div>
                 )}
 
+                <TripTravelInfo stops={doc.extracted.destinations} />
+
                 <div className="flex gap-2 pt-1">
                   <button onClick={confirm} disabled={confirming || !!autoProgress}
                     className="flex-1 bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white text-xs font-semibold py-2 rounded-lg">
@@ -258,6 +344,7 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                     {t('itinerary_upload.unresolved_warning', { count: unresolvedCount })}
                   </div>
                 )}
+                <div className="text-left"><TripTravelInfo stops={doc.extracted.destinations} /></div>
                 <button onClick={reset} className="text-xs text-sky-600 dark:text-sky-400">{t('itinerary_upload.upload_another')}</button>
               </div>
             )}

@@ -6,6 +6,7 @@ import RoutePicker from '../../../components/RoutePicker.jsx'
 import CheckInCard from '../../../components/CheckInCard.jsx'
 import ItineraryUploadCard from '../../../components/ItineraryUploadCard.jsx'
 import VoiceNavigationAssistant from '../../../components/VoiceNavigationAssistant.jsx'
+import TripTravelInfo from '../../../components/TripTravelInfo.jsx'
 
 // Everything about planning ahead: how risk changes over the next hour,
 // picking a safer route, the itinerary, and check-in/out. The route-picker
@@ -14,7 +15,9 @@ import VoiceNavigationAssistant from '../../../components/VoiceNavigationAssista
 // mounted at a time.
 export default function PlanTab({ data }) {
   const { t, i18n } = useTranslation()
-  const { me, riskForecast, tid, routePicker, routePickerOpen, setRoutePickerOpen, load } = data
+  const { me, riskForecast, tid, routePicker, routePickerOpen, setRoutePickerOpen, load, posRef } = data
+  // Bumped whenever a route is saved anywhere on this tab so the list reloads.
+  const here = posRef?.current && posRef.current[0] != null ? posRef.current : null
 
   return (
     <div className="space-y-4">
@@ -29,7 +32,8 @@ export default function PlanTab({ data }) {
         className="w-full text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 rounded-xl py-2.5 shadow-sm">
         {routePickerOpen ? t('plan.hide_route_planner') : t('plan.plan_safe_route')}
       </button>
-      <RoutePicker active={routePickerOpen} onToggle={() => setRoutePickerOpen(false)} state={routePicker} />
+      <RoutePicker active={routePickerOpen} onToggle={() => setRoutePickerOpen(false)} state={routePicker}
+        origin={here} />
 
       <ItineraryUploadCard touristId={tid} onConfirmed={load} />
 
@@ -57,11 +61,22 @@ export default function PlanTab({ data }) {
               </span>
               <div className="text-sm">
                 <span className={i === 0 ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}>{w.name}</span>
+                {(w.date || w.time) && (
+                  <span className="block text-[11px] text-slate-400">🗓 {[w.date, w.time].filter(Boolean).join(' · ')}</span>
+                )}
                 {i === 0 && <span className="block text-xs text-indigo-600 dark:text-indigo-400 font-medium">📍 {t('itinerary.next_stop')}</span>}
               </div>
             </li>
           ))}
         </ol>
+        {me.itinerary?.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
+            <TripTravelInfo stops={me.itinerary} />
+          </div>
+        )}
+        {(!me.itinerary || me.itinerary.length === 0) && (
+          <div className="text-xs text-slate-400">{t('itinerary.empty', 'No itinerary yet — upload one or type your plan above.')}</div>
+        )}
       </Card>
 
       <CheckInCard touristId={tid} />

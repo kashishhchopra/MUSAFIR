@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import { useSearchParams } from 'react-router-dom'
+import api from '../../api'
 import useWebSocket from '../../useWebSocket'
 import { getEmergencyTrack, listLiveEmergencies } from '../../lib/emergencyLocationService'
 import { sosIcon } from '../../components/mapIcons'
@@ -51,6 +52,13 @@ export default function LiveEmergencies() {
   // always shows *something* for the exact case that was clicked, instead
   // of silently falling back to a different one or showing nothing.
   const [linkedNotice, setLinkedNotice] = useState('')
+
+  // Tick-to-resolve: tick one or more cases and mark them resolved, which closes the
+  // incident (stops live tracking, clears the tourist's SOS status) and drops it from this list.
+  const [checked, setChecked] = useState(() => new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [resolving, setResolving] = useState(false)
+  const [resolveMsg, setResolveMsg] = useState(null)
 
   const load = () => {
     listLiveEmergencies()
@@ -114,6 +122,31 @@ export default function LiveEmergencies() {
     return () => clearInterval(iv)
   }, [])
 
+  const toggleChecked = (id) => setChecked((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const allChecked = emergencies.length > 0 && emergencies.every((e) => checked.has(e.incident_id))
+  const toggleAll = () => setChecked(allChecked ? new Set() : new Set(emergencies.map((e) => e.incident_id)))
+
+  const resolveChecked = async () => {
+    const ids = emergencies.filter((e) => checked.has(e.incident_id)).map((e) => e.incident_id)
+    if (ids.length === 0) return
+    setResolving(true); setResolveMsg(null)
+    const results = await Promise.allSettled(
+      ids.map((id) => api.patch(`/incidents/${id}`, { status: 'resolved', note: 'Resolved from Live Emergencies' })),
+    )
+    const done = ids.filter((_, i) => results[i].status === 'fulfilled')
+    const failed = ids.filter((_, i) => results[i].status === 'rejected')
+    setEmergencies((list) => list.filter((e) => !done.includes(e.incident_id)))
+    setChecked(new Set(failed))
+    setConfirming(false); setResolving(false)
+    setResolveMsg(failed.length === 0
+      ? { ok: true, text: `${done.length} ${done.length === 1 ? 'emergency' : 'emergencies'} marked resolved.` }
+      : { ok: false, text: `${done.length} resolved, ${failed.length} could not be resolved (${failed.map((i) => `INC-${i}`).join(', ')}). Try again.` })
+  }
+
   const selected = emergencies.find((e) => e.incident_id === selectedId) || emergencies[0]
 
   return (
@@ -139,12 +172,51 @@ export default function LiveEmergencies() {
 
       {(emergencies.length > 0 || linkedIncidentId) && (
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="md:col-span-1 space-y-2 max-h-[70vh] overflow-y-auto">
+          <div className="md:col-span-1 space-y-2">
+            {emergencies.length > 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-2 text-sm space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="h-4 w-4 accent-red-600" />
+                    Select all
+                  </label>
+                  <button type="button" disabled={checked.size === 0 || resolving} onClick={() => setConfirming(true)}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                    ✓ Mark resolved{checked.size > 0 ? ` (${checked.size})` : ''}
+                  </button>
+                </div>
+                {confirming && (
+                  <div role="alertdialog" aria-label="Confirm resolve" className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-800 p-2 text-xs text-amber-900 dark:text-amber-200">
+                    Mark <b>{checked.size}</b> {checked.size === 1 ? 'emergency' : 'emergencies'} as resolved? This closes the case, stops live
+                    tracking, and tells the tourist and their family it is resolved.
+                    <div className="flex gap-2 mt-2">
+                      <button type="button" disabled={resolving} onClick={resolveChecked}
+                        className="px-3 py-1 rounded-lg font-semibold bg-emerald-600 text-white disabled:opacity-60">
+                        {resolving ? 'Resolving…' : 'Yes, resolve'}
+                      </button>
+                      <button type="button" disabled={resolving} onClick={() => setConfirming(false)}
+                        className="px-3 py-1 rounded-lg font-semibold border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {resolveMsg && (
+                  <div role="status" className={`text-xs ${resolveMsg.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {resolveMsg.text}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2 max-h-[62vh] overflow-y-auto">
             {emergencies.map((e) => {
               const meta = STATUS_META[e.location_status] || STATUS_META.no_data
               return (
-                <button key={e.incident_id} onClick={() => setSelectedId(e.incident_id)}
-                  className={`w-full text-left bg-white dark:bg-slate-800 rounded-xl p-3 text-sm border-2 ${
+                <div key={e.incident_id} className="flex items-start gap-2">
+                <input type="checkbox" aria-label={`Select INC-${e.incident_id}`} checked={checked.has(e.incident_id)}
+                  onChange={() => toggleChecked(e.incident_id)} className="mt-4 h-4 w-4 shrink-0 accent-red-600 cursor-pointer" />
+                <button onClick={() => setSelectedId(e.incident_id)}
+                  className={`flex-1 min-w-0 text-left bg-white dark:bg-slate-800 rounded-xl p-3 text-sm border-2 ${
                     selected?.incident_id === e.incident_id ? 'border-red-500' : 'border-transparent'}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-bold">🚨 INC-{e.incident_id} · {e.tourist_name}</span>
@@ -167,8 +239,10 @@ export default function LiveEmergencies() {
                     {e.latest?.demo && ' · demo'}
                   </div>
                 </button>
+                </div>
               )
             })}
+            </div>
           </div>
 
           <div className="md:col-span-2 bg-white dark:bg-slate-800 rounded-xl overflow-hidden" style={{ height: 500 }}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from './ui.jsx'
+import { openUrl } from '../lib/mapsLinks.js'
 import {
   listPermitTypes, listPermits, startPermitApplication, updatePermitForm, confirmPermit,
 } from '../lib/permitService.js'
@@ -68,9 +69,9 @@ export default function PermitCard({ touristId }) {
     try {
       const updated = await confirmPermit(touristId, p.id)
       load()
-      // Open the REAL official portal in a new tab -- this app never submits
+      // Open the REAL official portal (new tab, or the system browser in the Android app) -- this app never submits
       // the application itself.
-      if (updated.portal?.portal_url) window.open(updated.portal.portal_url, '_blank', 'noopener')
+      if (updated.portal?.portal_url) openUrl(updated.portal.portal_url)
     } catch {
       setError(t('permits.apply_failed'))
     } finally {

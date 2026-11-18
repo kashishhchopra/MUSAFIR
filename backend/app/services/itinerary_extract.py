@@ -253,3 +253,147 @@ def parse_itinerary_text(text: str) -> dict:
         "transport": transport,
         "activities": activities[:30],  # cap -- avoid dumping the whole document verbatim
     }
+
+
+# ------------------------------------------------- natural-language input
+_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+_MONTH_RE = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
+_NL_DATE_RES = [
+    (re.compile(r"\bday after tomorrow\b", re.I), "dat"),
+    (re.compile(r"\btomorrow\b", re.I), "tomorrow"),
+    (re.compile(r"\b(?:today|tonight)\b", re.I), "today"),
+    (re.compile(r"\b(?:next|on|this)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I), "weekday"),
+    (re.compile(rf"\b(?:on\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({_MONTH_RE})(?:\s+(\d{{4}}))?\b", re.I), "dmy"),
+    (re.compile(rf"\b(?:on\s+)?({_MONTH_RE})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(\d{{4}}))?\b", re.I), "mdy"),
+    (re.compile(r"\b(\d{4}-\d{2}-\d{2})\b"), "iso"),
+]
+_NL_TIME_RE = re.compile(
+    r"\b(?:at|around|by|from)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at|around|by)\s+(\d{1,2}):(\d{2})\b", re.I)
+_NL_PART_OF_DAY = re.compile(r"\b(?:in the |this )?(morning|afternoon|evening|night)\b", re.I)
+_PART_OF_DAY_TIME = {"morning": "09:00", "afternoon": "14:00", "evening": "18:00", "night": "20:00"}
+_NL_SPLIT = re.compile(r"\s*(?:;|\n|->|→|\bthen\b|\band then\b|\bafter that\b|\bafterwards\b|\bfollowed by\b|\bnext\b|\bfinally\b|,|\band\b|\bplus\b)\s*", re.I)
+_NL_INTENT = re.compile(
+    r"^\s*(?:(?:i|we)\b\s*(?:'d|would|will|'ll|want|wanna|plan|am going|are going|intend|need|have)?\s*"
+    r"(?:like\s+)?(?:to\s+)?|let'?s\s+|please\s+|also\s+|first\s+|then\s+)*"
+    r"(?:(?:plan(?:\s+a)?(?:\s+trip)?|(?:a\s+)?trip|go|going|head|heading|travel|travelling|traveling|drive|walk|visit|visiting|see|explore|reach|stop(?:\s+by)?|"
+    r"take me|tour|check out|stay)\b\s*(?:(?:to|at|in|by|around)\b)?\s*)*", re.I)
+_NL_NOT_A_PLACE = {"hello", "hi", "hey", "ok", "okay", "thanks", "thank you", "yes", "no", "help", "me", "there", "here"}
+_NL_TRAILING = re.compile(r"\b(?:for\s+(?:about\s+)?\d+\s*(?:hours?|hrs?|days?|minutes?|mins?)|please|too|as well)\b", re.I)
+
+
+def _resolve_nl_date(kind: str, m: re.Match, today) -> str | None:
+    from datetime import timedelta
+    try:
+        if kind == "today":
+            return today.isoformat()
+        if kind == "tomorrow":
+            return (today + timedelta(days=1)).isoformat()
+        if kind == "dat":
+            return (today + timedelta(days=2)).isoformat()
+        if kind == "weekday":
+            target = _WEEKDAYS.index(m.group(1).lower())
+            ahead = (target - today.weekday()) % 7 or 7
+            return (today + timedelta(days=ahead)).isoformat()
+        if kind == "iso":
+            return datetime.strptime(m.group(1), "%Y-%m-%d").date().isoformat()
+        day, mon, year = (m.group(1), m.group(2), m.group(3)) if kind == "dmy" else (m.group(2), m.group(1), m.group(3))
+        month = _MONTHS.index(mon[:3].lower()) + 1
+        y = int(year) if year else today.year
+        d = datetime(y, month, int(day)).date()
+        if not year and d < today:
+            d = d.replace(year=y + 1)
+        return d.isoformat()
+    except (ValueError, IndexError):
+        return None
+
+
+def _pull_date(clause: str, today) -> tuple[str, str | None]:
+    for rx, kind in _NL_DATE_RES:
+        m = rx.search(clause)
+        if m:
+            found = _resolve_nl_date(kind, m, today)
+            if found:
+                return (clause[:m.start()] + " " + clause[m.end():]), found
+    return clause, None
+
+
+def _pull_time(clause: str) -> tuple[str, str | None]:
+    m = _NL_TIME_RE.search(clause)
+    if m:
+        if m.group(3):
+            hour = int(m.group(1)) % 12 + (12 if m.group(3).lower() == "pm" else 0)
+            minute = int(m.group(2) or 0)
+        else:
+            hour, minute = int(m.group(4)), int(m.group(5))
+        if hour < 24 and minute < 60:
+            return (clause[:m.start()] + " " + clause[m.end():]), f"{hour:02d}:{minute:02d}"
+    m = _NL_PART_OF_DAY.search(clause)
+    if m:
+        return (clause[:m.start()] + " " + clause[m.end():]), _PART_OF_DAY_TIME[m.group(1).lower()]
+    return clause, None
+
+
+def parse_natural_language(text: str, today=None, geocode=True) -> dict:
+    """Turn free text ("I want to visit the Taj Mahal tomorrow, then Agra Fort
+    at 5pm") into the same structure `parse_itinerary_text` returns, with each
+    destination carrying an optional `date` (ISO) and `time` (HH:MM). A date or
+    time stated once carries forward to later stops until another is stated.
+    Destination names are geocoded for real (Google/Nominatim); one that can't
+    be placed stays unlocated for the tourist to fix -- never guessed. Always
+    returns a dict; no destinations found just means an empty list."""
+    from datetime import date as _date
+
+    today = today or _date.today()
+    # Dates like "5 Dec, 6 Dec" contain commas that the clause splitter would cut
+    # apart; protect them by pulling dates out of the whole text first, per clause.
+    text = text.strip()
+    clauses = [c for c in _NL_SPLIT.split(text) if c and c.strip()]
+    destinations: list[dict] = []
+    carried_date: str | None = None
+    carried_time: str | None = None
+    all_dates: list[str] = []
+
+    for raw in clauses:
+        clause, d = _pull_date(raw, today)
+        clause, tm = _pull_time(clause)
+        if d:
+            carried_date = d
+            all_dates.append(d)
+        if tm:
+            carried_time = tm
+        name = _NL_INTENT.sub("", clause)
+        name = _NL_TRAILING.sub("", name)
+        name = re.sub(r"^(?:the|a|an|my)\s+", "", name.strip(), flags=re.I)
+        name = re.sub(r"\b(?:on|at|in|by|from|around|to)\s*$", "", name.strip(), flags=re.I)
+        name = re.sub(r"\s+", " ", name).strip(" .!?:-")
+        if name.lower() in _NL_NOT_A_PLACE:
+            name = ""
+        if not name or len(name) > 60 or len(name) < 2:
+            # Pure "tomorrow"/"at 5pm" clauses attach to the stop before them.
+            if (d or tm) and destinations and not name:
+                if d and not destinations[-1].get("date"):
+                    destinations[-1]["date"] = d
+                if tm and not destinations[-1].get("time"):
+                    destinations[-1]["time"] = tm
+            continue
+        entry: dict = {"name": name.title() if name.islower() else name}
+        if carried_date:
+            entry["date"] = carried_date
+        if carried_time and (tm or not destinations):
+            entry["time"] = carried_time
+        destinations.append(entry)
+
+    if geocode:
+        for dest in destinations:
+            located = maps.geocode(dest["name"])
+            if located:
+                dest["lat"], dest["lng"] = located["lat"], located["lng"]
+                dest["location_demo"] = located["demo"]
+
+    dates = sorted(set(all_dates))
+    return {
+        "trip_start": dates[0] if dates else None,
+        "trip_end": dates[-1] if len(dates) > 1 else None,
+        "destinations": destinations, "hotels": [], "transport": [], "activities": [],
+    }

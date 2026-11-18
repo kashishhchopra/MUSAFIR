@@ -33,6 +33,8 @@ class FareCheck(Base):
     estimated_max: Mapped[float] = mapped_column(Float, nullable=False)
     quoted_fare: Mapped[float] = mapped_column(Float, nullable=False)
     # fair / slightly_high / overpriced / suspicious -- see services/fare.py
+    # True when the distance/time was a straight-line estimate, not a routed road distance
+    route_estimated: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     verdict: Mapped[str] = mapped_column(String, nullable=False, index=True)
     percent_diff: Mapped[float] = mapped_column(Float, default=0.0)
     reported: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

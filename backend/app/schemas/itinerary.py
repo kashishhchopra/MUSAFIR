@@ -9,6 +9,8 @@ class ExtractedDestination(BaseModel):
     lat: float | None = None
     lng: float | None = None
     location_demo: bool | None = None
+    date: str | None = None   # ISO date the tourist plans to be here
+    time: str | None = None   # HH:MM preferred arrival time
 
 
 class ExtractedHotel(BaseModel):

@@ -164,10 +164,11 @@ export default function useTouristData(tid) {
 
   // One SOS request at a time: a second tap while one is in flight shares it
   // instead of firing a duplicate.
-  const sendSOS = () => {
+  // `messageOverride` (a string) lets the in-journey SOS button put the journey details in the alert.
+  const sendSOS = (messageOverride) => {
     if (sosInFlight.current) return sosInFlight.current
     setSosSending(true)
-    const run = sendSOSNow().finally(() => {
+    const run = sendSOSNow(messageOverride).finally(() => {
       sosInFlight.current = null
       setSosSending(false)
     })
@@ -175,16 +176,18 @@ export default function useTouristData(tid) {
     return run
   }
 
-  const sendSOSNow = async () => {
+  const sendSOSNow = async (messageOverride) => {
     const pos = await sosPosition()
     // The server rejects notes over 500 characters (a typed note or a long
     // voice transcript would otherwise make the SOS itself fail).
-    const message = (emergencyMessage.trim() || 'Emergency! Need help.').slice(0, SOS_MESSAGE_MAX)
+    const message = ((typeof messageOverride === 'string' && messageOverride.trim()) || emergencyMessage.trim() || 'Emergency! Need help.').slice(0, SOS_MESSAGE_MAX)
     const payload = pos ? { lat: pos[0], lng: pos[1], message } : { message }
     let result = null
     try {
       const { data } = await postSOS(payload)
-      setSosSent(data)
+      // pressed_at: each press restarts Emergency Mode, even when the server merged
+      // it into the same open case (see components/EmergencyModeCard.jsx).
+      setSosSent({ ...data, pressed_at: Date.now() })
       setSosQueued(false)
       setSosFailed(false)
       result = data

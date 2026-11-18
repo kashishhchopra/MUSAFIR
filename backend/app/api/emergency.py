@@ -83,12 +83,16 @@ def post_emergency_location(incident_id: int, payload: EmergencyLocationUpdate,
 @router.post("/{incident_id}/stop-tracking")
 def stop_emergency_tracking(incident_id: int, db: Session = Depends(get_db),
                             user: User = Depends(get_current_user)):
-    """The tourist turns live sharing off ("I'm safe now"). This does NOT
-    close the incident -- only an operator/responder can do that (see
-    update_incident in api/incidents.py) -- it only stops the position feed."""
+    """The control room turns an emergency's live sharing off. It does NOT close
+    the incident (that is update_incident in api/incidents.py).
+
+    Admin only: a tourist can no longer end their own emergency from the app --
+    ending it is the control room's decision, and the tourist can always press
+    SOS again (which resumes sharing, see monitoring.trigger_sos)."""
     inc = _get_incident_or_404(incident_id, db)
-    _require_owner_or_admin(inc, user)
-    reason = "tourist stopped sharing" if user.role == "tourist" else f"stopped by {user.role}"
-    svc.stop_tracking(db, inc, reason)
+    if user.role != "admin":
+        raise HTTPException(status_code=403,
+                            detail="Only the control room can end live location sharing for an emergency.")
+    svc.stop_tracking(db, inc, "stopped by the control room")
     db.commit()
     return {"status": "stopped"}

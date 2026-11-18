@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Polyline, CircleMarker, useMapEvents } from 'react-leaflet'
 import api from '../api'
 import { riskColor } from './mapIcons'
+import { openDirections } from '../lib/mapsLinks'
 
 // Shared state for the safe-route picker, split across two rendering sites:
 // `RouteLayer` (map children -- click capture + polylines, must live inside
@@ -80,7 +81,7 @@ export function RouteLayer({ active, dest, result, onPick }) {
 // Outside-map control panel: toggle, destination readout, "Find safe route"
 // button, and the recommendation summary. `state` is a `useRoutePicker(tid)`
 // instance shared with the `RouteLayer` rendered inside the map.
-export default function RoutePicker({ active, onToggle, state }) {
+export default function RoutePicker({ active, onToggle, state, origin }) {
   const { dest, result, error, loading, findRoute, reset } = state
 
   if (!active) return null
@@ -112,6 +113,12 @@ export default function RoutePicker({ active, onToggle, state }) {
             <span className="font-semibold">{result.recommended.risk_level}</span>
           </div>
           <div className="italic">Approximate route, not turn-by-turn navigation.</div>
+          <button onClick={() => openDirections({
+            origin: origin ? { lat: origin[0], lng: origin[1] } : undefined,
+            destination: { lat: dest[0], lng: dest[1] },
+          })} className="text-sky-700 dark:text-sky-400 font-semibold underline">
+            🗺 Open in Google Maps
+          </button>
         </div>
       )}
     </div>

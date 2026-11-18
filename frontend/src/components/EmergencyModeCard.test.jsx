@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, waitFor, screen, act } from '@testing-library/react'
+import { render, waitFor, screen, act } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import '../i18n' // initializes i18next so t() resolves real strings, not raw keys
 import api from '../api'
@@ -56,20 +56,35 @@ describe('EmergencyModeCard', () => {
     await waitFor(() => expect(screen.getAllByText('LIVE').length).toBeGreaterThan(0))
   })
 
-  it('requires a second tap to actually cancel the emergency', async () => {
+  it('gives the tourist no way to cancel or resolve the emergency, and says only the control room can', async () => {
     mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
-    mock.onPost('/incidents/7/stop-tracking').reply(200, { status: 'stopped' })
-    const { findByText, getByText } = render(
+    const { findByText, queryByText } = render(
       <EmergencyModeCard sosSent={sosSent} tid={1} posRef={{ current: [26.1445, 91.7362] }} />
     )
     await findByText('🚨 Emergency Mode')
-    fireEvent.click(getByText('Cancel Emergency'))
-    expect(getByText('Tap again to confirm')).toBeInTheDocument()
-    expect(mock.history.post.filter((r) => r.url === '/incidents/7/stop-tracking')).toHaveLength(0)
+    expect(queryByText(/cancel/i)).not.toBeInTheDocument()
+    expect(queryByText(/tap again to confirm/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Only the control room can close this emergency/)).toBeInTheDocument()
+    expect(screen.getByText('Call Emergency Services')).toBeInTheDocument()
+    expect(mock.history.post.some((r) => r.url.includes('stop-tracking'))).toBe(false)
+  })
 
-    fireEvent.click(getByText('Tap again to confirm'))
-    await waitFor(() => expect(mock.history.post.some((r) => r.url === '/incidents/7/stop-tracking')).toBe(true))
+  it('a repeat SOS press on the same open case restarts sharing after it was stopped', async () => {
+    mock.onPost('/incidents/7/location').reply(201, { status: 'ok' })
+    const first = { ...sosSent, pressed_at: 1000 }
+    const { findByText, rerender } = render(
+      <EmergencyModeCard sosSent={first} tid={1} posRef={{ current: [26.1445, 91.7362] }} />
+    )
+    await findByText('🚨 Emergency Mode')
+    act(() => wsCallback({ event: 'emergency_tracking_stopped', incident_id: 7, reason: 'stopped by the control room' }))
     await findByText('Emergency Resolved')
+    const before = mock.history.post.filter((r) => r.url === '/incidents/7/location').length
+
+    // Same incident id (the server merged the tap), but a new press.
+    rerender(<EmergencyModeCard sosSent={{ ...sosSent, pressed_at: 2000 }} tid={1} posRef={{ current: [26.1445, 91.7362] }} />)
+    await findByText('🚨 Emergency Mode')
+    await waitFor(() => expect(
+      mock.history.post.filter((r) => r.url === '/incidents/7/location').length).toBeGreaterThan(before))
   })
 
   it('shows "Emergency Resolved" once police/operator stop tracking remotely', async () => {
@@ -79,7 +94,7 @@ describe('EmergencyModeCard', () => {
     )
     await findByText('🚨 Emergency Mode')
     act(() => wsCallback({ event: 'emergency_tracking_stopped', incident_id: 7, reason: 'incident resolved' }))
-    await findByText('Live emergency location sharing has stopped.')
+    await findByText(/The control room has closed this emergency\. Press SOS again/)
   })
 
   describe('after it is resolved', () => {

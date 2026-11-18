@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import useGeolocation from './useGeolocation'
 import useWebSocket from '../useWebSocket'
 import { SIMULATE_GPS } from '../config'
-import { postEmergencyLocation, stopEmergencyTracking } from '../lib/emergencyLocationService'
+import { postEmergencyLocation } from '../lib/emergencyLocationService'
 
 const POST_INTERVAL_MS = 7000 // spec: every 5-10 seconds
 const LIVE_S = 15
@@ -15,23 +15,25 @@ const STALE_S = 45
 // existing SIMULATE_GPS convention for ordinary tracking), it falls back to
 // a small simulated walk instead -- clearly marked `demo: true` on every
 // ping this sends, never presented as a real fix.
-export default function useEmergencyTracking({ tid, incidentId, active, startPos }) {
+export default function useEmergencyTracking({ tid, incidentId, active, startPos, resetKey }) {
   const [status, setStatus] = useState('connecting') // connecting | live | stale | offline | stopped
   const [lastSentAt, setLastSentAt] = useState(null)
   const [demo, setDemo] = useState(SIMULATE_GPS)
   const [error, setError] = useState('')
   const simPosRef = useRef(startPos ? { ...startPos } : null)
-  // A new incident starts fresh: a "stopped" left over from the previous one
-  // must not block tracking for this one. (Adjusting state during render is
-  // React's documented way to reset state when a prop changes.)
-  const [statusIncident, setStatusIncident] = useState(incidentId)
-  if (incidentId !== statusIncident) {
-    setStatusIncident(incidentId)
+  // A new incident -- or a new SOS press on the same open incident -- starts
+  // fresh: a "stopped" left over from before must not block tracking now.
+  // (Adjusting state during render is React's documented way to reset state
+  // when a prop changes.)
+  const key = resetKey ?? incidentId
+  const [statusKey, setStatusKey] = useState(key)
+  if (key !== statusKey) {
+    setStatusKey(key)
     setStatus('connecting')
     setLastSentAt(null)
     setError('')
   }
-  // Once stopped (tourist cancelled, police resolved, or the server says 409),
+  // Once stopped (the control room resolved the case or ended sharing, or the server says 409),
   // nothing more is sent and GPS is released -- even if the card stays mounted.
   const stopped = status === 'stopped'
   const stoppedRef = useRef(false)
@@ -100,7 +102,7 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
       else send()
     }, POST_INTERVAL_MS)
     return () => clearInterval(iv)
-  }, [active, incidentId, geo.position, geo.error])
+  }, [active, incidentId, key, geo.position, geo.error])
 
   // Degrade LIVE -> STALE -> OFFLINE purely from recency, same thresholds
   // the police dashboard uses -- never claim LIVE once updates have
@@ -116,15 +118,8 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
     return () => clearInterval(iv)
   }, [active, status, lastSentAt])
 
-  const stop = async () => {
-    if (incidentId) {
-      try { await stopEmergencyTracking(incidentId) } catch { /* best-effort */ }
-    }
-    setStatus('stopped')
-  }
-
   return {
-    status, lastSentAt, demo, error, stop,
+    status, lastSentAt, demo, error,
     secondsSinceUpdate: lastSentAt ? Math.round((Date.now() - lastSentAt) / 1000) : null,
   }
 }

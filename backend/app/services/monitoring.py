@@ -391,6 +391,25 @@ def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float | None
     }
 
 
+def _resume_sharing_on_repeat_tap(db: Session, inc: Incident, tourist: Tourist,
+                                  lat: float | None, lng: float | None) -> None:
+    """A repeat SOS tap merged into an open case still means "I need help": if that
+    case's live sharing had been switched off, turn it back on (otherwise the app's
+    first location post is refused and it wrongly reports the emergency as over).
+    Only writes when something changed, so a burst of taps stays cheap."""
+    if inc.live_tracking_active:
+        return
+    from app.services import emergency_location
+    emergency_location.start_tracking(db, inc)
+    db.add(IncidentEvent(incident_id=inc.id, status=inc.status,
+                         note="Tourist pressed SOS again; live location sharing resumed"))
+    db.commit()
+    broadcast_sync({
+        "event": "incident", "id": inc.id, "tourist_id": tourist.id, "type": inc.type,
+        "severity": inc.severity, "status": inc.status, "lat": lat, "lng": lng, "repeat_sos": True,
+    })
+
+
 def trigger_sos(db: Session, tourist: Tourist, lat: float | None, lng: float | None, message: str,
                 silent: bool = False) -> dict:
     """Raise an SOS once per burst of taps -- see the note above. The work itself is
@@ -408,6 +427,7 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float | None, lng: float | N
                 tourist.last_lat, tourist.last_lng = lat, lng
                 police_network.assign_station(db, existing)
                 db.commit()
+            _resume_sharing_on_repeat_tap(db, existing, tourist, lat, lng)
             return _sos_payload(db, existing, tourist, lat, lng, silent)
         return _trigger_sos_unlocked(db, tourist, lat, lng, message, silent)
 

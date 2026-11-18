@@ -56,6 +56,11 @@ and a responsive tourist mobile view.
 | 22 | **Walk-Me-Home** | A tourist walking alone starts a **monitored journey** (destination, duration, check-in interval, chosen guardians). Guardians follow the timer and last location on their private link; **I AM SAFE – CHECK IN** resets the deadline. Miss one and a warning + grace period start; if the grace runs out the **existing check-in engine opens a critical incident** for the police/admin dashboard. Deadlines are server-owned, so a closed app still escalates. |
 | 23 | **Intelligent Response Management** | Every incident — SOS, fall/crash, Walk-Me-Home, anomaly, missing person, field report — is **classified CRITICAL / HIGH / MEDIUM / LOW by transparent rules** (with a stored explanation), given a **backend response deadline** from its severity, and **auto-escalated** primary responder → supervisor → higher authority if nobody acknowledges it, up to one fixed **global timeout** (the incident stays open). Admin **Response & SLO** page: live countdowns, severity override with a mandatory reason, SLO compliance from real timestamps, charts and settings. |
 | 24 | **Emergency Medical Profile (QR)** | Tourists optionally record blood group, allergies, conditions, medications and emergency contacts. The existing Digital ID QR (token only, **no medical data**) lets an **authorized responder** open that profile after the backend checks the token and role; every access is **rate-limited and audited**, and the tourist can edit, regenerate or revoke the QR. Data is encrypted at rest and labelled tourist-reported. |
+| 25 | **Real-location Fair Price** | The tourist's live GPS fix (never a stored/default position) + a destination picked from real place-search results → real road distance/time → fare range from a transparent rate card and a verdict. Straight-line fallbacks are labelled; "Open route in Maps" per check. |
+| 26 | **Itinerary: upload or type** | Upload a PDF/DOCX/TXT/photo, **or** write the plan in plain language ("visit the Taj Mahal tomorrow, then Agra Fort at 5pm"). Stops are located on the real map, can be edited/reordered with dates and times, and get **real travel time & distance** (drive / walk / cycle, public transport with a Google key) from the live location, a route map, and a Google Maps hand-off. |
+| 27 | **Saved Routes** | Save a safe route or a planned journey (start, stops, destination, mode, distance/time, route line, risk, timestamps) to the database; list, view on map, resume navigation in Google Maps, delete. Survives app restarts. |
+
+See [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md) for the 2026-11 audit: what was fixed, how it was tested, and what still needs a real phone.
 
 All seven live in the tourist app's new **Explore** tab (🌍). None of them touch any existing feature's data or routes — they're additive, reusing the existing itinerary, zone, weather, translation, and POI infrastructure wherever possible. Two external, free-tier data sources back them: OpenStreetMap's **Overpass API** (Discovery + indoor alternatives — no key needed) and **Calendarific** (public holidays — free key needed, see `backend/.env.example` / `CALENDARIFIC_API_KEY`). With no Calendarific key, holiday-driven signals are simply absent, never fabricated.
 
@@ -274,6 +279,24 @@ written to the logs either, so an admin resets a forgotten password by hand.
 **Limits.** If the PC or home internet is down the app can't reach the server; an SOS sent
 meanwhile is queued on the phone and sent when it's back, but location pings from that time are
 not. SMS needs a Twilio account. Disaster alerts reach the app over its live connection, not push.
+
+### Deploying for the phone app (free demo on Render)
+
+`render.yaml` is set up for a free demo: **free web service + free Postgres**. The web service sleeps after
+~15 min idle (the first request afterwards takes up to a minute, and background jobs/WebSockets pause while it
+sleeps); the free database expires after ~30 days. Switch both `plan:` lines to paid plans for an always-on setup.
+
+1. Merge your code to `main` on GitHub (Render builds from GitHub).
+2. Render → **New → Blueprint** → pick the repo and `main`. It reads `render.yaml`.
+3. Fill the prompts: `PUBLIC_BASE_URL` (the service's `https://…onrender.com` address), `VAPID_PUBLIC_KEY` /
+   `VAPID_PRIVATE_KEY` (`python -m app.scripts.generate_vapid_keys`), and three strong `SEED_*_PASSWORD`s.
+   Leave `TWILIO_*` and `APNS_*` empty (SMS stays in demo mode; native iOS push needs an Apple key).
+4. After the **first** successful start set `SEED_ON_START` to `false` in the Environment tab: the seed script
+   **deletes all data** each time it runs.
+5. Check `https://<address>/api/health`, then rebuild the phone app against it: put
+   `VITE_API_BASE=https://<address>/api` and `VITE_WS_ORIGIN=wss://<address>` in `frontend/.env.production.local`,
+   then `npm run build && npx cap sync ios` and Run in Xcode (see `docs/IOS_APP.md`).
+6. Once live, tighten `ALLOWED_HOSTS` from `*` to the service's hostname.
 
 ---
 

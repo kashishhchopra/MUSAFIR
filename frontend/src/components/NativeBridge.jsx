@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { App as CapApp } from '@capacitor/app'
 import { useAuth } from '../auth.jsx'
 import { onPushTap, resyncNativePush } from '../lib/pushService'
+import { runBack } from '../lib/navBus'
 
 const EXIT_ON_BACK = ['/', '/app', '/login']
 
@@ -18,6 +19,8 @@ export default function NativeBridge() {
 
   useEffect(() => {
     const back = CapApp.addListener('backButton', ({ canGoBack }) => {
+      // Close an open sheet / go back a screen first; only leave the app from the root.
+      if (runBack()) return
       if (!canGoBack || EXIT_ON_BACK.includes(pathRef.current)) CapApp.exitApp()
       else window.history.back()
     })

@@ -9,11 +9,14 @@
   "auth": {
     "email": "ইমেইল",
     "invalid_credentials": "ভুল ইমেইল বা পাসওয়ার্ড",
+    "login_error": "সাইন-ইন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
     "login_title": "লগইন",
     "password": "পাসওয়ার্ড",
     "register_prompt": "নতুন পর্যটক? এখানে নিবন্ধন করুন",
+    "server_unreachable": "সার্ভারের সাথে সংযোগ করা যাচ্ছে না। আপনার ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
     "sign_in": "সাইন ইন",
-    "tagline": "প্রতিটি যাত্রা, নিরাপত্তার সাথে"
+    "tagline": "প্রতিটি যাত্রা, নিরাপত্তার সাথে",
+    "too_many_attempts": "সাইন-ইনের অনেক বেশি চেষ্টা হয়েছে। অনুগ্রহ করে {{minutes}} মিনিট অপেক্ষা করে আবার চেষ্টা করুন।"
   },
   "checkin": {
     "card_title": "চেক-ইন/চেক-আউট",
@@ -45,13 +48,9 @@
     "voice_unavailable": "ভয়েস ইনপুট উপলব্ধ নয় — আপনার প্রশ্ন টাইপ করুন।"
   },
   "crowd_forecast": {
-    "card_title": "Crowd & Queue Forecast",
-    "density_high": "High",
-    "density_low": "Low",
-    "density_medium": "Medium",
-    "failed": "Couldn't load the crowd forecast right now.",
-    "intro": "Forecasted crowd levels by zone, factoring season, holidays, festivals and weather.",
-    "reasons": "{{list}}"
+    "card_title": "Crowd Outlook",
+    "failed": "Couldn't load the crowd outlook right now.",
+    "intro": "How busy it is likely to be around you over the next hours."
   },
   "currency": {
     "card_title": "মুদ্রা ও মূল্য",
@@ -109,19 +108,18 @@
     "source_osm": "Live from OpenStreetMap"
   },
   "emergency_mode": {
+    "admin_only_note": "শুধুমাত্র কন্ট্রোল রুম এই জরুরি অবস্থা বন্ধ করতে পারে। আপনি যেকোনো সময় আবার SOS চাপতে পারেন।",
     "assigning": "নিযুক্ত করা হচ্ছে…",
     "call_emergency": "জরুরি নম্বরে কল করুন",
-    "cancel_emergency": "জরুরি অবস্থা বাতিল করুন",
     "connection_interrupted": "সংযোগ বিঘ্নিত হয়েছে — আপনার শেষ অবস্থান সফলভাবে পাঠানো হয়েছে। পুনরায় সংযোগের চেষ্টা করা হচ্ছে।",
     "demo_notice": "(ডেমো মোড — সিমুলেটেড অবস্থান, এই ডিভাইসে প্রকৃত GPS নেই)",
     "finding_responder": "সাড়াদানকারী খুঁজছে…",
-    "keep_sharing": "না, শেয়ার করা চালিয়ে যান",
     "last_updated": "সর্বশেষ আপডেট",
     "location_status": "অবস্থানের অবস্থা",
     "location_unavailable": "অবস্থান সাময়িকভাবে অনুপলব্ধ",
     "officer_assigned": "অফিসার নিযুক্ত হয়েছে",
     "police_station": "পুলিশ স্টেশন",
-    "resolved_body": "জরুরি লাইভ লোকেশন শেয়ারিং বন্ধ করা হয়েছে।",
+    "resolved_body": "কন্ট্রোল রুম এই জরুরি অবস্থা বন্ধ করেছে। এখনও সাহায্যের প্রয়োজন হলে আবার SOS চাপুন।",
     "resolved_title": "জরুরি অবস্থা সমাধান হয়েছে",
     "response": "প্রতিক্রিয়া",
     "seconds_ago": "{{count}} সেকেন্ড আগে",
@@ -131,7 +129,6 @@
     "status_offline": "অফলাইন",
     "status_stale": "পুরনো",
     "status_stopped": "বন্ধ হয়েছে",
-    "tap_again_confirm": "নিশ্চিত করতে আবার ট্যাপ করুন",
     "title": "🚨 জরুরি মোড"
   },
   "etiquette": {
@@ -174,34 +171,18 @@
     "verdict_fair": "Fair",
     "verdict_overpriced": "Overpriced",
     "verdict_slightly_high": "Slightly high",
-    "verdict_suspicious": "Suspicious"
-  },
-  "festivals": {
-    "card_title": "Festival & Local Events",
-    "failed": "Couldn't load the festival calendar right now.",
-    "impact_high": "High crowd impact",
-    "impact_low": "Low crowd impact",
-    "impact_medium": "Medium crowd impact",
-    "intro": "Festivals and local events happening near you soon.",
-    "none_upcoming": "No festivals or events found nearby in the coming months.",
-    "public_holidays": "Public holidays (live)"
+    "verdict_suspicious": "Suspicious",
+    "need_location": "We need your current location to check this fare.",
+    "transport_label": "Transport type",
+    "needs": "To check a fare: allow your location, pick a destination and enter the quoted fare.",
+    "estimated_tip": "Road routing was unavailable, so this is the straight-line distance (real roads are usually longer).",
+    "straight_line": "straight-line estimate",
+    "open_route": "Open route in Maps"
   },
   "geofence": {
     "safe": "আপনি একটি নিরাপদ এলাকায় আছেন।",
     "warning_body": "আপনি {{zone}}-এ আছেন (ঝুঁকি: {{risk}})। সতর্ক থাকুন এবং এলাকা ত্যাগ করার কথা বিবেচনা করুন।",
     "warning_title": "জিওফেন্স সতর্কতা"
-  },
-  "guide": {
-    "card_title": "Multilingual Guide",
-    "category_directions": "Directions",
-    "category_food": "Food",
-    "category_greetings": "Greetings",
-    "category_medical": "চিকিৎসা",
-    "category_shopping": "Shopping",
-    "category_taxi": "ট্যাক্সি",
-    "failed": "Couldn't load the phrasebook right now.",
-    "intro": "Everyday phrases in your language — tap to translate and hear it spoken.",
-    "not_translated": "এই ভাষায় এখনো অনুবাদ করা হয়নি — ইংরেজি দেখানো হচ্ছে।"
   },
   "help": {
     "ask_safety_helper": "💬 নিরাপত্তা সহায়ককে জিজ্ঞাসা করুন"
@@ -217,13 +198,6 @@
     "greeting_evening": "শুভ সন্ধ্যা",
     "greeting_fallback": "ভ্রমণকারী",
     "greeting_morning": "সুপ্রভাত",
-    "quick_hospital": "হাসপাতাল",
-    "quick_itinerary": "ভ্রমণসূচি",
-    "quick_navigate": "নেভিগেট",
-    "quick_pharmacy": "ফার্মেসি",
-    "quick_translate": "অনুবাদ",
-    "quick_transport": "পরিবহন",
-    "quick_voice": "ভয়েস",
     "route_picker_hint": "🧭 একটি গন্তব্য বাছাই করতে নিচের মানচিত্রে ট্যাপ করুন, তারপর নিরাপদ রুট খুঁজতে পরিকল্পনা ট্যাবে যান।",
     "safe_body": "সমস্ত নিরাপত্তা ব্যবস্থা সক্রিয় রয়েছে",
     "safe_title": "আপনি নিরাপদ",
@@ -244,7 +218,8 @@
   "itinerary": {
     "next_stop": "পরবর্তী স্টপ",
     "route_safe": "রুট নিরাপদ",
-    "title": "ভ্রমণসূচি ট্র্যাকার"
+    "title": "ভ্রমণসূচি ট্র্যাকার",
+    "empty": "No itinerary yet — upload one or type your plan above."
   },
   "itinerary_upload": {
     "add_destination": "+ গন্তব্য যোগ করুন",
@@ -273,7 +248,21 @@
     "unresolved_warning_other": "⚠ {{count}}টি স্টপ মানচিত্রে স্থাপন করা যায়নি, তাই সেগুলি এখনও আপনার ভ্রমণসূচি ট্র্যাকারে প্রদর্শিত হয়নি — সমাধানের জন্য পুনরায় আপলোড করুন এবং «📍 অবস্থান নির্ণয় করুন» ব্যবহার করুন।",
     "upload_another": "আরেকটি আপলোড করুন",
     "upload_failed": "আপলোড ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
-    "upload_timeout": "এটি খুব বেশি সময় নিচ্ছে। একটি ছোট/স্পষ্ট ছবি বা PDF/DOCX/টেক্সট ফাইল চেষ্টা করুন।"
+    "upload_timeout": "এটি খুব বেশি সময় নিচ্ছে। একটি ছোট/স্পষ্ট ছবি বা PDF/DOCX/টেক্সট ফাইল চেষ্টা করুন।",
+    "build_failed": "Couldn't build your itinerary. Check your connection and try again.",
+    "source": "How do you want to add your itinerary?",
+    "tab_upload": "📄 Upload a file",
+    "tab_type": "✍️ Type your plan",
+    "type_intro": "Write your plans in your own words — one place or several, with dates and times if you like. We find each place on the map and work out the travel time from where you are.",
+    "type_label": "Your travel plan",
+    "type_placeholder": "e.g. I want to visit the Taj Mahal tomorrow morning, then Agra Fort at 5pm",
+    "building": "Finding your places…",
+    "build": "Build my itinerary",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove stop",
+    "date_for": "Date for stop {{n}}",
+    "time_for": "Preferred time for stop {{n}}"
   },
   "lang": {
     "label": "ভাষা"
@@ -394,7 +383,9 @@
     "retry_body": "সার্ভার সাড়া দেয়নি। আপনার SOS সংরক্ষিত আছে এবং পাঠানোর চেষ্টা চলতে থাকবে। জরুরি হলে এখনই জরুরি পরিষেবাকে ফোন করুন।",
     "sent_title": "SOS পাঠানো হয়েছে",
     "speak": "🎤 পরিবর্তে বলুন",
-    "voice_unsupported": "এই ডিভাইসে ভয়েস ইনপুট সমর্থিত নয় — উপরে টাইপ করুন।"
+    "voice_unsupported": "এই ডিভাইসে ভয়েস ইনপুট সমর্থিত নয় — উপরে টাইপ করুন।",
+    "no_location": "Can't find your location. Turn on GPS and try again -- or call {{number}} now.",
+    "failed": "SOS could not be sent. Try again, or call {{number}} now."
   },
   "tracking": {
     "permission_denied": "লোকেশন অনুমতি প্রত্যাখ্যাত হয়েছে — আপনার ব্রাউজার সেটিংসে এটি সক্ষম করুন।",
@@ -518,7 +509,28 @@
     "tap_to_speak": "Tap to speak",
     "traveler": "Traveler",
     "unsupported": "Voice input not supported on this device",
-    "you": "You"
+    "you": "You",
+    "err_permission": "Microphone access is blocked. Allow the microphone for MUSAFIR in your phone settings (Settings → Apps → MUSAFIR → Permissions → Microphone), then tap again.",
+    "err_no_mic": "No working microphone was found. Check that nothing else is using it.",
+    "err_network": "Speech recognition needs an internet connection. Check your connection and try again.",
+    "err_no_speech": "I didn't hear anything. Tap the button and speak clearly.",
+    "err_language": "This language isn't supported for voice input on this phone. Pick another language, or install it in your phone's speech settings.",
+    "err_unavailable": "Speech recognition isn't available on this phone. Install or enable Google's speech services and try again.",
+    "err_tts_language": "Your phone has no voice for this language, so the translation can't be read aloud. You can still read it on screen — or install the voice in Settings → Language → Text-to-speech.",
+    "err_no_tts": "This phone can't read text aloud. Read the translation on screen.",
+    "err_tts_failed": "Couldn't play the translation aloud. Tap Play to retry.",
+    "same_language": "Both sides are set to the same language -- pick different languages to translate.",
+    "language": "language",
+    "stop": "Stop",
+    "said": "Said",
+    "hears": "Hears (translated)",
+    "stop_audio": "Stop audio",
+    "play": "Play again",
+    "translating": "Translating…",
+    "permission_title": "Microphone permission",
+    "permission_why": "The translator listens through your microphone only while you tap the button, to turn your speech into text and translate it. Audio is handled by your phone's speech service.",
+    "asking": "Waiting for permission…",
+    "allow_mic": "Allow microphone"
   },
   "womens_safety": {
     "card_title": "Women & Solo Traveller Safety",
@@ -540,5 +552,50 @@
     "urgency_label": "{{level}} urgency",
     "urgency_low": "Low",
     "urgency_medium": "Medium"
+  },
+  "location": {
+    "try_again": "Try again",
+    "using_gps": "Using your live location",
+    "refresh": "Refresh",
+    "open_in_maps": "Open in Maps",
+    "locating": "Getting your location…",
+    "why": "MUSAFIR needs your current location to measure real distances from where you are. It is used only while you use this feature.",
+    "use_my_location": "Use my current location",
+    "denied": "Location permission is off. Allow location for MUSAFIR in your phone settings (Settings → Apps → MUSAFIR → Permissions → Location), then try again.",
+    "unavailable": "Your location couldn't be determined. Turn on GPS / Location services and make sure you have a signal, then try again.",
+    "timeout": "Finding your location took too long. Move somewhere with a clearer sky or signal and try again.",
+    "unsupported": "This device can't provide a location."
+  },
+  "place_search": {
+    "none": "No matching place found -- try a more specific name (add the city).",
+    "failed": "Couldn't search for places right now. Check your connection and try again.",
+    "destination": "Destination",
+    "change": "Change",
+    "placeholder": "Search a place",
+    "search": "Search"
+  },
+  "trip": {
+    "heading": "Travel time & distance",
+    "mode": "Travel mode",
+    "mode_driving": "Drive",
+    "mode_walking": "Walk",
+    "mode_bicycling": "Cycle",
+    "mode_transit": "Public transport",
+    "no_transit": "Public-transport times need a Google Maps key on the server, so they are not shown.",
+    "calculate": "Calculate travel time",
+    "calculating": "Calculating…",
+    "need_stop": "Add at least one destination with a map location.",
+    "need_location_or_two": "Allow your location, or add at least two stops, to calculate travel time.",
+    "failed": "Couldn't calculate travel times right now. Check your connection and try again.",
+    "my_location": "My location",
+    "you": "You",
+    "total": "total",
+    "arrive_first": "If you leave now you reach {{name}} around {{time}}.",
+    "estimate_note": "Road routing was unavailable for some legs, so those are straight-line estimates — real travel will usually take longer.",
+    "navigate": "Navigate in Google Maps"
+  },
+  "explore": {
+    "near_you": "Near you",
+    "needs_location": "Hidden spots, local food, the offline trip pack and festivals nearby all depend on where you are. Share your location to see them."
   }
 }

@@ -17,6 +17,7 @@ import logging
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
@@ -174,14 +175,112 @@ def _strip_html(text: str) -> str:
     return _HTML_TAG.sub("", text)
 
 
-def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> dict:
-    """Distance and ETA between two points. Real (Google Directions API,
-    actual road distance/time, plus real turn-by-turn `steps`) when a key is
-    configured; otherwise a straight-line haversine distance at an assumed
-    urban speed and no steps -- clearly marked `demo: True` since it is not
-    a routed answer. `steps`, when present, is a list of plain-text
-    instructions ("Turn left onto MG Road", ...) suitable for a voice
-    assistant to read aloud one at a time."""
+# Travel modes the app exposes -> (Google Directions mode, OSRM service path/profile).
+# Public transport has no keyless routing source, so it is only offered when
+# GOOGLE_MAPS_API_KEY is configured -- never faked.
+TRAVEL_MODES = ("driving", "walking", "bicycling", "transit")
+_GOOGLE_MODE = {"driving": "driving", "walking": "walking", "bicycling": "bicycling", "transit": "transit"}
+_OSRM_PROFILE = {
+    "driving": ("routed-car", "driving"),
+    "walking": ("routed-foot", "foot"),
+    "bicycling": ("routed-bike", "bike"),
+}
+# Straight-line fallback speeds per mode (km/h) -- an estimate, flagged demo.
+_FALLBACK_SPEED_KMH = {"driving": _DEMO_SPEED_KMH, "walking": 5.0, "bicycling": 15.0, "transit": 20.0}
+
+
+def available_modes() -> list[str]:
+    """Modes that can return a real routed answer in this deployment."""
+    modes = ["driving", "walking", "bicycling"]
+    if settings.GOOGLE_MAPS_API_KEY:
+        modes.append("transit")
+    return modes
+
+
+# Short-lived cache of routed answers: the same leg is asked repeatedly (editing
+# an itinerary re-times the same stops, several tourists plan the same landmarks)
+# and the free public OSRM servers ask clients to be gentle. Only successes are
+# cached; coordinates are rounded to ~1 m so a GPS jitter doesn't defeat it.
+_ROUTE_CACHE_TTL_S = 300
+_ROUTE_CACHE_MAX = 500
+_route_cache: dict[tuple, tuple[float, dict]] = {}
+_route_cache_lock = threading.Lock()
+
+
+def _osrm_route(olat, olng, dlat, dlng, mode: str) -> dict | None:
+    key = (round(olat, 5), round(olng, 5), round(dlat, 5), round(dlng, 5), mode)
+    now = time.monotonic()
+    with _route_cache_lock:
+        hit = _route_cache.get(key)
+        if hit and hit[0] > now:
+            return dict(hit[1])
+    result = _osrm_route_uncached(olat, olng, dlat, dlng, mode)
+    if result:
+        with _route_cache_lock:
+            if len(_route_cache) >= _ROUTE_CACHE_MAX:
+                _route_cache.clear()
+            _route_cache[key] = (now + _ROUTE_CACHE_TTL_S, result)
+    return result
+
+
+def clear_route_cache() -> None:
+    with _route_cache_lock:
+        _route_cache.clear()
+
+
+def _osrm_route_uncached(olat, olng, dlat, dlng, mode: str) -> dict | None:
+    """Real road/footpath routing via the free OSRM instances run by
+    routing.openstreetmap.de (no key). Returns distance, duration, the full
+    route geometry and turn-by-turn steps, or None on any failure."""
+    profile = _OSRM_PROFILE.get(mode)
+    if profile is None:
+        return None
+    service, name = profile
+    try:
+        resp = httpx.get(
+            f"https://routing.openstreetmap.de/{service}/route/v1/{name}/{olng},{olat};{dlng},{dlat}",
+            params={"overview": "full", "geometries": "geojson", "steps": "true"},
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, routing)"},
+            timeout=8.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("code") != "Ok" or not data.get("routes"):
+            return None
+        route = data["routes"][0]
+        leg = route["legs"][0]
+        steps = []
+        for st in leg.get("steps", []):
+            m = st.get("maneuver", {})
+            road = st.get("name") or ""
+            kind = (m.get("type") or "").replace("_", " ")
+            mod = m.get("modifier") or ""
+            text = " ".join(x for x in [kind.capitalize() if kind != "depart" else "Head", mod, f"on {road}" if road else ""] if x).strip()
+            if text:
+                steps.append(text)
+        return {
+            "distance_km": round(route["distance"] / 1000, 2),
+            "duration_min": round(route["duration"] / 60, 1),
+            "demo": False, "steps": steps or None, "provider": "osrm",
+            "geometry": [[c[1], c[0]] for c in route["geometry"]["coordinates"]],
+        }
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as e:
+        logger.warning("OSRM routing request failed, falling back: %s", e)
+        return None
+
+
+def directions(
+    origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float, mode: str = "driving",
+) -> dict:
+    """Distance and ETA between two points for a travel `mode`. Tiers:
+    Google Directions (when a key is set; real turn-by-turn, supports transit),
+    then free keyless OSRM road routing (driving/walking/cycling), and only if
+    both are unreachable a straight-line estimate at an assumed speed, marked
+    `demo: True` since it is not a routed answer. `geometry` (when present) is
+    the real route polyline as [[lat, lng], ...]; `steps` is a list of
+    plain-text instructions suitable for a voice assistant."""
+    if mode not in TRAVEL_MODES:
+        mode = "driving"
     if settings.GOOGLE_MAPS_API_KEY:
         try:
             resp = httpx.get(
@@ -189,6 +288,7 @@ def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: 
                 params={
                     "origin": f"{origin_lat},{origin_lng}",
                     "destination": f"{dest_lat},{dest_lng}",
+                    "mode": _GOOGLE_MODE[mode],
                     "key": settings.GOOGLE_MAPS_API_KEY,
                 },
                 timeout=5.0,
@@ -201,15 +301,228 @@ def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: 
                 return {
                     "distance_km": round(leg["distance"]["value"] / 1000, 2),
                     "duration_min": round(leg["duration"]["value"] / 60, 1),
-                    "demo": False,
-                    "steps": steps,
+                    "demo": False, "steps": steps, "provider": "google", "geometry": None,
                 }
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
             logger.warning("Directions API request failed, falling back: %s", e)
 
+    # Tests stay hermetic/offline (see Settings.is_test), like geocode().
+    if not settings.is_test:
+        routed = _osrm_route(origin_lat, origin_lng, dest_lat, dest_lng, mode)
+        if routed:
+            return routed
+
     distance_km = haversine_m(origin_lat, origin_lng, dest_lat, dest_lng) / 1000
-    duration_min = (distance_km / _DEMO_SPEED_KMH) * 60
+    duration_min = (distance_km / _FALLBACK_SPEED_KMH[mode]) * 60
     return {
         "distance_km": round(distance_km, 2), "duration_min": round(duration_min, 1),
-        "demo": True, "steps": None,
+        "demo": True, "steps": None, "provider": "estimate", "geometry": None,
     }
+
+
+def trip_legs(points: list[tuple[float, float]], mode: str = "driving") -> dict:
+    """Leg-by-leg distance/time through an ordered list of (lat, lng) stops,
+    plus totals. `demo` is True if ANY leg fell back to an estimate."""
+    pairs = list(zip(points, points[1:], strict=False))
+    # Legs are independent -- fetch them concurrently (a 15-stop trip would
+    # otherwise take 14 round-trips in sequence). map() preserves leg order.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda ab: directions(ab[0][0], ab[0][1], ab[1][0], ab[1][1], mode), pairs))
+    legs = [
+        {"distance_km": d["distance_km"], "duration_min": d["duration_min"],
+         "demo": d["demo"], "geometry": d.get("geometry")}
+        for d in results
+    ]
+    return {
+        "mode": mode, "legs": legs,
+        "total_distance_km": round(sum(x["distance_km"] for x in legs), 2),
+        "total_duration_min": round(sum(x["duration_min"] for x in legs), 1),
+        "demo": any(x["demo"] for x in legs),
+    }
+
+
+def search_places(query: str, limit: int = 5) -> list[dict]:
+    """Candidate matches for a place name -> [{name, lat, lng, demo}], best
+    first, so the tourist can pick the right "Taj Mahal" rather than trust
+    the top hit blindly. Google Geocoding when keyed, else Nominatim (the same
+    free, rate-limited service geocode() uses); empty list if neither answers."""
+    name = query.strip()
+    if not name:
+        return []
+    if settings.GOOGLE_MAPS_API_KEY:
+        try:
+            resp = httpx.get(
+                "https://maps.googleapis.com/maps/api/geocode/json",
+                params={"address": name, "key": settings.GOOGLE_MAPS_API_KEY}, timeout=5.0,
+            )
+            resp.raise_for_status()
+            out = [
+                {"name": r.get("formatted_address", name), "lat": r["geometry"]["location"]["lat"],
+                 "lng": r["geometry"]["location"]["lng"], "demo": False}
+                for r in resp.json().get("results", [])[:limit]
+            ]
+            if out:
+                return out
+        except (httpx.HTTPError, KeyError, ValueError) as e:
+            logger.warning("Place search (Google) failed, falling back: %s", e)
+    if settings.is_test:
+        m = _CITY_GAZETTEER.get(name.lower())
+        return [{"name": name, "lat": m[0], "lng": m[1], "demo": True}] if m else []
+
+    global _last_nominatim_call
+    with _nominatim_lock:
+        wait = _NOMINATIM_MIN_INTERVAL_S - (time.monotonic() - _last_nominatim_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_nominatim_call = time.monotonic()
+    try:
+        resp = httpx.get(
+            settings.NOMINATIM_URL,
+            params={"q": name, "format": "json", "limit": limit, "viewbox": "68,37,97,6", "bounded": 0},
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place search)"}, timeout=5.0,
+        )
+        resp.raise_for_status()
+        return [
+            {"name": r.get("display_name", name), "lat": float(r["lat"]), "lng": float(r["lon"]), "demo": False}
+            for r in resp.json()
+        ]
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
+        logger.warning("Place search (Nominatim) failed: %s", e)
+        return []
+
+
+# --------------------------------------------------------------- type-ahead
+_SUGGEST_TTL_S = 600
+_SUGGEST_MAX = 500
+_suggest_cache: dict[tuple, tuple[float, list[dict]]] = {}
+_suggest_lock = threading.Lock()
+
+
+def clear_suggest_cache() -> None:
+    with _suggest_lock:
+        _suggest_cache.clear()
+
+
+def _photon_label(p: dict) -> str:
+    """"Leela Ambience Hotel, Sector 24, Gurugram, Haryana, India" from Photon's fields."""
+    parts: list[str] = []
+    for key in ("name", "street", "district", "locality", "city", "county", "state", "country"):
+        v = p.get(key)
+        if v and v not in parts:
+            parts.append(str(v))
+    if p.get("housenumber") and p.get("street") and parts:
+        parts[0] = f"{parts[0]} {p['housenumber']}" if parts[0] == p.get("street") else parts[0]
+    return ", ".join(parts)
+
+
+def _photon(query: str, limit: int, near: tuple[float, float] | None) -> list[dict] | None:
+    """Type-ahead matches from Photon, or None when the service did not answer
+    (so the caller can fall back). An empty list means 'answered: nothing found'."""
+    params: dict = {"q": query, "limit": limit, "lang": "en"}
+    if near:
+        params["lat"], params["lon"] = near  # a soft bias towards the user, not a filter
+    try:
+        resp = httpx.get(
+            settings.PHOTON_URL, params=params, timeout=5.0,
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place suggestions)"},
+        )
+        resp.raise_for_status()
+        out: list[dict] = []
+        for f in resp.json().get("features", []):
+            lng, lat = f["geometry"]["coordinates"][:2]
+            label = _photon_label(f.get("properties", {}))
+            if label:
+                out.append({"name": label, "lat": float(lat), "lng": float(lng), "demo": False})
+        return out
+    except (httpx.HTTPError, KeyError, ValueError, TypeError, IndexError) as e:
+        logger.warning("Place suggestions (Photon) failed, falling back: %s", e)
+        return None
+
+
+def suggest_places(query: str, limit: int = 6, near: tuple[float, float] | None = None) -> list[dict]:
+    """Live suggestions while the user types: [{name, lat, lng, demo}].
+
+    Photon (built for type-ahead, tolerant of partial words and small typos)
+    first; if it is unreachable, the normal place search. Cached for a few
+    minutes so retyping or backspacing never repeats a request. Real data only:
+    nothing is returned unless a service actually found it."""
+    q = " ".join(query.split())
+    if len(q) < 2:
+        return []
+    key = (q.lower(), limit, round(near[0], 1) if near else None, round(near[1], 1) if near else None)
+    now = time.monotonic()
+    with _suggest_lock:
+        hit = _suggest_cache.get(key)
+        if hit and now - hit[0] < _SUGGEST_TTL_S:
+            return hit[1]
+    out: list[dict] | None = None
+    if settings.PHOTON_URL and not settings.is_test:
+        out = _photon(q, limit, near)
+    if not out:
+        # Photon off/unreachable (None), or answered "nothing": use the regular search
+        # (Google or Nominatim; it tokenises addresses differently), so a miss is a real miss.
+        out = search_places(q, limit)
+    with _suggest_lock:
+        if len(_suggest_cache) >= _SUGGEST_MAX:
+            _suggest_cache.clear()
+        if out:  # never cache a miss: it may be a transient failure
+            _suggest_cache[key] = (now, out)
+    return out
+
+
+# ------------------------------------------------- shared Nominatim access
+def nominatim_request(url: str, params: dict, timeout: float = 8.0):
+    """GET a Nominatim endpoint honouring its usage policy (<= 1 request/second
+    process-wide, identifying User-Agent). Raises httpx.HTTPError on failure."""
+    global _last_nominatim_call
+    with _nominatim_lock:
+        wait = _NOMINATIM_MIN_INTERVAL_S - (time.monotonic() - _last_nominatim_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_nominatim_call = time.monotonic()
+    resp = httpx.get(url, params=params, timeout=timeout,
+                     headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place discovery)"})
+    resp.raise_for_status()
+    return resp.json()
+
+
+_REVERSE_TTL_S = 24 * 3600
+_reverse_cache: dict[tuple[float, float], tuple[float, dict | None]] = {}
+
+
+def reverse_geocode(lat: float, lng: float) -> dict | None:
+    """Where is this point? -> {name, area, city, state, country, country_code} from
+    OpenStreetMap Nominatim, or None if it cannot be determined (callers then show
+    the coordinates; nothing is guessed). Cached ~1 km / 24 h."""
+    if settings.is_test:
+        return None
+    key = (round(lat, 2), round(lng, 2))
+    hit = _reverse_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _REVERSE_TTL_S:
+        return hit[1]
+    try:
+        d = nominatim_request(
+            settings.NOMINATIM_URL.replace("/search", "/reverse"),
+            {"lat": lat, "lon": lng, "format": "jsonv2", "zoom": 14, "addressdetails": 1, "accept-language": "en"},
+        )
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("Reverse geocoding failed: %s", e)
+        return None
+    a = d.get("address") or {}
+    if not a:
+        return None
+    area = next((a[k] for k in ("suburb", "neighbourhood", "city_district", "quarter", "village", "town", "hamlet") if a.get(k)), None)
+    city = next((a[k] for k in ("city", "town", "village", "municipality", "state_district", "county") if a.get(k)), None)
+    parts: list[str] = []
+    for part in (area, city, a.get("state")):
+        if part and part not in parts:
+            parts.append(part)
+    out = {
+        "name": ", ".join(parts) or d.get("display_name", "")[:80], "area": area, "city": city,
+        "state": a.get("state"), "country": a.get("country"),
+        "country_code": (a.get("country_code") or "").upper() or None,
+    }
+    if len(_reverse_cache) > 500:
+        _reverse_cache.clear()
+    _reverse_cache[key] = (time.monotonic(), out)
+    return out

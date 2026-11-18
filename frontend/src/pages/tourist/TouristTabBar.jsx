@@ -16,7 +16,7 @@ export default function TouristTabBar({ active, onChange }) {
   const { t } = useTranslation()
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[1000] bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-[env(safe-area-inset-bottom)]"
+      className="tourist-tabbar fixed bottom-[var(--sysnav-h)] left-0 right-0 z-[1000] bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-[env(safe-area-inset-bottom)]"
       aria-label={t('nav.sections_aria')}
     >
       <div className="max-w-md mx-auto grid grid-cols-5">

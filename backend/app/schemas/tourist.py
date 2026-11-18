@@ -24,6 +24,8 @@ class Waypoint(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     lat: float = LAT
     lng: float = LNG
+    date: str | None = None
+    time: str | None = None
 
 
 class EmergencyContact(BaseModel):

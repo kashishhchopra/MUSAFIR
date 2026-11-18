@@ -30,3 +30,12 @@ export function updateItineraryDocument(touristId, docId, extracted) {
 export function confirmItineraryDocument(touristId, docId) {
   return api.post(`/tourists/${touristId}/itinerary-documents/${docId}/confirm`).then((r) => r.data)
 }
+
+// Build an itinerary from typed natural language ("visit the Taj Mahal
+// tomorrow, then Agra Fort at 5pm"). Returns the same document shape as an
+// upload, so the same review/edit/confirm flow applies.
+export function createItineraryFromText(touristId, text) {
+  return api
+    .post(`/tourists/${touristId}/itinerary-documents/from-text`, { text }, { timeout: 60000 })
+    .then((r) => r.data)
+}

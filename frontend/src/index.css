@@ -187,3 +187,15 @@ html.dark body { background: #0f172a; color: #e2e8f0; }
 .sim-map .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.55);
 }
+
+
+/* ---- Phone navigation bar (components/SystemNavBar.jsx) ----
+   --sysnav-h is the height of the Back/Home/Recents bar, 0 when it is not shown
+   (desktop, or any screen without it). Pinned controls add it to their `bottom`. */
+:root { --sysnav-h: 0px; }
+body.has-sysnav { --sysnav-h: calc(3rem + env(safe-area-inset-bottom, 0px)); }
+/* Full-screen sheets/modals stop above the bar, so it never hides their buttons
+   and stays usable while one is open. */
+body.has-sysnav .fixed.inset-0 { bottom: var(--sysnav-h); }
+/* The bar already covers the device's gesture area, so the tab bar above it must not add the inset again. */
+body.has-sysnav .tourist-tabbar { padding-bottom: 0; }

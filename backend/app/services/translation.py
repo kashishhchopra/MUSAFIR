@@ -26,6 +26,17 @@ SUPPORTED_LANGUAGES = {
     "ar": "Arabic",
 }
 
+# Languages the live free-text translator (and the voice translator's speech
+# recognition/read-aloud) offers. A superset of SUPPORTED_LANGUAGES: those nine
+# have curated emergency phrasebook entries; the rest are translated live by
+# Google Cloud Translation / MyMemory only (never faked when both are down).
+LIVE_TRANSLATION_LANGUAGES = {
+    **SUPPORTED_LANGUAGES,
+    "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "mr": "Marathi", "gu": "Gujarati",
+    "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi", "as": "Assamese",
+    "it": "Italian", "pt": "Portuguese", "ru": "Russian",
+}
+
 # Curated safety-critical phrases, keyed by a stable phrase id -- real,
 # reviewed translations (not machine-generated at request time), used only
 # when no live translation API is configured. Extend this table rather than
@@ -359,13 +370,65 @@ def _mymemory_translate(text: str, target_lang: str, source_lang: str | None) ->
     return None
 
 
+# Google's web endpoint wants a few region-specific codes.
+_GOOGLE_WEB_CODE = {"zh": "zh-CN", "he": "iw"}
+
+
+def _libretranslate(text: str, target_lang: str, source_lang: str | None) -> str | None:
+    """A LibreTranslate server the operator runs (LIBRETRANSLATE_URL), or None."""
+    if not settings.LIBRETRANSLATE_URL:
+        return None
+    try:
+        resp = httpx.post(
+            settings.LIBRETRANSLATE_URL.rstrip("/") + "/translate",
+            json={"q": text, "source": source_lang or "auto", "target": target_lang, "format": "text",
+                  **({"api_key": settings.LIBRETRANSLATE_API_KEY} if settings.LIBRETRANSLATE_API_KEY else {})},
+            timeout=8.0,
+        )
+        resp.raise_for_status()
+        out = resp.json().get("translatedText")
+        return out if out and not _looks_garbled(out) else None
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning("LibreTranslate request failed: %s", e)
+        return None
+
+
+def _google_web_translate(text: str, target_lang: str, source_lang: str | None) -> tuple[str, str | None] | None:
+    """Google Translate's public web endpoint (the one browser extensions use). Unofficial, so only
+    used when TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE is on and every better source has failed. Returns
+    (translation, detected source language) or None -- never a guess."""
+    if not settings.TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE:
+        return None
+    try:
+        resp = httpx.post(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": _GOOGLE_WEB_CODE.get(source_lang, source_lang) if source_lang else "auto",
+                    "tl": _GOOGLE_WEB_CODE.get(target_lang, target_lang), "dt": "t"},
+            data={"q": text}, timeout=6.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # Be strict about the shape: anything but [[ [translated, original, ...], ... ], ...] is not a translation.
+        if not (isinstance(data, list) and data and isinstance(data[0], list)):
+            return None
+        out = "".join(seg[0] for seg in data[0] if isinstance(seg, list) and seg and isinstance(seg[0], str))
+        detected = data[2] if len(data) > 2 and isinstance(data[2], str) else None
+    except (httpx.HTTPError, ValueError, IndexError, TypeError, KeyError) as e:
+        logger.warning("Google web translation failed: %s", e)
+        return None
+    return (out, detected) if out.strip() and not _looks_garbled(out) else None
+
+
 def translate_text(text: str, target_lang: str, source_lang: str | None = None) -> dict:
-    """Translate arbitrary free text. Real (Google Cloud Translation) when a
-    key is configured; otherwise a real, free, no-key translation (MyMemory)
-    -- so features like the Two-Way Voice Translator actually translate out
-    of the box. Only if both are unreachable is the text returned unmodified
-    and clearly marked `demo: True` -- fabricating a translation would be
-    worse than admitting the capability isn't available."""
+    """Translate arbitrary free text. Sources, best first:
+      1. Google Cloud Translation, when GOOGLE_TRANSLATE_API_KEY is set (official);
+      2. your own LibreTranslate server, when LIBRETRANSLATE_URL is set;
+      3. MyMemory (free, official, but a phrase *memory*: only a machine-translated or near-exact
+         entry is trusted -- see _mymemory_translate);
+      4. Google's public web endpoint (free, unofficial -- TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE).
+    Only if all are unreachable is the text returned unmodified and clearly marked `demo: True` --
+    fabricating a translation would be worse than admitting it is not available. The answer says
+    which source produced it (`provider`)."""
     # No source given -> let the engine auto-detect rather than assuming English
     # (which mistranslates any non-English input).
     src = source_lang or None
@@ -382,15 +445,23 @@ def translate_text(text: str, target_lang: str, source_lang: str | None = None) 
             data = resp.json()
             translation = data["data"]["translations"][0]
             return {
-                "text": translation["translatedText"], "demo": False,
+                "text": translation["translatedText"], "demo": False, "provider": "google",
                 "detected_source_lang": translation.get("detectedSourceLanguage"),
             }
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
             logger.warning("Google Translate request failed, falling back: %s", e)
 
+    libre = _libretranslate(text, target_lang, src)
+    if libre is not None:
+        return {"text": libre, "demo": False, "provider": "libretranslate"}
+
     translated = _mymemory_translate(text, target_lang, src)
     if translated is not None:
-        return {"text": translated, "demo": False}
+        return {"text": translated, "demo": False, "provider": "mymemory"}
+
+    web = _google_web_translate(text, target_lang, src)
+    if web is not None:
+        return {"text": web[0], "demo": False, "provider": "google-web", "detected_source_lang": web[1]}
 
     return {
         "text": text, "demo": True,

@@ -147,4 +147,77 @@ describe('ItineraryUploadCard', () => {
     expect(mock.history.patch).toHaveLength(1)
     expect(mock.history.post.some((r) => r.url === '/tourists/1/itinerary-documents/7/confirm')).toBe(true)
   })
+
+  describe('typing a plan in natural language', () => {
+    const textDoc = {
+      id: 9, tourist_id: 1, filename: 'Typed plan', content_type: 'text/plain',
+      uploaded_at: '2026-01-01T00:00:00', status: 'extracted', error: '',
+      extracted: {
+        trip_start: '2026-11-19', trip_end: null,
+        destinations: [
+          { name: 'Taj Mahal', lat: 27.1751, lng: 78.0421, date: '2026-11-19', time: null },
+          { name: 'Agra Fort', lat: 27.1795, lng: 78.0211, date: '2026-11-19', time: '17:00' },
+        ],
+        hotels: [], transport: [], activities: [],
+      },
+      confirmed: false, confirmed_at: null,
+    }
+
+    it('builds an itinerary from text, lets the tourist reorder/edit it, and saves the edits', async () => {
+      mock.onPost('/tourists/1/itinerary-documents/from-text').reply(201, textDoc)
+      mock.onPatch('/tourists/1/itinerary-documents/9').reply(200, textDoc)
+      mock.onPost('/tourists/1/itinerary-documents/9/confirm').reply(200, { ...textDoc, confirmed: true })
+      mock.onGet('/maps/modes').reply(200, { modes: ['driving', 'walking', 'bicycling'] })
+      const { getByText, getByRole, getByLabelText, getAllByLabelText, findByDisplayValue, findByText } = render(<ItineraryUploadCard touristId={1} />)
+      fireEvent.click(getByText('📄 Upload My Itinerary'))
+      fireEvent.click(getByRole('tab', { name: /Type your plan/ }))
+      fireEvent.change(getByLabelText('Your travel plan'), { target: { value: 'visit Taj Mahal tomorrow then Agra Fort at 5pm' } })
+      fireEvent.click(getByText('Build my itinerary'))
+
+      await findByDisplayValue('Taj Mahal')
+      expect(JSON.parse(mock.history.post[0].data)).toEqual({ text: 'visit Taj Mahal tomorrow then Agra Fort at 5pm' })
+      expect(getByLabelText('Date for stop 1')).toHaveValue('2026-11-19')
+      expect(getByLabelText('Preferred time for stop 2')).toHaveValue('17:00')
+
+      // reorder: move Agra Fort (row 2) up, then change its time, then save
+      fireEvent.click(getAllByLabelText('Move up')[1])
+      await waitFor(() => expect(getByLabelText('Preferred time for stop 1')).toHaveValue('17:00'))
+      fireEvent.change(getByLabelText('Preferred time for stop 1'), { target: { value: '16:30' } })
+      fireEvent.click(getByText('Confirm & Save Itinerary'))
+      await findByText('✓ Itinerary saved')
+      const saved = JSON.parse(mock.history.patch[0].data)
+      expect(saved.destinations.map((d) => [d.name, d.time])).toEqual([['Agra Fort', '16:30'], ['Taj Mahal', null]])
+      expect(saved.destinations[1].date).toBe('2026-11-19')
+    })
+
+    it('shows a clear message when no place can be found in the typed text', async () => {
+      mock.onPost('/tourists/1/itinerary-documents/from-text').reply(201, {
+        ...textDoc, status: 'failed', error: "I couldn't find a place name in that.",
+        extracted: { trip_start: null, trip_end: null, destinations: [], hotels: [], transport: [], activities: [] },
+      })
+      const { getByText, getByRole, getByLabelText, findByText } = render(<ItineraryUploadCard touristId={1} />)
+      fireEvent.click(getByText('📄 Upload My Itinerary'))
+      fireEvent.click(getByRole('tab', { name: /Type your plan/ }))
+      fireEvent.change(getByLabelText('Your travel plan'), { target: { value: 'hello' } })
+      fireEvent.click(getByText('Build my itinerary'))
+      expect(await findByText(/couldn't find a place name/)).toBeInTheDocument()
+    })
+
+    it('shows an error (not a dead button) when the request fails', async () => {
+      mock.onPost('/tourists/1/itinerary-documents/from-text').networkError()
+      const { getByText, getByRole, getByLabelText, findByText } = render(<ItineraryUploadCard touristId={1} />)
+      fireEvent.click(getByText('📄 Upload My Itinerary'))
+      fireEvent.click(getByRole('tab', { name: /Type your plan/ }))
+      fireEvent.change(getByLabelText('Your travel plan'), { target: { value: 'Agra' } })
+      fireEvent.click(getByText('Build my itinerary'))
+      expect(await findByText(/Couldn't build your itinerary/)).toBeInTheDocument()
+    })
+
+    it('the build button is disabled until something is typed', () => {
+      const { getByText, getByRole } = render(<ItineraryUploadCard touristId={1} />)
+      fireEvent.click(getByText('📄 Upload My Itinerary'))
+      fireEvent.click(getByRole('tab', { name: /Type your plan/ }))
+      expect(getByText('Build my itinerary')).toBeDisabled()
+    })
+  })
 })

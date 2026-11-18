@@ -147,4 +147,73 @@ describe('LiveEmergencies', () => {
     expect(getByText(/🚨 INC-42/)).toBeInTheDocument()
     expect(getByText(/🚨 INC-43/)).toBeInTheDocument()
   })
+
+  describe('tick and mark resolved', () => {
+    const second = { ...emergency, incident_id: 43, digital_id: 'STS-2000', tourist_name: 'Emma' }
+    const third = { ...emergency, incident_id: 44, digital_id: 'STS-3000', tourist_name: 'Kenji' }
+
+    it('Mark resolved is disabled until a case is ticked, then shows the count', async () => {
+      mock.onGet('/incidents/live').reply(200, [emergency, second])
+      const { findByText, getByLabelText, getByRole } = renderPage()
+      await findByText(/🚨 INC-42/)
+      expect(getByRole('button', { name: /Mark resolved/ })).toBeDisabled()
+      fireEvent.click(getByLabelText('Select INC-42'))
+      expect(getByRole('button', { name: /Mark resolved \(1\)/ })).toBeEnabled()
+    })
+
+    it('Select all ticks every case and a second click clears them', async () => {
+      mock.onGet('/incidents/live').reply(200, [emergency, second, third])
+      const { findByText, getByLabelText, getByRole } = renderPage()
+      await findByText(/🚨 INC-44/)
+      fireEvent.click(getByLabelText('Select all'))
+      expect(getByRole('button', { name: /Mark resolved \(3\)/ })).toBeEnabled()
+      fireEvent.click(getByLabelText('Select all'))
+      expect(getByRole('button', { name: /Mark resolved/ })).toBeDisabled()
+    })
+
+    it('asks for confirmation, then resolves only the ticked cases and removes them', async () => {
+      mock.onGet('/incidents/live').reply(200, [emergency, second, third])
+      mock.onPatch(/\/incidents\/\d+/).reply(200, {})
+      const { findByText, getByLabelText, getByRole, queryByText } = renderPage()
+      await findByText(/🚨 INC-44/)
+      fireEvent.click(getByLabelText('Select INC-42'))
+      fireEvent.click(getByLabelText('Select INC-44'))
+      fireEvent.click(getByRole('button', { name: /Mark resolved \(2\)/ }))
+      expect(await findByText(/tells the tourist and their family/)).toBeInTheDocument()
+      expect(mock.history.patch).toHaveLength(0)                       // nothing sent before confirming
+      fireEvent.click(getByRole('button', { name: 'Yes, resolve' }))
+      await waitFor(() => expect(queryByText(/🚨 INC-42/)).not.toBeInTheDocument())
+      expect(queryByText(/🚨 INC-44/)).not.toBeInTheDocument()
+      expect(screen.getByText(/🚨 INC-43/)).toBeInTheDocument()        // the un-ticked case stays
+      expect(mock.history.patch.map((r) => r.url).sort()).toEqual(['/incidents/42', '/incidents/44'])
+      expect(JSON.parse(mock.history.patch[0].data).status).toBe('resolved')
+      expect(await findByText(/2 emergencies marked resolved/)).toBeInTheDocument()
+    })
+
+    it('Cancel sends nothing and keeps the cases', async () => {
+      mock.onGet('/incidents/live').reply(200, [emergency])
+      const { findByText, getByLabelText, getByRole } = renderPage()
+      await findByText(/🚨 INC-42/)
+      fireEvent.click(getByLabelText('Select INC-42'))
+      fireEvent.click(getByRole('button', { name: /Mark resolved/ }))
+      fireEvent.click(getByRole('button', { name: 'Cancel' }))
+      expect(mock.history.patch).toHaveLength(0)
+      expect(screen.getByText(/🚨 INC-42/)).toBeInTheDocument()
+    })
+
+    it('keeps a case that failed to resolve ticked and says which one', async () => {
+      mock.onGet('/incidents/live').reply(200, [emergency, second])
+      mock.onPatch('/incidents/42').reply(200, {})
+      mock.onPatch('/incidents/43').reply(403, { detail: 'Forbidden' })
+      const { findByText, getByLabelText, getByRole, queryByText } = renderPage()
+      await findByText(/🚨 INC-43/)
+      fireEvent.click(getByLabelText('Select all'))
+      fireEvent.click(getByRole('button', { name: /Mark resolved \(2\)/ }))
+      fireEvent.click(getByRole('button', { name: 'Yes, resolve' }))
+      expect(await findByText(/1 resolved, 1 could not be resolved \(INC-43\)/)).toBeInTheDocument()
+      expect(queryByText(/🚨 INC-42/)).not.toBeInTheDocument()
+      expect(screen.getByText(/🚨 INC-43/)).toBeInTheDocument()
+      expect(getByLabelText('Select INC-43')).toBeChecked()
+    })
+  })
 })

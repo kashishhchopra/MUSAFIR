@@ -25,6 +25,13 @@ def list_languages(_: User = Depends(get_current_user)):
     return translation.SUPPORTED_LANGUAGES
 
 
+@router.get("/live-languages")
+def list_live_languages(_: User = Depends(get_current_user)):
+    """Languages the free-text / voice translator can handle (a superset of
+    the curated phrasebook languages)."""
+    return translation.LIVE_TRANSLATION_LANGUAGES
+
+
 @router.get("/phrases")
 def list_phrases(_: User = Depends(get_current_user)):
     """Every curated emergency phrase id, for the frontend to render as

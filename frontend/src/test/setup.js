@@ -25,8 +25,15 @@ if (typeof globalThis.URL.revokeObjectURL === 'undefined') {
   globalThis.URL.revokeObjectURL = () => {}
 }
 
+// jsdom does not implement window.scrollTo (it only logs); the navigation code scrolls on screen changes.
+window.scrollTo = () => {}
+
+// The device location is one shared store for the whole app; every test starts from "never asked".
+import { resetDeviceLocation } from '../lib/deviceLocation'
+
 // Unmount anything a test rendered, so cases cannot leak DOM into each other.
 afterEach(() => {
   cleanup()
+  resetDeviceLocation()
   localStorage.clear()
 })

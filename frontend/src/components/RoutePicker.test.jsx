@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, renderHook } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import api from '../api'
@@ -18,6 +18,7 @@ vi.mock('react-leaflet', () => ({
 }))
 
 const mock = new MockAdapter(api)
+beforeEach(() => mock.reset())
 
 const routeResponse = {
   tourist_id: 1,
@@ -97,5 +98,19 @@ describe('RoutePicker', () => {
     rerender(<RoutePicker active={true} onToggle={() => {}} state={result.current} />)
 
     expect(getByText('Tourist has no known location yet')).toBeInTheDocument()
+  })
+
+  it('has no "Save route" any more -- only Open in Google Maps', async () => {
+    mock.onGet('/tourists/1/route-recommendation').reply(200, routeResponse)
+    const { result } = renderHook(() => useRoutePicker(1))
+    act(() => { result.current.pick([26.12, 91.71]) })
+    const { rerender, getByText, queryByText, queryByLabelText } = render(
+      <RoutePicker active={true} onToggle={() => {}} state={result.current} origin={[26.1, 91.7]} />)
+    await act(async () => { await result.current.findRoute() })
+    rerender(<RoutePicker active={true} onToggle={() => {}} state={result.current} origin={[26.1, 91.7]} />)
+    expect(getByText(/Open in Google Maps/)).toBeInTheDocument()
+    expect(queryByText(/Save route/)).not.toBeInTheDocument()
+    expect(queryByLabelText('Route name')).not.toBeInTheDocument()
+    expect(mock.history.post).toHaveLength(0)
   })
 })
