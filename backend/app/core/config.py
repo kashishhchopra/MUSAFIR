@@ -483,6 +483,15 @@ class Settings(BaseSettings):
     WALKHOME_ROUTE_BUFFER_PERCENT: int = 25
     WALKHOME_ROUTE_BUFFER_MIN_MINUTES: int = 5
     GOOGLE_TRANSLATE_API_KEY: str = ""
+    # Optional self-hosted LibreTranslate (https://libretranslate.com, open source): its URL
+    # (e.g. http://localhost:5000) and, if you set one, its API key. Tried before the free fallbacks.
+    LIBRETRANSLATE_URL: str = ""
+    LIBRETRANSLATE_API_KEY: str = ""
+    # Last-resort free fallback: Google Translate's public web endpoint (no key). It is NOT an
+    # official API -- no guarantee, may be rate-limited or blocked, and its terms are for Google's
+    # own apps -- so it is a stop-gap for development/demos. For real use set GOOGLE_TRANSLATE_API_KEY
+    # (official) or LIBRETRANSLATE_URL (your own server) and switch this off.
+    TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE: bool = True
     SPEECH_TO_TEXT_API_KEY: str = ""
     TEXT_TO_SPEECH_API_KEY: str = ""
     # Itinerary document upload: max file size accepted for extraction.

@@ -26,6 +26,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 # environment doesn't guarantee.
 os.environ.setdefault("DISCOVERY_LIVE_ENABLED", "false")
 os.environ.setdefault("NEARBY_LIVE_ENABLED", "false")
+os.environ.setdefault("TRANSLATE_ALLOW_UNOFFICIAL_GOOGLE", "false")
 # Hermetic notifications: a developer's real backend/.env (Twilio keys, an SMS
 # allowlist, NOTIFICATION_CHANNEL=twilio ...) must never leak into the tests,
 # or a test could text a real number / be silently blocked by the allowlist.
