@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act, renderHook } from '@testing-library/react'
+import { render, act, renderHook, fireEvent } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import api from '../api'
 import RoutePicker, { RouteLayer, useRoutePicker } from './RoutePicker'
@@ -42,8 +42,9 @@ describe('RoutePicker', () => {
 
   it('shows a destination prompt and disabled button before a destination is picked', () => {
     const { result } = renderHook(() => useRoutePicker(1))
-    const { getByText } = render(<RoutePicker active={true} onToggle={() => {}} state={result.current} />)
-    expect(getByText(/Tap the map to choose a destination/)).toBeInTheDocument()
+    const { getByText, getByPlaceholderText } = render(<RoutePicker active={true} onToggle={() => {}} state={result.current} />)
+    expect(getByText(/Search for a place above, or tap a spot on the map/)).toBeInTheDocument()
+    expect(getByPlaceholderText('Where do you want to go?')).toBeInTheDocument()
     expect(getByText('Find safe route').closest('button')).toBeDisabled()
   })
 
@@ -112,5 +113,69 @@ describe('RoutePicker', () => {
     expect(queryByText(/Save route/)).not.toBeInTheDocument()
     expect(queryByLabelText('Route name')).not.toBeInTheDocument()
     expect(mock.history.post).toHaveLength(0)
+  })
+
+  // The clickable map is on the Home screen, so on the Plan screen the destination must be choosable by name.
+  describe('choosing the destination by name (no map on this screen)', () => {
+    const SUGGEST = { results: [{ name: 'India Gate, New Delhi, Delhi, India', lat: 28.6129, lng: 77.2295, demo: false }] }
+
+    function Harness({ origin = [28.6315, 77.2167] }) {
+      const state = useRoutePicker(1)
+      return <RoutePicker active onToggle={() => {}} state={state} origin={origin} />
+    }
+
+    it('searching and picking a place enables Find safe route, which asks for exactly that place', async () => {
+      mock.onGet('/maps/suggest').reply(200, SUGGEST)
+      mock.onGet('/tourists/1/route-recommendation').reply(200, routeResponse)
+      const user = render(<Harness />)
+      expect(user.getByText('Find safe route').closest('button')).toBeDisabled()
+      fireEvent.change(user.getByPlaceholderText('Where do you want to go?'), { target: { value: 'India Gate' } })
+      fireEvent.click(await user.findByText(/India Gate/, {}, { timeout: 2000 }))
+      expect(user.getByText('Find safe route').closest('button')).not.toBeDisabled()
+      expect(user.queryByTestId('route-hint')).toBeNull()
+      fireEvent.click(user.getByText('Find safe route'))
+      await user.findByText(/Approximate route/)
+      const call = mock.history.get.find((c) => c.url === '/tourists/1/route-recommendation')
+      expect(call.params).toEqual({ dest_lat: 28.6129, dest_lng: 77.2295 })
+      // the suggestions were ranked towards where the tourist is
+      expect(mock.history.get.find((c) => c.url === '/maps/suggest').params).toMatchObject({ lat: 28.6315, lng: 77.2167 })
+    })
+
+    it('shows the chosen place by name, and "Change" clears it again', async () => {
+      mock.onGet('/maps/suggest').reply(200, SUGGEST)
+      const user = render(<Harness />)
+      fireEvent.change(user.getByPlaceholderText('Where do you want to go?'), { target: { value: 'India Gate' } })
+      fireEvent.click(await user.findByText(/India Gate/, {}, { timeout: 2000 }))
+      expect(user.getByText(/India Gate, New Delhi/)).toBeInTheDocument()
+      fireEvent.click(user.getByText('Change'))
+      expect(user.getByText('Find safe route').closest('button')).toBeDisabled()
+      expect(user.getByPlaceholderText('Where do you want to go?')).toBeInTheDocument()
+    })
+
+    it('a destination tapped on the Home map (no name) is still shown, as a pin', () => {
+      const { result } = renderHook(() => useRoutePicker(1))
+      act(() => { result.current.pick([26.1234, 91.7654]) })
+      const { getByText } = render(<RoutePicker active onToggle={() => {}} state={result.current} />)
+      expect(getByText(/Pin 26\.1234, 91\.7654/)).toBeInTheDocument()
+      expect(getByText('Find safe route').closest('button')).not.toBeDisabled()
+    })
+
+    it('Reset clears the destination and its name', async () => {
+      const { result } = renderHook(() => useRoutePicker(1))
+      act(() => { result.current.pick([1, 2], 'Somewhere') })
+      expect(result.current.destName).toBe('Somewhere')
+      act(() => { result.current.reset() })
+      expect(result.current.dest).toBeNull()
+      expect(result.current.destName).toBeNull()
+    })
+
+    it('a place that cannot be found says so and leaves the button disabled', async () => {
+      mock.onGet('/maps/suggest').reply(200, { results: [] })
+      mock.onGet('/maps/search').reply(200, { results: [] })
+      const user = render(<Harness />)
+      fireEvent.change(user.getByPlaceholderText('Where do you want to go?'), { target: { value: 'qqzzxx nowhere' } })
+      expect(await user.findByText(/No matching place found/, {}, { timeout: 2000 })).toBeInTheDocument()
+      expect(user.getByText('Find safe route').closest('button')).toBeDisabled()
+    })
   })
 })

@@ -3,6 +3,7 @@ import { Polyline, CircleMarker, useMapEvents } from 'react-leaflet'
 import api from '../api'
 import { riskColor } from './mapIcons'
 import { openDirections } from '../lib/mapsLinks'
+import PlaceSearch from './PlaceSearch.jsx'
 
 // Shared state for the safe-route picker, split across two rendering sites:
 // `RouteLayer` (map children -- click capture + polylines, must live inside
@@ -13,11 +14,12 @@ import { openDirections } from '../lib/mapsLinks'
 // to wire a single instance of state.
 export function useRoutePicker(tid) {
   const [dest, setDest] = useState(null)
+  const [destName, setDestName] = useState(null) // set when the destination was searched for (a map tap has no name)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const pick = (p) => { setDest(p); setResult(null); setError(null) }
+  const pick = (p, name = null) => { setDest(p); setDestName(name); setResult(null); setError(null) }
 
   const findRoute = async () => {
     if (!dest) return
@@ -36,9 +38,9 @@ export function useRoutePicker(tid) {
     }
   }
 
-  const reset = () => { setDest(null); setResult(null); setError(null) }
+  const reset = () => { setDest(null); setDestName(null); setResult(null); setError(null) }
 
-  return { dest, result, error, loading, pick, findRoute, reset }
+  return { dest, destName, result, error, loading, pick, findRoute, reset }
 }
 
 // Map layer: click-to-pick-destination marker + candidate route polylines,
@@ -82,7 +84,7 @@ export function RouteLayer({ active, dest, result, onPick }) {
 // button, and the recommendation summary. `state` is a `useRoutePicker(tid)`
 // instance shared with the `RouteLayer` rendered inside the map.
 export default function RoutePicker({ active, onToggle, state, origin }) {
-  const { dest, result, error, loading, findRoute, reset } = state
+  const { dest, destName, result, error, loading, pick, findRoute, reset } = state
 
   if (!active) return null
 
@@ -92,9 +94,18 @@ export default function RoutePicker({ active, onToggle, state, origin }) {
         <div className="font-medium text-slate-900 dark:text-slate-100">Safe route</div>
         <button onClick={onToggle} className="text-xs text-slate-500 dark:text-slate-400">Close</button>
       </div>
-      <div className="text-xs text-slate-500 dark:text-slate-400">
-        {dest ? `Destination: ${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}` : 'Tap the map to choose a destination'}
-      </div>
+      {/* The destination is chosen here by name. (The clickable map is on the Home screen, so on this
+          screen there was nothing to tap and the button below could never be enabled.) */}
+      <PlaceSearch autocomplete icon="🏁"
+        selected={dest ? { name: destName || `Pin ${dest[0].toFixed(4)}, ${dest[1].toFixed(4)}`, lat: dest[0], lng: dest[1] } : null}
+        onSelect={(p) => (p ? pick([p.lat, p.lng], p.name) : reset())}
+        near={origin ? { lat: origin[0], lng: origin[1] } : null}
+        placeholder="Where do you want to go?" />
+      {!dest && (
+        <div className="text-xs text-slate-500 dark:text-slate-400" data-testid="route-hint">
+          Search for a place above, or tap a spot on the map on the Home screen.
+        </div>
+      )}
       <div className="flex gap-2">
         <button onClick={findRoute} disabled={!dest || loading}
           className="bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
