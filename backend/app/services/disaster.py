@@ -215,6 +215,16 @@ def simulate_advisories(zones: list[Zone]) -> list[dict]:
     return out
 
 
+def simulator_enabled() -> bool:
+    """The simulator invents advisories, so it must never run for real users by
+    accident: it is on in development/test, and in production only when
+    DISASTER_FEED_PROVIDER=simulator is set on purpose (e.g. a demo)."""
+    provider = settings.DISASTER_FEED_PROVIDER.strip().lower()
+    if provider == "simulator":
+        return True
+    return provider == "" and not settings.is_production
+
+
 def tick_disaster_feed(db: Session) -> dict[str, list[int]]:
     """Refresh advisories: expire ones no longer indicated, create new ones,
     and alert every tourist currently inside a newly-active advisory's zone.
@@ -225,10 +235,20 @@ def tick_disaster_feed(db: Session) -> dict[str, list[int]]:
     zones = db.query(Zone).all()
 
     candidates = None
+    feed_failed = False
     if settings.DISASTER_FEED_PROVIDER == "cap":
         candidates = fetch_real_feed_candidates(zones)
-    if candidates is None:
+        if candidates is None:
+            # A real feed that is down must never be replaced by made-up
+            # advisories, nor treated as "all clear": keep what is active and
+            # try again next tick.
+            feed_failed = True
+            candidates = []
+            logger.warning("disaster_feed_unavailable", provider="cap")
+    elif simulator_enabled():
         candidates = simulate_advisories(zones)
+    else:
+        candidates = []
     # Real weather-condition candidates (see weather_condition_advisories'
     # docstring) are always merged in on top of whichever source above ran
     # -- independent real data, not an either/or with CAP/simulator. A no-op
@@ -251,6 +271,8 @@ def tick_disaster_feed(db: Session) -> dict[str, list[int]]:
 
     expired: list[int] = []
     for a in active:
+        if feed_failed and a.source.startswith("cap:"):
+            continue  # CAP advisory + CAP outage: don't declare it over (other sources re-evaluate)
         if (a.zone_id, a.hazard_type) not in candidate_keys:
             a.active = False
             expired.append(a.id)

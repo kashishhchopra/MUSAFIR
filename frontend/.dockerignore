@@ -2,6 +2,11 @@ node_modules/
 dist/
 .env
 .env.android
+# Native/Render build config with placeholder hosts: baking it into the Docker web image
+# pointed every API call at https://REPLACE-WITH-YOUR-BACKEND-HOST. The container serves
+# the app behind nginx, which proxies /api and /ws, so it needs relative URLs.
+.env.production
+.env.*.local
 npm-debug.log*
 android/
 assets/

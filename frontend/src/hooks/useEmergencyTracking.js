@@ -62,8 +62,12 @@ export default function useEmergencyTracking({ tid, incidentId, active, startPos
       if (!SIMULATE_GPS && geo.position) {
         ({ lat, lng, accuracy: accuracyM, speedKmh, heading: headingDeg } = geo.position)
         isDemo = false
-      } else if (!SIMULATE_GPS && geo.error) {
-        setError('Location temporarily unavailable')
+      } else if (!SIMULATE_GPS) {
+        // Real device but no fix yet (or GPS failing): wait. Never fall through to
+        // the simulated walk -- a made-up position would overwrite the incident's
+        // real location in the control room. The SOS itself already carried the
+        // best known position.
+        if (geo.error) setError('Location temporarily unavailable')
         return
       } else {
         // Demo/simulation fallback: a small deterministic drift, clearly

@@ -97,8 +97,11 @@ class DispatchCandidateOut(BaseModel):
 
 
 class SOSRequest(BaseModel):
-    lat: float = Field(..., ge=-90, le=90)
-    lng: float = Field(..., ge=-180, le=180)
+    # Optional: an SOS must go out even when the phone has no GPS fix yet. The
+    # server then uses the tourist's last known position, or raises the incident
+    # with the location marked unknown. Never invent coordinates client-side.
+    lat: float | None = Field(None, ge=-90, le=90)
+    lng: float | None = Field(None, ge=-180, le=180)
     message: str = Field("SOS - emergency assistance required", max_length=500)
     # Silent/Duress SOS: raised via a discreet trigger (shake, rapid re-press,
     # duress PIN) rather than the visible button -- same payload, tagged so

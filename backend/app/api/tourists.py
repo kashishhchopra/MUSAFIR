@@ -5,7 +5,7 @@ import json
 import uuid
 
 import qrcode
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,7 @@ from app.services import audit, consular, hashchain, liveness, privacy, privacy_
 from app.services import passport as passport_service
 from app.services import tourist_id as tourist_id_service
 from app.services.forecast import DEFAULT_HORIZONS_MIN, forecast_risk
+from app.services.geo import haversine_m
 from app.services.monitoring import process_ping
 from app.services.navigation import get_navigation_guidance
 from app.services.nearby import find_nearby
@@ -406,7 +407,10 @@ def get_pings(tourist_id: int, limit: int = 100, db: Session = Depends(get_db),
 
 
 @router.get("/{tourist_id}/trajectory-forecast")
-def get_trajectory_forecast(tourist_id: int, horizon_min: float = 15.0,
+def get_trajectory_forecast(tourist_id: int,
+                            # Bounded: the prediction loop runs horizon/5 times, so an
+                            # unbounded value let one request spin a worker for hours.
+                            horizon_min: float = Query(15.0, ge=0, le=240),
                             db: Session = Depends(get_db),
                             _: User = Depends(require_self_or_admin)):
     """Predicted future positions (kinematic extrapolation from recent pings),
@@ -448,7 +452,9 @@ def get_risk_forecast(tourist_id: int, db: Session = Depends(get_db),
 
 
 @router.get("/{tourist_id}/route-recommendation")
-def get_route_recommendation(tourist_id: int, dest_lat: float, dest_lng: float,
+def get_route_recommendation(tourist_id: int,
+                             dest_lat: float = Query(..., ge=-90, le=90),
+                             dest_lng: float = Query(..., ge=-180, le=180),
                              db: Session = Depends(get_db),
                              _: User = Depends(require_self_or_admin)):
     """Approximate, lower-risk route from the tourist's last known position to
@@ -459,6 +465,12 @@ def get_route_recommendation(tourist_id: int, dest_lat: float, dest_lng: float,
         raise HTTPException(status_code=404, detail="Tourist not found")
     if t.last_lat is None or t.last_lng is None:
         raise HTTPException(status_code=400, detail="Tourist has no known location yet")
+    if haversine_m(t.last_lat, t.last_lng, dest_lat, dest_lng) > settings.ROUTE_MAX_DISTANCE_KM * 1000:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Destination is more than {settings.ROUTE_MAX_DISTANCE_KM:.0f} km away; "
+                   "safe-route planning works for local trips only",
+        )
     result = recommend_route(db, (t.last_lat, t.last_lng), (dest_lat, dest_lng))
     return {"tourist_id": tourist_id, **result}
 

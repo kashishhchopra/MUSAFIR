@@ -510,11 +510,12 @@ def _contacts(tourist: Tourist) -> list[dict]:
 
 # ------------------------------------------------------------------ the events
 def notify_sos(db: Session, inc: Incident, tourist: Tourist, *, message: str, silent: bool,
-               lat: float, lng: float, unit_name: str | None) -> None:
+               lat: float | None, lng: float | None, unit_name: str | None) -> None:
     """SOS -> push to tourist (not if silent), guardians, the assigned unit's
     responders and the control room; SMS to emergency contacts and guardians."""
     place = _place(db, lat, lng)
-    maps = f"https://maps.google.com/?q={lat:.5f},{lng:.5f}"
+    maps = f"https://maps.google.com/?q={lat:.5f},{lng:.5f}" if lat is not None and lng is not None else ""
+    coords = f"{lat:.5f}, {lng:.5f} ({maps})" if maps else "unknown (no GPS fix)"
     status_txt = f"dispatched to {unit_name}" if unit_name else "awaiting dispatch"
     hush = " Silent SOS: do not call or approach visibly." if silent else ""
     common = dict(severity="critical", incident=inc, tourist=tourist)
@@ -556,7 +557,7 @@ def notify_sos(db: Session, inc: Incident, tourist: Tourist, *, message: str, si
         _enqueue_sms(db, event_name="sos", rtype="emergency_contact", label=c.get("name") or "Emergency contact",
                      phone=c["phone"], title="MUSAFIR SOS", severity="critical",
                      body=(f"MUSAFIR SOS: {tourist.full_name} has triggered an SOS. Last known location: "
-                           f"{lat:.5f}, {lng:.5f} ({maps}). Message: {message}.{hush}"),
+                           f"{coords}. Message: {message}.{hush}"),
                      incident=inc, tourist=tourist)
 
 

@@ -18,6 +18,7 @@ from app.services.geo import EARTH_RADIUS_M, haversine_m, zones_containing_point
 _MAX_HISTORY = 5
 # Emit a predicted point every 5 simulated minutes out to the horizon.
 _STEP_MIN = 5.0
+_MAX_HORIZON_MIN = 240.0
 
 
 def _bearing_deg(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -57,8 +58,9 @@ def predict_trajectory(
     speed ~0 -- bearing is undefined and there's nowhere for them to project
     toward).
     """
-    if len(pings) < 2 or horizon_min <= 0:
+    if len(pings) < 2 or not (horizon_min > 0):  # also rejects NaN
         return []
+    horizon_min = min(horizon_min, _MAX_HORIZON_MIN)  # defence in depth: the loop is horizon/step long
 
     recent = pings[-_MAX_HISTORY:]
     dists, bearings, dts = [], [], []

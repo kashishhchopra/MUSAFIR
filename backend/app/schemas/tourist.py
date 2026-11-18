@@ -177,8 +177,8 @@ class DuressPinSet(BaseModel):
 
 class DuressSOSRequest(BaseModel):
     pin: str = Field(..., min_length=4, max_length=8)
-    lat: float = LAT
-    lng: float = LNG
+    lat: float | None = Field(None, ge=-90, le=90)
+    lng: float | None = Field(None, ge=-180, le=180)
     message: str = Field("SOS - emergency assistance required", max_length=500)
 
 

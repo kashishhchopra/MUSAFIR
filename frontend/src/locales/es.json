@@ -390,6 +390,8 @@
     "pending_count_other": "{{count}} alertas SOS aún esperando conexión…",
     "queued_body": "Está sin conexión. Su SOS se guardó en este dispositivo y se enviará automáticamente en cuanto vuelva a estar en línea.",
     "queued_title": "📡 SOS en cola — sin conexión",
+    "failed": "⚠️ SOS no enviado. Vuelve a pulsar SOS o llama ahora a emergencias.",
+    "retry_body": "El servidor no respondió. Tu SOS está guardado y se seguirá intentando enviar. Si es urgente, llama ahora a emergencias.",
     "sent_title": "SOS enviado",
     "speak": "🎤 Hablar en su lugar",
     "voice_unsupported": "Entrada de voz no compatible en este dispositivo — escriba arriba."

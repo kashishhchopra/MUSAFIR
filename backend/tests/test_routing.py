@@ -137,3 +137,51 @@ def test_route_recommendation_endpoint_403_for_other_tourist(client, tourist_hea
         headers=tourist_headers,
     )
     assert r.status_code == 403
+
+
+# ---- input bounds: one request must not be able to wedge the server ----------
+def test_route_recommendation_rejects_out_of_range_coordinates(client, admin_headers, db):
+    t = make_tourist(db, lat=_ORIGIN[0], lng=_ORIGIN[1])
+    for lat, lng in [(91, 91.7), (-91, 91.7), (26.1, 181), (26.1, -181), ("nan", 91.7), ("inf", 91.7)]:
+        r = client.get(f"/api/tourists/{t.id}/route-recommendation",
+                       params={"dest_lat": lat, "dest_lng": lng}, headers=admin_headers)
+        assert r.status_code == 422, (lat, lng, r.status_code)
+
+
+def test_route_recommendation_rejects_far_destinations(client, admin_headers, db):
+    t = make_tourist(db, lat=_ORIGIN[0], lng=_ORIGIN[1])
+    r = client.get(f"/api/tourists/{t.id}/route-recommendation",
+                   params={"dest_lat": -33.87, "dest_lng": 151.2}, headers=admin_headers)  # Sydney
+    assert r.status_code == 400
+    assert "km" in r.json()["detail"]
+
+
+def test_sample_points_are_capped_on_very_long_segments():
+    from app.services.routing import _MAX_STEPS_PER_SEGMENT, _sample_points
+    pts = _sample_points([(0.0, 0.0), (0.0, 179.0)], 100.0)  # ~20,000 km at 100 m
+    assert len(pts) <= _MAX_STEPS_PER_SEGMENT + 1
+    assert pts[-1] == (0.0, 179.0)
+
+
+def test_trajectory_forecast_rejects_unbounded_horizon(client, admin_headers, db):
+    t = make_tourist(db, lat=_ORIGIN[0], lng=_ORIGIN[1])
+    for h in ("9999999999", "-1", "nan", "inf", "241"):
+        r = client.get(f"/api/tourists/{t.id}/trajectory-forecast",
+                       params={"horizon_min": h}, headers=admin_headers)
+        assert r.status_code == 422, (h, r.status_code)
+    ok = client.get(f"/api/tourists/{t.id}/trajectory-forecast",
+                    params={"horizon_min": 240}, headers=admin_headers)
+    assert ok.status_code == 200
+
+
+def test_predict_trajectory_clamps_its_own_horizon():
+    import datetime as dt
+    from types import SimpleNamespace
+
+    from app.services.trajectory import _MAX_HORIZON_MIN, _STEP_MIN, predict_trajectory
+    t0 = dt.datetime(2026, 1, 1)
+    pings = [SimpleNamespace(lat=26.1 + i * 0.001, lng=91.7, timestamp=t0 + dt.timedelta(seconds=30 * i))
+             for i in range(3)]
+    out = predict_trajectory(pings, 1e12)
+    assert 0 < len(out) <= int(_MAX_HORIZON_MIN / _STEP_MIN)
+    assert predict_trajectory(pings, float("nan")) == []

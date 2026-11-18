@@ -7,15 +7,18 @@ import useSpeechRecognition from '../../../hooks/useSpeechRecognition'
 // the critical path -- the footer SOS button fires immediately regardless
 // of whether this sheet was ever opened; this only lets a tourist add detail
 // first if they have a moment to.
+const SOS_NOTE_MAX = 500 // the server's limit on an SOS note
+
 export default function ReportSheet({ open, onClose, data, lang }) {
   const { t } = useTranslation()
-  const { emergencyMessage, setEmergencyMessage, sendSOS, sosSent, sosQueued, pendingCount } = data
+  const { emergencyMessage, setEmergencyMessage, sendSOS, sosSent, sosQueued, sosQueuedReason,
+    sosFailed, sosSending, pendingCount } = data
   const speech = useSpeechRecognition({ lang })
 
   // Voice input fills the description box as soon as a transcript arrives --
   // the tourist can review or edit it before sending.
   useEffect(() => {
-    if (speech.transcript) setEmergencyMessage(speech.transcript)
+    if (speech.transcript) setEmergencyMessage(speech.transcript.slice(0, SOS_NOTE_MAX))
   }, [speech.transcript, setEmergencyMessage])
 
   const handleSend = async () => {
@@ -28,6 +31,7 @@ export default function ReportSheet({ open, onClose, data, lang }) {
       <textarea
         value={emergencyMessage}
         onChange={(e) => setEmergencyMessage(e.target.value)}
+        maxLength={SOS_NOTE_MAX}
         placeholder={t('sos.describe_placeholder')}
         rows={4}
         className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm resize-none"
@@ -47,10 +51,16 @@ export default function ReportSheet({ open, onClose, data, lang }) {
       </div>
       <div className="text-xs text-slate-400 mt-2">{t('sos.describe_note')}</div>
 
-      <button onClick={handleSend}
-        className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl">
+      <button onClick={handleSend} disabled={sosSending} aria-busy={sosSending}
+        className="w-full mt-4 bg-red-600 hover:bg-red-700 disabled:opacity-70 text-white font-bold py-3 rounded-xl">
         🆘 {t('sos.button')}
       </button>
+
+      {sosFailed && (
+        <div role="alert" className="bg-red-100 border-2 border-red-600 text-red-800 rounded-xl p-4 text-sm font-semibold mt-4">
+          {t('sos.failed')}
+        </div>
+      )}
 
       {sosSent && (
         <div className="bg-red-600 text-white rounded-xl p-4 text-sm mt-4">
@@ -76,7 +86,7 @@ export default function ReportSheet({ open, onClose, data, lang }) {
         <div className="bg-orange-500 text-white rounded-xl p-4 text-sm mt-4">
           <div className="font-bold">{t('sos.queued_title')}</div>
           <div className="mt-1 text-orange-50">
-            {t('sos.queued_body')}
+            {sosQueuedReason === 'server' ? t('sos.retry_body') : t('sos.queued_body')}
           </div>
         </div>
       )}

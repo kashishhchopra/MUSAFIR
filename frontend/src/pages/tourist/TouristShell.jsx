@@ -33,7 +33,7 @@ export default function TouristShell({ digitalId, online, toast, onSOS, onReport
       </div>
 
       {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg z-[1001] text-sm">
+        <div role="alert" className="fixed top-16 left-1/2 -translate-x-1/2 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg z-[1001] text-sm">
           {toast}
         </div>
       )}

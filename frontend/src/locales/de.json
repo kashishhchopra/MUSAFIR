@@ -390,6 +390,8 @@
     "pending_count_other": "{{count}} SOS-Alarme warten noch auf eine Verbindung…",
     "queued_body": "Sie sind offline. Ihr SOS wurde auf diesem Gerät gespeichert und wird automatisch gesendet, sobald Sie wieder online sind.",
     "queued_title": "📡 SOS in Warteschlange — keine Verbindung",
+    "failed": "⚠️ SOS nicht gesendet. Tippen Sie erneut auf SOS oder rufen Sie jetzt den Notruf an.",
+    "retry_body": "Der Server hat nicht geantwortet. Ihr SOS ist gespeichert und wird weiter versucht zu senden. Wenn es dringend ist, rufen Sie jetzt den Notruf an.",
     "sent_title": "SOS gesendet",
     "speak": "🎤 Stattdessen sprechen",
     "voice_unsupported": "Spracheingabe auf diesem Gerät nicht unterstützt — oben tippen."

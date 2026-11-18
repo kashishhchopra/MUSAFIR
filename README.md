@@ -860,7 +860,7 @@ passed off as live.
 | Weather (`OPENWEATHER_API_KEY`) | Live OpenWeatherMap | Live **Open-Meteo** (free, no key; `OPEN_METEO_ENABLED=false` to turn off); a deterministic function of lat/lng only if neither answers |
 | Safety-score crime input | — (built in) | Real NCRB district crime for the tourist's district, offline; outside India the zone's value |
 | Safety-score method (`SAFETY_SCORE_MODE`) | `model`: the trained RandomForest | `formula`: the published weighted formula, exactly explained |
-| Disaster advisories | **No CAP feed URL is set by default.** Set `DISASTER_FEED_PROVIDER=cap` and `DISASTER_FEED_URL=<a CAP 1.2 feed>` | A deterministic **simulator** generates advisories (`source: "simulated"`) |
+| Disaster advisories | **No CAP feed URL is set by default.** Set `DISASTER_FEED_PROVIDER=cap` and `DISASTER_FEED_URL=<a CAP 1.2 feed>` | Nothing is invented in production (`ENVIRONMENT=production`). In development/test a deterministic **simulator** generates advisories (`source: "simulated"`); set `DISASTER_FEED_PROVIDER=simulator` to keep it on for a demo. If a configured CAP feed is down, existing real advisories stay active and nothing is simulated |
 | Public holidays (`CALENDARIFIC_API_KEY`) | Real national holidays | Holiday signals are absent, never fabricated |
 | Hash-chain anchoring (`ANCHOR_TARGET`) | External anchor service | `local` — appended to a local file; tamper-evident but not independently witnessed |
 | Emergency live GPS | Device GPS pings | The simulator's random-walk pings are marked `demo: true` |

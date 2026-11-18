@@ -421,9 +421,9 @@ class Settings(BaseSettings):
     # How often the background job refreshes area-level hazard advisories.
     DISASTER_TICK_SECONDS: int = 120
     # Name of a real disaster-advisory provider, if one is ever wired up.
-    # Empty (the default) means the deterministic simulator runs -- no
-    # external API/key is assumed to exist for this project. See
-    # services/disaster.py.
+    # "" (default): no real feed; the deterministic simulator runs in
+    # development/test only -- never in production. "simulator" turns it on
+    # explicitly (demos). "cap": a real CAP feed. See services/disaster.py.
     DISASTER_FEED_PROVIDER: str = ""
     # A CAP 1.2 feed URL to poll when DISASTER_FEED_PROVIDER is set. No
     # default is assumed live/stable -- NDMA SACHET's public feed is served
@@ -706,6 +706,9 @@ class Settings(BaseSettings):
     ROUTE_CANDIDATE_OFFSET_M: float = 250.0
     # Distance (metres) between risk-sampling points along a candidate route.
     ROUTE_SAMPLE_INTERVAL_M: float = 100.0
+    # Safe-route planning is for local trips; farther destinations are rejected
+    # (also bounds the work one request can ask the server to do).
+    ROUTE_MAX_DISTANCE_KM: float = 500.0
 
     # ---- map defaults (surfaced to the frontend via /api/config) ----
     MAP_CENTER_LAT: float = 26.1445

@@ -100,13 +100,23 @@ def ack_alert(alert_id: int, db: Session = Depends(get_db), _: User = Depends(re
 
 
 # ---------------- SOS ----------------
+def _sos_position(t: Tourist, lat: float | None, lng: float | None) -> tuple[float | None, float | None]:
+    """The position to raise an SOS at: what the device sent, else the tourist's
+    last known position, else (None, None) -- the incident is still raised, with
+    the location unknown, rather than refusing the one request that must not fail."""
+    if lat is not None and lng is not None:
+        return lat, lng
+    return t.last_lat, t.last_lng
+
+
 @router.post("/tourists/{tourist_id}/sos")
 def sos(tourist_id: int, payload: SOSRequest, request: Request,
         db: Session = Depends(get_db), user: User = Depends(require_self_or_admin)):
     t = db.get(Tourist, tourist_id)
     if not t:
         raise HTTPException(status_code=404, detail="Tourist not found")
-    result = trigger_sos(db, t, payload.lat, payload.lng, payload.message, silent=payload.silent)
+    lat, lng = _sos_position(t, payload.lat, payload.lng)
+    result = trigger_sos(db, t, lat, lng, payload.message, silent=payload.silent)
     audit.record(db, "sos", actor=user.email, target=t.digital_id,
                  detail=payload.message, request=request)
     return result
@@ -125,7 +135,8 @@ def duress_sos(tourist_id: int, payload: DuressSOSRequest, request: Request,
         # Deliberately generic -- this must look identical to any other
         # rejected PIN attempt to whoever is watching the screen.
         raise HTTPException(status_code=400, detail="Incorrect PIN")
-    result = trigger_sos(db, t, payload.lat, payload.lng, payload.message, silent=True)
+    lat, lng = _sos_position(t, payload.lat, payload.lng)
+    result = trigger_sos(db, t, lat, lng, payload.message, silent=True)
     audit.record(db, "duress_sos", actor=user.email, target=t.digital_id,
                 detail=payload.message, request=request)
     return result

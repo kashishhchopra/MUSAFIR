@@ -86,14 +86,102 @@ describe('useTouristData', () => {
     expect(result.current.pendingCount).toBeGreaterThan(0)
   })
 
-  it('rethrows a genuine server error instead of silently queueing it', async () => {
+  const sosBodies = () => mock.history.post.filter((r) => r.url === '/tourists/1/sos').map((r) => JSON.parse(r.data))
+
+  it('keeps the SOS and retries when the server errors (5xx) -- a repeat is safe, a lost SOS is not', async () => {
     mockLoadEndpoints()
-    mock.onPost('/tourists/1/sos').reply(500, { detail: 'server error' })
+    mock.onPost('/tourists/1/sos').reply(504, { detail: 'gateway timeout' })
     const { result } = renderHook(() => useTouristData(1))
     await waitFor(() => expect(result.current.ready).toBe(true))
 
-    await expect(act(async () => { await result.current.sendSOS() })).rejects.toBeTruthy()
+    let out
+    await act(async () => { out = await result.current.sendSOS() })
+
+    expect(out).toEqual({ queued: true, reason: 'server' })
+    expect(result.current.sosQueued).toBe(true)
+    expect(result.current.sosQueuedReason).toBe('server')
+    expect(result.current.sosFailed).toBe(false)
+    expect(result.current.pendingCount).toBeGreaterThan(0)
+  })
+
+  it('tells the tourist when the server refuses the SOS (4xx) instead of failing silently', async () => {
+    mockLoadEndpoints()
+    mock.onPost('/tourists/1/sos').reply(422, { detail: [{ msg: 'bad' }] })
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    let out
+    await act(async () => { out = await result.current.sendSOS() }) // must not throw
+
+    expect(out).toEqual({ failed: true, status: 422 })
+    expect(result.current.sosFailed).toBe(true)
     expect(result.current.sosQueued).toBe(false)
+    expect(result.current.pendingCount).toBe(0)
+  })
+
+  it('treats a rate limit (429) like an outage: keep and retry', async () => {
+    mockLoadEndpoints()
+    mock.onPost('/tourists/1/sos').reply(429, { detail: 'slow down' })
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => { await result.current.sendSOS() })
+    expect(result.current.sosQueued).toBe(true)
+  })
+
+  it('a second tap while one SOS is in flight shares it instead of sending a duplicate', async () => {
+    mockLoadEndpoints()
+    let release
+    mock.onPost('/tourists/1/sos').reply(() => new Promise((resolve) => {
+      release = () => resolve([200, { nearest_unit: null, notified_contacts: [] }])
+    }))
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    let first, second
+    await act(async () => {
+      first = result.current.sendSOS()
+      second = result.current.sendSOS()
+      await waitFor(() => expect(release).toBeTypeOf('function'))
+      release()
+      await Promise.all([first, second])
+    })
+
+    expect(first).toBe(second)
+    expect(sosBodies()).toHaveLength(1)
+    expect(result.current.sosSending).toBe(false)
+  })
+
+  it('never sends an invented position: with no fix at all the SOS goes without coordinates', async () => {
+    mock.onGet('/tourists/1').reply(200, { ...meResponse, last_lat: null, last_lng: null })
+    mock.onGet('/tourists/1/safety-score').reply(200, scoreResponse)
+    mock.onGet('/zones').reply(200, [])
+    mock.onGet('/police-units').reply(200, [])
+    mock.onGet('/tourists/1/trajectory-forecast').reply(200, { points: [] })
+    mock.onGet('/tourists/1/risk-forecast').reply(200, { forecast: [] })
+    mock.onPost('/tourists/1/sos').reply(200, { nearest_unit: null, notified_contacts: [] })
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => { await result.current.sendSOS() })
+
+    const [body] = sosBodies()
+    expect(body).not.toHaveProperty('lat')
+    expect(body).not.toHaveProperty('lng')
+    expect(result.current.sosSent).toBeTruthy()
+  })
+
+  it('truncates a note over the server limit so it cannot make the SOS fail', async () => {
+    mockLoadEndpoints()
+    mock.onPost('/tourists/1/sos').reply(200, { nearest_unit: null, notified_contacts: [] })
+    const { result } = renderHook(() => useTouristData(1))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    act(() => { result.current.setEmergencyMessage('x'.repeat(900)) })
+    await act(async () => { await result.current.sendSOS() })
+
+    expect(sosBodies()[0].message).toHaveLength(500)
+    expect(result.current.sosSent).toBeTruthy()
   })
 
   it('toggleTracking flips state and informs the backend', async () => {

@@ -4,6 +4,11 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
+# Same-origin build: API and WebSocket go through nginx (see nginx.conf), so VITE_API_BASE and
+# VITE_WS_ORIGIN stay unset. Real GPS on, demo logins off; override with --build-arg for a demo.
+ARG VITE_SIMULATE_GPS=false
+ARG VITE_SHOW_DEMO=false
+ENV VITE_SIMULATE_GPS=$VITE_SIMULATE_GPS VITE_SHOW_DEMO=$VITE_SHOW_DEMO
 RUN npm run build
 
 # ---- serve stage ----

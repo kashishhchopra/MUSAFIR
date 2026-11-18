@@ -365,7 +365,8 @@ def _recent_open_sos(db: Session, tourist_id: int, silent: bool) -> Incident | N
     )
 
 
-def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float, lng: float, silent: bool) -> dict:
+def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float | None, lng: float | None,
+                 silent: bool) -> dict:
     from app.models.police import PoliceStation, PoliceUnit
     nearest = db.get(PoliceUnit, inc.assigned_unit_id) if inc.assigned_unit_id else None
     station = db.get(PoliceStation, inc.station_id) if inc.station_id else None
@@ -374,8 +375,10 @@ def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float, lng: 
         "nearest_unit": {
             "name": nearest.name, "station": nearest.station,
             "phone": nearest.phone, "lat": nearest.lat, "lng": nearest.lng,
-            "distance_km": round(haversine_m(lat, lng, nearest.lat, nearest.lng) / 1000, 2),
+            "distance_km": round(haversine_m(lat, lng, nearest.lat, nearest.lng) / 1000, 2)
+            if lat is not None and lng is not None else None,
         } if nearest else None,
+        "location_known": lat is not None and lng is not None,
         "notified_contacts": json.loads(tourist.emergency_contacts or "[]"),
         # Added for SOS live location sharing (services/emergency_location.py)
         # -- everything above this point is this function's original,
@@ -388,7 +391,7 @@ def _sos_payload(db: Session, inc: Incident, tourist: Tourist, lat: float, lng: 
     }
 
 
-def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: str,
+def trigger_sos(db: Session, tourist: Tourist, lat: float | None, lng: float | None, message: str,
                 silent: bool = False) -> dict:
     """Raise an SOS once per burst of taps -- see the note above. The work itself is
     `_trigger_sos_unlocked`."""
@@ -397,12 +400,20 @@ def trigger_sos(db: Session, tourist: Tourist, lat: float, lng: float, message: 
         existing = _recent_open_sos(db, tid, silent)
         if existing is not None:
             logger.warning("sos_duplicate_tap_merged", tourist_id=tid, incident_id=existing.id)
+            if existing.lat is None and lat is not None and lng is not None:
+                # The first tap had no GPS fix; this retry does. Give the incident its
+                # location so dispatch and station assignment can use it.
+                from app.services import police_network
+                existing.lat, existing.lng = lat, lng
+                tourist.last_lat, tourist.last_lng = lat, lng
+                police_network.assign_station(db, existing)
+                db.commit()
             return _sos_payload(db, existing, tourist, lat, lng, silent)
         return _trigger_sos_unlocked(db, tourist, lat, lng, message, silent)
 
 
-def _trigger_sos_unlocked(db: Session, tourist: Tourist, lat: float, lng: float, message: str,
-                          silent: bool = False) -> dict:
+def _trigger_sos_unlocked(db: Session, tourist: Tourist, lat: float | None, lng: float | None,
+                          message: str, silent: bool = False) -> dict:
     """One-tap SOS: mark tourist, find nearest available unit, open critical incident.
 
     `silent` (Silent/Duress SOS) is the same protected payload raised through
@@ -415,11 +426,18 @@ def _trigger_sos_unlocked(db: Session, tourist: Tourist, lat: float, lng: float,
 
     logger.warning("sos_triggered", tourist_id=tourist.id, lat=lat, lng=lng, silent=silent)
     tourist.status = "sos"
-    tourist.last_lat, tourist.last_lng = lat, lng
+    located = lat is not None and lng is not None
+    if located:
+        tourist.last_lat, tourist.last_lng = lat, lng
     tourist.last_seen = utc_now()
 
-    ranked = dispatch.rank_units(db, lat, lng)
+    # Without a position nothing can be ranked by distance: the incident is
+    # still raised (critical, escalation clock running, control room notified)
+    # and a human dispatches.
+    ranked = dispatch.rank_units(db, lat, lng) if located else []
     nearest = db.get(PoliceUnit, ranked[0]["unit_id"]) if ranked else None
+    if not located:
+        message = f"{message} [location unknown: no GPS fix]"
 
     description = (
         f"Silent/duress SOS from {tourist.full_name}: {message}" if silent

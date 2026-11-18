@@ -175,19 +175,44 @@ def test_fetch_cap_xml_uses_the_configured_url(monkeypatch):
     assert captured["url"] == "https://example.test/real-cap-feed"
 
 
-def test_tick_falls_back_to_simulator_when_real_feed_unavailable(db, monkeypatch):
+def test_tick_never_simulates_when_real_feed_unavailable(db, monkeypatch):
+    """A down CAP feed must not produce invented advisories, and must not
+    close real advisories that are still active."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "DISASTER_FEED_PROVIDER", "cap")
     monkeypatch.setattr("app.services.disaster.fetch_real_feed_candidates", lambda zones: None)
     monkeypatch.setattr("app.services.disaster._daily_seed", lambda zone_id, hazard: 0)
     zone = make_zone(db, name="Fallback Zone", risk="restricted", lat=26.165, lng=91.75, d=0.02)
+    real = DisasterAdvisory(zone_id=zone.id, hazard_type="flood", severity="high", message="real",
+                            source="cap:live", active=True)
+    fake = DisasterAdvisory(zone_id=zone.id, hazard_type="storm", severity="high", message="fake",
+                            source="simulated", active=True)
+    db.add_all([real, fake])
+    db.commit()
 
     result = tick_disaster_feed(db)
-    assert result["created"]
-    advisory = db.get(DisasterAdvisory, result["created"][0])
-    assert advisory.zone_id == zone.id
-    assert advisory.source == "simulated"
+    assert result["created"] == []
+    db.refresh(real)
+    db.refresh(fake)
+    assert real.active is True      # outage is not "all clear"
+    assert fake.active is False     # leftover simulated advisories are cleaned up
+
+
+def test_simulator_is_off_in_production_unless_requested(db, monkeypatch):
+    from app.core.config import settings
+    from app.services.disaster import simulator_enabled
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "DISASTER_FEED_PROVIDER", "")
+    assert simulator_enabled() is False
+    monkeypatch.setattr("app.services.disaster._daily_seed", lambda zone_id, hazard: 0)
+    make_zone(db, name="Prod Zone", risk="restricted", lat=26.165, lng=91.75, d=0.02)
+    assert tick_disaster_feed(db)["created"] == []      # nothing invented for real users
+
+    monkeypatch.setattr(settings, "DISASTER_FEED_PROVIDER", "simulator")  # explicit demo opt-in
+    assert simulator_enabled() is True
+    assert tick_disaster_feed(db)["created"]
 
 
 def test_active_advisories_for_tourist(db):
@@ -424,3 +449,20 @@ def test_disaster_summary_endpoint(client, admin_headers, db):
 def test_disaster_summary_forbidden_for_tourist(client, tourist_headers):
     r = client.get("/api/police-network/disaster-summary", headers=tourist_headers)
     assert r.status_code == 403
+
+
+def test_cap_outage_does_not_freeze_weather_advisories(db, monkeypatch):
+    """Only CAP advisories are held through a CAP outage; a weather advisory comes from a
+    separate healthy source and must still expire when its condition clears."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "DISASTER_FEED_PROVIDER", "cap")
+    monkeypatch.setattr("app.services.disaster.fetch_real_feed_candidates", lambda zones: None)
+    zone = make_zone(db, name="Mixed Zone", risk="high", lat=26.165, lng=91.75, d=0.02)
+    weather_adv = DisasterAdvisory(zone_id=zone.id, hazard_type="storm", severity="high", message="w",
+                                   source="openweathermap", active=True)
+    db.add(weather_adv)
+    db.commit()
+    tick_disaster_feed(db)
+    db.refresh(weather_adv)
+    assert weather_adv.active is False

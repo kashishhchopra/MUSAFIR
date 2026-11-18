@@ -94,6 +94,8 @@ def test_trigger_sos_return_shape_unchanged_after_dispatch_refactor(db):
         "incident_id", "nearest_unit", "notified_contacts",
         # Added for SOS live location sharing (services/emergency_location.py).
         "silent", "status", "live_tracking_active", "station_id", "station_name",
+        # Added so a client can tell a located SOS from one raised without a GPS fix.
+        "location_known",
     }
     assert result["nearest_unit"]["name"] == "Near Unit"
     assert set(result["nearest_unit"].keys()) == {

@@ -68,7 +68,10 @@ export default function TouristApp() {
         return t('voice_action.opening', { tab: t('nav.tab_home') })
       case INTENTS.SEND_SOS: {
         const result = await sendSOS()
-        if (result?.queued) return `${t('sos.queued_title')} ${t('sos.queued_body')}`
+        if (result?.failed) return t('sos.failed')
+        if (result?.queued) {
+          return `${t('sos.queued_title')} ${result.reason === 'server' ? t('sos.retry_body') : t('sos.queued_body')}`
+        }
         const unit = result?.nearest_unit
         if (unit) {
           return `${t('sos.sent_title')}. ${t('sos.dispatched', {
@@ -93,7 +96,7 @@ export default function TouristApp() {
       <TouristShell
         digitalId={data.me.digital_id}
         online={data.online}
-        toast={data.toast}
+        toast={data.sosFailed ? t('sos.failed') : data.toast}
         onSOS={data.sendSOS}
         onReport={() => setReportOpen(true)}
         tid={tid}

@@ -24,6 +24,7 @@ from app.services.safety import _RISK_WEIGHT
 # candidates -- keeps a single candidate's risk_level meaningful even when
 # `recommend_route` is asked about just one route, and keeps the bucket
 # boundaries visible/tunable in one place instead of scattered logic.
+_MAX_STEPS_PER_SEGMENT = 2000
 _RISK_LEVEL_THRESHOLDS = (("low", 15.0), ("medium", 40.0), ("high", 70.0))
 
 
@@ -89,9 +90,11 @@ def _sample_points(
         seg_len = haversine_m(a[0], a[1], b[0], b[1])
         if seg_len <= 0:
             continue
-        n_steps = max(1, int(seg_len // interval_m))
+        # Capped so a very long segment can't generate millions of samples.
+        n_steps = min(_MAX_STEPS_PER_SEGMENT, max(1, int(seg_len // interval_m)))
+        step_m = max(interval_m, seg_len / n_steps)
         for i in range(1, n_steps + 1):
-            frac = min(i * interval_m / seg_len, 1.0)
+            frac = min(i * step_m / seg_len, 1.0)
             lat = a[0] + (b[0] - a[0]) * frac
             lng = a[1] + (b[1] - a[1]) * frac
             samples.append((lat, lng))

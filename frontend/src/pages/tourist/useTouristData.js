@@ -13,6 +13,10 @@ import { useRoutePicker } from '../../components/RoutePicker.jsx'
 // TouristApp.test.jsx before this -- the whole load/track/SOS pipeline was
 // unreachable from a test without a real DOM map). TouristShell and every
 // tab consume this via one hook call.
+const SOS_MESSAGE_MAX = 500
+const SOS_GPS_WAIT_MS = 2500 // longest an SOS waits for a fresh GPS read
+const SOS_RETRY_MS = 20000 // how often a saved SOS is retried while the app is open
+
 export default function useTouristData(tid) {
   const online = useOnlineStatus()
   const [me, setMe] = useState(null)
@@ -25,6 +29,12 @@ export default function useTouristData(tid) {
   const [toast, setToast] = useState(null)
   const [sosSent, setSosSent] = useState(null)
   const [sosQueued, setSosQueued] = useState(false)
+  const [sosQueuedReason, setSosQueuedReason] = useState('offline') // offline | server
+  const [sosFailed, setSosFailed] = useState(false)
+  const [sosSending, setSosSending] = useState(false)
+  const sosInFlight = useRef(null)
+  const sosFailedTimer = useRef(null)
+  useEffect(() => () => clearTimeout(sosFailedTimer.current), [])
   const [pendingCount, setPendingCount] = useState(queueLength())
   const [emergencyMessage, setEmergencyMessage] = useState('')
   // Shared across HomeTab (renders the map layer -- destination click +
@@ -122,32 +132,86 @@ export default function useTouristData(tid) {
   // queued offline) so a caller that needs to report the outcome -- the
   // voice assistant reads it aloud -- can use the actual result rather than
   // waiting on state. Existing button callers ignore the return value.
-  const sendSOS = async () => {
-    const [lat, lng] = posRef.current
-    const message = emergencyMessage.trim() || 'Emergency! Need help.'
-    const payload = { lat, lng, message }
+  // The best REAL position for an SOS, never an invented one: the live GPS fix,
+  // else the last position this device reported, else one quick GPS read. If
+  // none exists the SOS goes out without coordinates and the server uses the
+  // tourist's last known position (or marks the location unknown) -- refusing
+  // or guessing is never acceptable for the one request that must not fail.
+  const sosPosition = async () => {
+    const known = posRef.current
+    const knownOk = known && Number.isFinite(known[0]) && Number.isFinite(known[1])
+    if (SIMULATE_GPS) return knownOk ? known : null // demo mode: the simulated track is the position
+    if (geo.position) return [geo.position.lat, geo.position.lng]
+    // No live fix (tracking off): take a fresh read before trusting the last position this
+    // device reported, which can be hours old. Hard-capped -- an unanswered permission prompt
+    // does not count toward getCurrentPosition's own timeout, and an SOS must never wait on it.
+    let fresh = null
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      fresh = await Promise.race([
+        new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (r) => resolve([r.coords.latitude, r.coords.longitude]),
+            () => resolve(null),
+            { enableHighAccuracy: true, timeout: SOS_GPS_WAIT_MS, maximumAge: 30000 },
+          )
+        }),
+        new Promise((resolve) => setTimeout(() => resolve(null), SOS_GPS_WAIT_MS)),
+      ])
+    }
+    if (fresh) return fresh
+    return knownOk ? known : null
+  }
+
+  // One SOS request at a time: a second tap while one is in flight shares it
+  // instead of firing a duplicate.
+  const sendSOS = () => {
+    if (sosInFlight.current) return sosInFlight.current
+    setSosSending(true)
+    const run = sendSOSNow().finally(() => {
+      sosInFlight.current = null
+      setSosSending(false)
+    })
+    sosInFlight.current = run
+    return run
+  }
+
+  const sendSOSNow = async () => {
+    const pos = await sosPosition()
+    // The server rejects notes over 500 characters (a typed note or a long
+    // voice transcript would otherwise make the SOS itself fail).
+    const message = (emergencyMessage.trim() || 'Emergency! Need help.').slice(0, SOS_MESSAGE_MAX)
+    const payload = pos ? { lat: pos[0], lng: pos[1], message } : { message }
     let result = null
     try {
       const { data } = await postSOS(payload)
       setSosSent(data)
       setSosQueued(false)
+      setSosFailed(false)
       result = data
     } catch (err) {
-      // No response at all (offline, DNS failure, connection refused) means
-      // the request never reached the server -- queue it rather than lose
-      // the tap. A real server error (4xx/5xx) DID reach the server, so
-      // that's a genuine failure to surface, not something to silently retry.
-      if (!err.response) {
+      const status = err.response?.status
+      // No response (offline, DNS, refused), a gateway timeout / 5xx, or a rate
+      // limit: the SOS may not have been processed, so keep it and retry. A
+      // repeat is safe -- the server merges taps within 2 minutes into one
+      // incident. Any other 4xx means the server refused this exact request, so
+      // retrying would never help: tell the tourist, loudly.
+      if (!err.response || status >= 500 || status === 429) {
         enqueueSOS(payload)
         setPendingCount(queueLength())
         setSosQueued(true)
-        result = { queued: true }
+        setSosQueuedReason(err.response ? 'server' : 'offline')
+        setSosFailed(false)
+        result = { queued: true, reason: err.response ? 'server' : 'offline' }
       } else {
-        throw err
+        setSosFailed(true)
+        setSosSent(null) // don't leave an earlier green "SOS sent" banner beside the failure
+        clearTimeout(sosFailedTimer.current)
+        sosFailedTimer.current = setTimeout(() => setSosFailed(false), 10000)
+        return { failed: true, status }
       }
     }
     setEmergencyMessage('')
-    load()
+    load().catch(() => {})
     return result
   }
 
@@ -156,8 +220,16 @@ export default function useTouristData(tid) {
   // retry (the tab was closed, the app was killed, etc).
   useEffect(() => {
     if (!tid) return undefined
+    let busy = false
     const tryFlush = async () => {
-      const sent = await flushQueue((payload) => postSOS(payload))
+      if (busy) return
+      busy = true
+      let sent = 0
+      try {
+        sent = await flushQueue((payload) => postSOS(payload))
+      } finally {
+        busy = false
+      }
       if (sent > 0) {
         setPendingCount(queueLength())
         showToast(`✅ ${sent} queued SOS alert${sent > 1 ? 's' : ''} sent`, 5000)
@@ -165,7 +237,13 @@ export default function useTouristData(tid) {
     }
     tryFlush()
     window.addEventListener('online', tryFlush)
-    return () => window.removeEventListener('online', tryFlush)
+    // A saved SOS keeps retrying -- after a server error the device is still "online",
+    // so the `online` event alone would never fire again.
+    const retry = setInterval(() => { if (queueLength() > 0) tryFlush() }, SOS_RETRY_MS)
+    return () => {
+      window.removeEventListener('online', tryFlush)
+      clearInterval(retry)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tid])
 
@@ -191,7 +269,7 @@ export default function useTouristData(tid) {
     ready: !!(me && score),
     online, me, score, zones, units, trajectory, riskForecast,
     tracking, toggleTracking, toast,
-    sosSent, setSosSent, sosQueued, pendingCount, sendSOS,
+    sosSent, setSosSent, sosQueued, sosQueuedReason, sosFailed, sosSending, pendingCount, sendSOS,
     emergencyMessage, setEmergencyMessage,
     posRef, geo, load, pushLocation,
     inZones, riskyZone, nearby,
