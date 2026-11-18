@@ -49,11 +49,11 @@ describe('HomeTab', () => {
   })
 
   // These shortcuts duplicate the bottom tab bar (Plan / Explore / Help), so they were removed.
+  // (Translations are not loaded in this test, so a leftover button would read "home.quick_voice".)
   it('no longer shows the row of quick-action shortcuts (Voice, Navigate, Hospital, Pharmacy, Transport, Translate, Itinerary)', () => {
     render(<HomeTab data={baseData} onVoice={vi.fn()} onNavigateTab={vi.fn()} />)
-    for (const label of ['Voice', 'Navigate', 'Hospital', 'Pharmacy', 'Transport', 'Translate', 'Itinerary']) {
-      expect(screen.queryByRole('button', { name: new RegExp(`^\\S*\\s*${label}$`) })).not.toBeInTheDocument()
-    }
+    const labels = screen.getAllByRole('button').map((b) => b.textContent)
+    expect(labels.filter((l) => /quick_|Voice|Navigate|Hospital|Pharmacy|Transport|Translate|Itinerary/.test(l))).toEqual([])
   })
 
   it('omits the tourist marker when there is no location yet', () => {
