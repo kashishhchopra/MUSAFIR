@@ -214,3 +214,26 @@ card and the two-way voice translator) is unchanged.
 **Left in place on purpose (now unused by the app):** the backend endpoints and data -- `/tourists/{id}/saved-routes` + the `saved_routes` table (registered in
 the DPDP personal-data registry; existing rows are untouched), `/festivals`, and `/translate/guide/*`. Removing them would be a database migration and
 needs a decision about existing saved data; nothing calls them. Say the word to remove them as well.
+
+---
+
+## Addendum: Crowd forecast made real (now "Crowd Outlook")
+
+**What was hardcoded:** the card listed the app's own *fixture zones* ("City Center Safe Zone", "Auto Hot-Zone #0 (DBSCAN)"...) -- the same list for every user, nothing to do with
+where they are -- and gave each the same sentence, because the "forecast" added fixed bumps (+1 peak season, +1 fair weather...) so almost everything came out "High".
+
+**The constraint:** no free source of live crowd counts exists anywhere (Google's "popular times" is paid; OpenStreetMap has no footfall). A measured crowd level is therefore not
+possible; what *is* possible is an honest, explainable estimate built from real inputs about the user's actual position -- and it says so on screen.
+
+**What it is now** (`services/crowd_outlook.py`, `GET /api/crowd/outlook?lat&lng`): for the device's GPS position (or a typed place), the next 12 hours as quiet / moderate / busy /
+very busy, "right now", the quietest daytime hour in the next 24 h, and every factor named with its direction. Inputs: the real local time at that spot; real hourly weather
+(Open-Meteo: rain chance, heat, cold, storms); real public holidays; what OpenStreetMap shows within 1 km (attractions, markets, stations -> few / some / many); weekday vs weekend;
+India's Oct-Mar season (India only, labelled a general assumption). The one fixed assumption is the daily activity curve (people are out by day and early evening). The three slow
+free services are asked in parallel; the surroundings lookup has a 9 s budget and finishes in the background (the app re-checks), so the card is never blocked on it.
+Missing inputs are said on screen (weather / holidays / surroundings), never silently ignored.
+
+**Tested:** 21 backend tests (model responds to hour, weekend, holiday, rain/heat/cold/storm, area; one line per weather kind; India-only season; fallbacks; slow-lookup budget; API) + 17 frontend
+tests. **Live** (real weather + OSM, Delhi / Tokyo / Sydney / Paris / Manali): correct local time per place, different results per place and hour.
+**Limits:** it is an estimate, not a count; the busyness ceiling and the factor weights are modelling choices, not calibrated against real footfall. **Public holidays need one optional
+package:** the code uses the open-source `python-holidays` library if installed (covers India and ~200 countries, no key) and otherwise the Calendarific-key service; with neither, the card
+states that holidays are not factored in. Install with `pip install holidays` and add it to `requirements.txt`. The old per-zone endpoints (`/crowd/forecast`, queue estimates) remain on the server but the app no longer uses them.

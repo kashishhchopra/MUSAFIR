@@ -48,13 +48,9 @@
     "voice_unavailable": "വോയ്‌സ് ഇൻപുട്ട് ലഭ്യമല്ല — നിങ്ങളുടെ ചോദ്യം ടൈപ്പ് ചെയ്യുക."
   },
   "crowd_forecast": {
-    "card_title": "Crowd & Queue Forecast",
-    "density_high": "High",
-    "density_low": "Low",
-    "density_medium": "Medium",
-    "failed": "Couldn't load the crowd forecast right now.",
-    "intro": "Forecasted crowd levels by zone, factoring season, holidays, festivals and weather.",
-    "reasons": "{{list}}"
+    "card_title": "Crowd Outlook",
+    "failed": "Couldn't load the crowd outlook right now.",
+    "intro": "How busy it is likely to be around you over the next hours."
   },
   "currency": {
     "card_title": "കറൻസിയും വിലയും",
