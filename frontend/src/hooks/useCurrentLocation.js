@@ -20,6 +20,7 @@ export const LOCATION_STATUS = {
 }
 
 const OPTIONS = { enableHighAccuracy: true, timeout: 20_000, maximumAge: 15_000 }
+const QUICK_OPTIONS = { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 }
 
 export function statusFromError(err) {
   // GeolocationPositionError: 1 denied, 2 unavailable, 3 timeout
@@ -49,13 +50,13 @@ export function getCurrentFix({ timeout = 8_000, maximumAge = 60_000 } = {}) {
 // so do not insist on GPS hardware (which a laptop does not have and which makes the
 // browser hang), and give up after 10 s so the caller can offer another way.
 export default function useCurrentLocation({ auto = false, quick = false } = {}) {
-  const options = quick ? { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 } : OPTIONS
   const [status, setStatus] = useState(LOCATION_STATUS.IDLE)
   const [position, setPosition] = useState(null) // {lat, lng, accuracy, timestamp}
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
 
   const request = useCallback(() => {
+    const options = quick ? QUICK_OPTIONS : OPTIONS
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       setStatus(LOCATION_STATUS.UNSUPPORTED)
       return Promise.resolve(null)

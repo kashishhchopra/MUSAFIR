@@ -40,16 +40,17 @@ export default function ExploreTab({ data }) {
 
       <TripPlannerCard touristId={tid} />
       <CrowdForecastCard />
+      {/* Discovery finds its own position (device GPS, or a typed place) -- see the card. */}
+      <DiscoveryCard />
       {here ? (
         <>
-          <DiscoveryCard lat={lat} lng={lng} />
           <OfflineTripCard touristId={tid} me={me} lat={lat} lng={lng} />
           <FestivalCalendarCard lat={lat} lng={lng} />
         </>
       ) : (
         <Card title={t('explore.near_you', 'Near you')} icon="📍" iconColor="bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-            {t('explore.needs_location', 'Hidden spots, local food, the offline trip pack and festivals nearby all depend on where you are. Share your location to see them.')}
+            {t('explore.needs_location', 'The offline trip pack and festivals nearby depend on where you are. Share your location to see them.')}
           </p>
           <LocationStatus loc={loc} />
         </Card>

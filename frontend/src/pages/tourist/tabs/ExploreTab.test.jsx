@@ -19,25 +19,32 @@ vi.mock('../../../components/CurrencyCard.jsx', () => ({ default: (p) => <div da
 afterEach(() => vi.restoreAllMocks())
 
 describe('ExploreTab location handling', () => {
-  it('passes the tourist\'s real tracked position to the location-based cards', () => {
+  it("passes the tourist's real tracked position to the cards that need it", () => {
     const { getByTestId, queryByText } = render(
       <ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
-    expect(getByTestId('discovery').dataset.lat).toBe('12.5')
+    expect(getByTestId('offline').dataset.lat).toBe('12.5')
     expect(getByTestId('festival').dataset.lng).toBe('77.5')
     expect(queryByText('Near you')).not.toBeInTheDocument()
   })
 
-  it('without any real position it asks for location instead of using a default map centre', () => {
+  it('always shows Discovery, which finds its own position (never a stored or default one)', () => {
+    const { getByTestId } = render(<ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
+    expect(getByTestId('discovery')).toBeInTheDocument()
+    expect(getByTestId('discovery').dataset.lat).toBeUndefined() // given no coordinates by the tab
+    const again = render(<ExploreTab data={{ me: { last_lat: null, last_lng: null }, tid: 1 }} />)
+    expect(again.getAllByTestId('discovery').length).toBeGreaterThan(0)
+  })
+
+  it('without any real position the other location cards ask for it instead of using a default map centre', () => {
     const { queryByTestId, getByText, getByTestId } = render(
       <ExploreTab data={{ me: { last_lat: null, last_lng: null }, tid: 1 }} />)
     expect(getByText('Near you')).toBeInTheDocument()
-    expect(queryByTestId('discovery')).not.toBeInTheDocument()
     expect(queryByTestId('offline')).not.toBeInTheDocument()
     expect(queryByTestId('festival')).not.toBeInTheDocument()
     expect(getByTestId('fare')).toBeInTheDocument() // cards that don't need it still render
   })
 
-  it('shows the location-based cards once the device provides a fix', async () => {
+  it('shows the other location-based cards once the device provides a fix', async () => {
     Object.defineProperty(navigator, 'geolocation', {
       value: { getCurrentPosition: (ok) => ok({ coords: { latitude: 9.9, longitude: 76.2, accuracy: 5 }, timestamp: Date.now() }) },
       configurable: true,
@@ -45,7 +52,7 @@ describe('ExploreTab location handling', () => {
     const { getByText, findByTestId } = render(
       <ExploreTab data={{ me: { last_lat: null, last_lng: null }, tid: 1 }} />)
     fireEvent.click(getByText(/Use my current location/))
-    const d = await findByTestId('discovery')
-    await waitFor(() => expect(d.dataset.lat).toBe('9.9'))
+    const o = await findByTestId('offline')
+    await waitFor(() => expect(o.dataset.lat).toBe('9.9'))
   })
 })
