@@ -8,6 +8,11 @@ export function listLanguages() {
   return api.get('/translate/languages').then((r) => r.data)
 }
 
+// Languages the live/voice translator handles (superset of the phrasebook's).
+export function listLiveLanguages() {
+  return api.get('/translate/live-languages').then((r) => r.data)
+}
+
 export function listPhraseIds() {
   return api.get('/translate/phrases').then((r) => r.data)
 }

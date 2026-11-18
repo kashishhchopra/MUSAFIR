@@ -100,6 +100,8 @@ export default defineConfig(({ mode }) => {
     },
   },
   test: {
+    // The existing suites exercise the simulated-GPS path; the app default is real GPS.
+    env: { VITE_SIMULATE_GPS: 'true' },
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.js'],

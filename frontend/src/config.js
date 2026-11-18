@@ -30,11 +30,13 @@ export const TRACK_INTERVAL_MS = Number(import.meta.env.VITE_TRACK_INTERVAL_MS |
 // "stationary" from "phone went dark", and the anomaly model doesn't read a
 // long gap between pings as prolonged inactivity.
 export const HEARTBEAT_MS = Number(import.meta.env.VITE_HEARTBEAT_MS || 120000)
-// Demo/dev convenience: simulate a random walk instead of real GPS, since a
-// laptop/desktop rarely has meaningful geolocation and a live demo needs
-// motion on the map without physically moving. Default true; a real device
-// build sets VITE_SIMULATE_GPS=false to use navigator.geolocation instead.
-export const SIMULATE_GPS = (import.meta.env.VITE_SIMULATE_GPS ?? 'true') !== 'false'
+// Opt-in demo convenience: set VITE_SIMULATE_GPS=true to simulate a random walk
+// instead of real GPS (e.g. on a laptop with no meaningful geolocation). The
+// default is REAL device GPS -- the app must never invent a location for a
+// real user. Features that need the tourist's position (Fair Price, travel
+// times, routes) always use the device's real fix regardless (see
+// hooks/useCurrentLocation.js).
+export const SIMULATE_GPS = (import.meta.env.VITE_SIMULATE_GPS ?? 'false') === 'true'
 
 // Fall & crash detection (hooks/useFallDetection.js). The detector's thresholds
 // and the countdown length come from the backend; these only describe how this

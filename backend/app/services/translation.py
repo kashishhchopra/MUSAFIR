@@ -26,6 +26,17 @@ SUPPORTED_LANGUAGES = {
     "ar": "Arabic",
 }
 
+# Languages the live free-text translator (and the voice translator's speech
+# recognition/read-aloud) offers. A superset of SUPPORTED_LANGUAGES: those nine
+# have curated emergency phrasebook entries; the rest are translated live by
+# Google Cloud Translation / MyMemory only (never faked when both are down).
+LIVE_TRANSLATION_LANGUAGES = {
+    **SUPPORTED_LANGUAGES,
+    "bn": "Bengali", "ta": "Tamil", "te": "Telugu", "mr": "Marathi", "gu": "Gujarati",
+    "kn": "Kannada", "ml": "Malayalam", "pa": "Punjabi", "as": "Assamese",
+    "it": "Italian", "pt": "Portuguese", "ru": "Russian",
+}
+
 # Curated safety-critical phrases, keyed by a stable phrase id -- real,
 # reviewed translations (not machine-generated at request time), used only
 # when no live translation API is configured. Extend this table rather than

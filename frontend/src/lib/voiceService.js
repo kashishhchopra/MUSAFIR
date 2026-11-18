@@ -28,6 +28,33 @@ const LANG_TO_SPEECH_LOCALE = {
   ml: 'ml-IN', pa: 'pa-IN', as: 'as-IN', it: 'it-IT', pt: 'pt-PT', ru: 'ru-RU',
 }
 
+/** The BCP-47 locale used for both speech recognition and read-aloud. */
+export function speechLocale(lang) {
+  return LANG_TO_SPEECH_LOCALE[lang] || `${lang}`
+}
+
+/** Speak `text` aloud and report what happened, instead of failing silently:
+ * 'ok' | 'unsupported-language' (the phone has no voice for it) | 'no-tts' | 'failed'. */
+export async function speakWithStatus(text, lang = 'en') {
+  if (!text) return 'ok'
+  if (!speechSynthesisSupported()) return 'no-tts'
+  const locale = speechLocale(lang)
+  try {
+    if (isNativeApp()) {
+      const { supported } = await TextToSpeech.isLanguageSupported({ lang: locale })
+      if (!supported) return 'unsupported-language'
+    } else {
+      const voices = window.speechSynthesis.getVoices?.() || []
+      const base = locale.split('-')[0].toLowerCase()
+      if (voices.length && !voices.some((v) => v.lang?.toLowerCase().startsWith(base))) return 'unsupported-language'
+    }
+    await speak(text, lang)
+    return 'ok'
+  } catch {
+    return 'failed'
+  }
+}
+
 /** Speak `text` aloud. No-op (resolves immediately) if the browser doesn't
  * support speech synthesis -- callers should never depend on this for
  * anything beyond a nice-to-have readout. */

@@ -153,3 +153,12 @@ def test_guide_greetings_unaffected_by_location_routing(client, tourist_headers)
     body = r.json()
     assert body["demo"] is False
     assert body["text"] == "नमस्ते"
+
+
+def test_live_languages_superset_of_phrasebook(client, tourist_headers):
+    r = client.get("/api/translate/live-languages", headers=tourist_headers)
+    assert r.status_code == 200
+    langs = r.json()
+    assert {"en", "hi", "ta", "bn", "fr"} <= set(langs)
+    base = client.get("/api/translate/languages", headers=tourist_headers).json()
+    assert set(base) <= set(langs) and len(langs) > len(base)

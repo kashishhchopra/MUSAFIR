@@ -39,7 +39,7 @@ export default function ExploreTab({ data }) {
       <TwoWayVoiceTranslator />
       <CulturalEtiquetteCard lang={lang} />
       <CurrencyCard />
-      <FairPriceCard touristId={tid} lat={lat} lng={lng} />
+      <FairPriceCard touristId={tid} />
       <PermitCard touristId={tid} />
     </div>
   )
