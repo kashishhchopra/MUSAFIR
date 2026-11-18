@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card } from '../../../components/ui.jsx'
 import TabHero from '../../../components/TabHero.jsx'
@@ -7,7 +6,6 @@ import RoutePicker from '../../../components/RoutePicker.jsx'
 import CheckInCard from '../../../components/CheckInCard.jsx'
 import ItineraryUploadCard from '../../../components/ItineraryUploadCard.jsx'
 import VoiceNavigationAssistant from '../../../components/VoiceNavigationAssistant.jsx'
-import SavedRoutesCard from '../../../components/SavedRoutesCard.jsx'
 import TripTravelInfo from '../../../components/TripTravelInfo.jsx'
 
 // Everything about planning ahead: how risk changes over the next hour,
@@ -19,8 +17,6 @@ export default function PlanTab({ data }) {
   const { t, i18n } = useTranslation()
   const { me, riskForecast, tid, routePicker, routePickerOpen, setRoutePickerOpen, load, posRef } = data
   // Bumped whenever a route is saved anywhere on this tab so the list reloads.
-  const [routesVersion, setRoutesVersion] = useState(0)
-  const bumpRoutes = () => setRoutesVersion((v) => v + 1)
   const here = posRef?.current && posRef.current[0] != null ? posRef.current : null
 
   return (
@@ -37,9 +33,9 @@ export default function PlanTab({ data }) {
         {routePickerOpen ? t('plan.hide_route_planner') : t('plan.plan_safe_route')}
       </button>
       <RoutePicker active={routePickerOpen} onToggle={() => setRoutePickerOpen(false)} state={routePicker}
-        origin={here} onSaved={bumpRoutes} />
+        origin={here} />
 
-      <ItineraryUploadCard touristId={tid} onConfirmed={() => { load(); bumpRoutes() }} />
+      <ItineraryUploadCard touristId={tid} onConfirmed={load} />
 
       <Card title={t('itinerary.title')} icon="🗺️" iconColor="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300" actions={
         me.itinerary?.length > 0 && (
@@ -75,15 +71,13 @@ export default function PlanTab({ data }) {
         </ol>
         {me.itinerary?.length > 0 && (
           <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
-            <TripTravelInfo touristId={tid} stops={me.itinerary} onRouteSaved={bumpRoutes} />
+            <TripTravelInfo stops={me.itinerary} />
           </div>
         )}
         {(!me.itinerary || me.itinerary.length === 0) && (
           <div className="text-xs text-slate-400">{t('itinerary.empty', 'No itinerary yet — upload one or type your plan above.')}</div>
         )}
       </Card>
-
-      <SavedRoutesCard touristId={tid} refreshKey={routesVersion} />
 
       <CheckInCard touristId={tid} />
     </div>

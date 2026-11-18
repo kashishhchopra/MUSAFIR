@@ -183,32 +183,10 @@
     "straight_line": "straight-line estimate",
     "open_route": "Open route in Maps"
   },
-  "festivals": {
-    "card_title": "Festival & Local Events",
-    "failed": "Couldn't load the festival calendar right now.",
-    "impact_high": "High crowd impact",
-    "impact_low": "Low crowd impact",
-    "impact_medium": "Medium crowd impact",
-    "intro": "Festivals and local events happening near you soon.",
-    "none_upcoming": "No festivals or events found nearby in the coming months.",
-    "public_holidays": "Public holidays (live)"
-  },
   "geofence": {
     "safe": "നിങ്ങൾ സുരക്ഷിതമായ പ്രദേശത്താണ്.",
     "warning_body": "നിങ്ങൾ {{zone}} ൽ ആണ് (അപകടസാധ്യത: {{risk}}). ജാഗ്രത പാലിക്കുകയും ഈ പ്രദേശം വിടുന്നത് പരിഗണിക്കുകയും ചെയ്യുക.",
     "warning_title": "ജിയോഫെൻസ് മുന്നറിയിപ്പ്"
-  },
-  "guide": {
-    "card_title": "Multilingual Guide",
-    "category_directions": "Directions",
-    "category_food": "Food",
-    "category_greetings": "Greetings",
-    "category_medical": "മെഡിക്കൽ",
-    "category_shopping": "Shopping",
-    "category_taxi": "ടാക്സി",
-    "failed": "Couldn't load the phrasebook right now.",
-    "intro": "Everyday phrases in your language — tap to translate and hear it spoken.",
-    "not_translated": "ഈ ഭാഷയിലേക്ക് ഇതുവരെ വിവർത്തനം ചെയ്തിട്ടില്ല — ഇംഗ്ലീഷ് കാണിക്കുന്നു."
   },
   "help": {
     "ask_safety_helper": "💬 സുരക്ഷാ സഹായകനോട് ചോദിക്കുക"
@@ -623,34 +601,7 @@
     "total": "total",
     "arrive_first": "If you leave now you reach {{name}} around {{time}}.",
     "estimate_note": "Road routing was unavailable for some legs, so those are straight-line estimates — real travel will usually take longer.",
-    "navigate": "Navigate in Google Maps",
-    "route_name": "Route name",
-    "save_route": "Save route",
-    "saving": "Saving…",
-    "saved": "✓ Route saved — find it under Saved routes.",
-    "save_failed": "Couldn't save this route. Please try again."
-  },
-  "saved_routes": {
-    "title": "Saved routes",
-    "load_failed": "Couldn't load your saved routes. Check your connection and try again.",
-    "deleted": "Route deleted.",
-    "delete_failed": "Couldn't delete that route. Please try again.",
-    "loading": "Loading your routes…",
-    "empty": "No saved routes yet. Plan a route or itinerary, then tap \"Save route\" to keep it here.",
-    "start": "Start",
-    "end": "Destination",
-    "stops_one": "{{count}} stop",
-    "stops_other": "{{count}} stops",
-    "risk": "risk",
-    "saved_on": "saved {{date}}",
-    "hide_map": "Hide map",
-    "view_map": "View on map",
-    "navigate": "Navigate",
-    "deleting": "Deleting…",
-    "confirm_delete": "Yes, delete",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "no_line": "This route was saved without a road line, so stops are joined by straight dashed lines."
+    "navigate": "Navigate in Google Maps"
   },
   "explore": {
     "near_you": "Near you",

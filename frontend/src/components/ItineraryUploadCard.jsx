@@ -324,7 +324,7 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                   </div>
                 )}
 
-                <TripTravelInfo touristId={touristId} stops={doc.extracted.destinations} />
+                <TripTravelInfo stops={doc.extracted.destinations} />
 
                 <div className="flex gap-2 pt-1">
                   <button onClick={confirm} disabled={confirming || !!autoProgress}
@@ -344,7 +344,7 @@ export default function ItineraryUploadCard({ touristId, onConfirmed }) {
                     {t('itinerary_upload.unresolved_warning', { count: unresolvedCount })}
                   </div>
                 )}
-                <div className="text-left"><TripTravelInfo touristId={touristId} stops={doc.extracted.destinations} /></div>
+                <div className="text-left"><TripTravelInfo stops={doc.extracted.destinations} /></div>
                 <button onClick={reset} className="text-xs text-sky-600 dark:text-sky-400">{t('itinerary_upload.upload_another')}</button>
               </div>
             )}

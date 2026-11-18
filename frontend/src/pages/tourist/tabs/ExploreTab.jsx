@@ -4,9 +4,7 @@ import TripPlannerCard from '../../../components/TripPlannerCard.jsx'
 import CrowdForecastCard from '../../../components/CrowdForecastCard.jsx'
 import DiscoveryCard from '../../../components/DiscoveryCard.jsx'
 import OfflineTripCard from '../../../components/OfflineTripCard.jsx'
-import GuidePhrasebookCard from '../../../components/GuidePhrasebookCard.jsx'
 import TwoWayVoiceTranslator from '../../../components/TwoWayVoiceTranslator.jsx'
-import FestivalCalendarCard from '../../../components/FestivalCalendarCard.jsx'
 import PermitCard from '../../../components/PermitCard.jsx'
 import FairPriceCard from '../../../components/FairPriceCard.jsx'
 import CulturalEtiquetteCard from '../../../components/CulturalEtiquetteCard.jsx'
@@ -45,17 +43,15 @@ export default function ExploreTab({ data }) {
       {here ? (
         <>
           <OfflineTripCard touristId={tid} me={me} lat={lat} lng={lng} />
-          <FestivalCalendarCard lat={lat} lng={lng} />
         </>
       ) : (
         <Card title={t('explore.near_you', 'Near you')} icon="📍" iconColor="bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-            {t('explore.needs_location', 'The offline trip pack and festivals nearby depend on where you are. Share your location to see them.')}
+            {t('explore.needs_location', 'The offline trip pack depends on where you are. Share your location to see them.')}
           </p>
           <LocationStatus loc={loc} />
         </Card>
       )}
-      <GuidePhrasebookCard lang={lang} />
       <TwoWayVoiceTranslator />
       <CulturalEtiquetteCard lang={lang} />
       <CurrencyCard />

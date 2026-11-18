@@ -201,3 +201,16 @@ timeout failing a whole police lookup (now retried once); veterinary clinics and
 run your own Overpass for speed and volume. OpenStreetMap data is volunteer-made: many places have no phone/hours, some are mis-tagged (e.g. police-run
 booths mapped as police), and "open now" is unknown for any hours the parser does not fully understand. Distances are straight-line; the route button gives road
 time without traffic. New UI strings are English-only in the other 20 languages.
+
+---
+
+## Addendum: features removed from the app (2026-11-18, on request)
+
+Removed from the tourist app UI and frontend code: **Saved routes** (card plus the "Save route" buttons in the Safe-route picker and the itinerary
+travel panel, which only fed that list), **Festival & Local Events**, and the **Multilingual Guide** phrasebook. Their components, tests, client code and
+translation strings (21 languages) are deleted. Everything else in those screens (route finding, "Navigate in Google Maps", travel times, the Translate
+card and the two-way voice translator) is unchanged.
+
+**Left in place on purpose (now unused by the app):** the backend endpoints and data -- `/tourists/{id}/saved-routes` + the `saved_routes` table (registered in
+the DPDP personal-data registry; existing rows are untouched), `/festivals`, and `/translate/guide/*`. Removing them would be a database migration and
+needs a decision about existing saved data; nothing calls them. Say the word to remove them as well.

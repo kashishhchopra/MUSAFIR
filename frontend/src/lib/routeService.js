@@ -1,7 +1,7 @@
 import api from '../api'
 
 // Thin wrappers over /maps/* (real place search + road routing, see
-// backend/app/services/maps.py) and /tourists/{id}/saved-routes. Routed answers
+// backend/app/services/maps.py). Routed answers
 // carry `demo: true` when only a straight-line estimate was possible -- callers
 // must say so rather than present it as a road distance.
 
@@ -25,15 +25,6 @@ export const getRoute = (from, to, mode = 'driving') =>
 export const getTrip = (points, mode = 'driving') =>
   api.post('/maps/trip', { points: points.map(({ lat, lng }) => ({ lat, lng })), mode }, { timeout: 40000 })
     .then((r) => r.data)
-
-export const saveRoute = (touristId, route) =>
-  api.post(`/tourists/${touristId}/saved-routes`, route).then((r) => r.data)
-export const listSavedRoutes = (touristId) =>
-  api.get(`/tourists/${touristId}/saved-routes`).then((r) => r.data)
-export const markRouteOpened = (touristId, routeId) =>
-  api.post(`/tourists/${touristId}/saved-routes/${routeId}/open`).then((r) => r.data)
-export const deleteSavedRoute = (touristId, routeId) =>
-  api.delete(`/tourists/${touristId}/saved-routes/${routeId}`)
 
 export const formatDuration = (min) => {
   if (min == null) return '—'

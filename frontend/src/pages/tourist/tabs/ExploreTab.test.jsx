@@ -8,9 +8,7 @@ vi.mock('../../../components/TripPlannerCard.jsx', () => ({ default: (p) => <div
 vi.mock('../../../components/CrowdForecastCard.jsx', () => ({ default: (p) => <div data-testid="crowd" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/DiscoveryCard.jsx', () => ({ default: (p) => <div data-testid="discovery" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/OfflineTripCard.jsx', () => ({ default: (p) => <div data-testid="offline" data-lat={p.lat} data-lng={p.lng} /> }))
-vi.mock('../../../components/GuidePhrasebookCard.jsx', () => ({ default: (p) => <div data-testid="guide" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/TwoWayVoiceTranslator.jsx', () => ({ default: (p) => <div data-testid="voice" data-lat={p.lat} data-lng={p.lng} /> }))
-vi.mock('../../../components/FestivalCalendarCard.jsx', () => ({ default: (p) => <div data-testid="festival" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/PermitCard.jsx', () => ({ default: (p) => <div data-testid="permit" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/FairPriceCard.jsx', () => ({ default: (p) => <div data-testid="fare" data-lat={p.lat} data-lng={p.lng} /> }))
 vi.mock('../../../components/CulturalEtiquetteCard.jsx', () => ({ default: (p) => <div data-testid="etiquette" data-lat={p.lat} data-lng={p.lng} /> }))
@@ -18,12 +16,20 @@ vi.mock('../../../components/CurrencyCard.jsx', () => ({ default: (p) => <div da
 
 afterEach(() => vi.restoreAllMocks())
 
+describe('ExploreTab removed features', () => {
+  it('no longer shows the Multilingual Guide or Festival & Local Events cards', () => {
+    const { queryByText } = render(<ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
+    expect(queryByText('Multilingual Guide')).not.toBeInTheDocument()
+    expect(queryByText(/Festival & Local Events/)).not.toBeInTheDocument()
+  })
+})
+
 describe('ExploreTab location handling', () => {
   it("passes the tourist's real tracked position to the cards that need it", () => {
     const { getByTestId, queryByText } = render(
       <ExploreTab data={{ me: { last_lat: 12.5, last_lng: 77.5 }, tid: 1 }} />)
     expect(getByTestId('offline').dataset.lat).toBe('12.5')
-    expect(getByTestId('festival').dataset.lng).toBe('77.5')
+    expect(getByTestId('offline').dataset.lng).toBe('77.5')
     expect(queryByText('Near you')).not.toBeInTheDocument()
   })
 
@@ -40,7 +46,6 @@ describe('ExploreTab location handling', () => {
       <ExploreTab data={{ me: { last_lat: null, last_lng: null }, tid: 1 }} />)
     expect(getByText('Near you')).toBeInTheDocument()
     expect(queryByTestId('offline')).not.toBeInTheDocument()
-    expect(queryByTestId('festival')).not.toBeInTheDocument()
     expect(getByTestId('fare')).toBeInTheDocument() // cards that don't need it still render
   })
 

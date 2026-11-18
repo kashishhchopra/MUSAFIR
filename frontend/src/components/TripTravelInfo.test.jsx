@@ -127,26 +127,14 @@ describe('TripTravelInfo', () => {
     expect(url.searchParams.get('travelmode')).toBe('driving')
   })
 
-  it('saves the route for real (POST) and reports success; reports a failed save', async () => {
+  it('offers Navigate but no "Save route" (that feature was removed)', async () => {
     stubGeolocation({ lat: 27.18, lng: 78.01 })
     mock.onPost('/maps/trip').reply(200, TRIP)
-    mock.onPost('/tourists/7/saved-routes').replyOnce(500, { detail: 'Could not save the route. Please try again.' })
-    mock.onPost('/tourists/7/saved-routes').reply(201, { id: 1 })
-    const onSaved = vi.fn()
-    const { getByText, findByText } = render(<TripTravelInfo touristId={7} stops={STOPS} onRouteSaved={onSaved} />)
+    const { getByText, findByText, queryByText, queryByLabelText } = render(<TripTravelInfo stops={STOPS} />)
     fireEvent.click(getByText('Calculate travel time'))
-    fireEvent.click(await findByText(/Save route/))
-    expect(await findByText('Could not save the route. Please try again.')).toBeInTheDocument()
-    expect(onSaved).not.toHaveBeenCalled()
-    fireEvent.click(getByText(/Save route/))
-    expect(await findByText(/Route saved/)).toBeInTheDocument()
-    const body = JSON.parse(mock.history.post.filter((r) => r.url.includes('saved-routes'))[1].data)
-    expect(body).toMatchObject({
-      mode: 'driving', distance_km: 9.4, duration_min: 31,
-      origin: { lat: 27.18, lng: 78.01 }, destination: { name: 'Agra Fort', lat: 27.1795, lng: 78.0211 },
-    })
-    expect(body.stops).toEqual([{ name: 'Taj Mahal', lat: 27.1751, lng: 78.0421 }])
-    expect(body.geometry.length).toBe(4)
-    expect(onSaved).toHaveBeenCalled()
+    expect(await findByText(/Navigate in Google Maps/)).toBeInTheDocument()
+    expect(queryByText(/Save route/)).not.toBeInTheDocument()
+    expect(queryByLabelText('Route name')).not.toBeInTheDocument()
+    expect(mock.history.post.filter((r) => r.url.includes('saved-routes'))).toHaveLength(0)
   })
 })

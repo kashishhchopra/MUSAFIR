@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import LocationStatus from './LocationStatus.jsx'
 import TripMap from './TripMap.jsx'
 import useCurrentLocation, { LOCATION_STATUS } from '../hooks/useCurrentLocation.js'
-import { getTrip, listTravelModes, saveRoute, formatDuration } from '../lib/routeService.js'
+import { getTrip, listTravelModes, formatDuration } from '../lib/routeService.js'
 import { openDirections } from '../lib/mapsLinks.js'
 
 const MODE_ICON = { driving: '🚗', walking: '🚶', bicycling: '🚲', transit: '🚌' }
@@ -13,9 +13,9 @@ const MODE_LABEL = { driving: 'Drive', walking: 'Walk', bicycling: 'Cycle', tran
 // the tourist's live GPS position to the first stop, and between consecutive
 // stops, for the travel mode they pick -- from real road routing, with any
 // straight-line estimate labelled as one. Plus a map of the journey, "navigate
-// in Google Maps", and "save this route". Nothing is computed until the tourist
+// in Google Maps". Nothing is computed until the tourist
 // taps Calculate, so opening a screen never triggers a location prompt or API call.
-export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
+export default function TripTravelInfo({ stops }) {
   const { t } = useTranslation()
   const loc = useCurrentLocation()
   const [modes, setModes] = useState(['driving', 'walking', 'bicycling'])
@@ -23,9 +23,6 @@ export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
   const [trip, setTrip] = useState(null) // {result, here, stops, mode, at}
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [routeName, setRouteName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState('')
 
   const located = useMemo(
     () => stops.filter((s) => s.lat != null && s.lng != null),
@@ -35,11 +32,10 @@ export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
 
   useEffect(() => { listTravelModes().then((m) => m.length && setModes(m)).catch(() => {}) }, [])
   // Changing stops, order or mode makes the old numbers stale -- drop them.
-  useEffect(() => { setTrip(null); setSaved(''); setError('') }, [signature])
+  useEffect(() => { setTrip(null); setError('') }, [signature])
 
   const calculate = async () => {
     setError('')
-    setSaved('')
     // Fresh fix; if the device can't give one we can still time stop-to-stop.
     const here = await loc.request()
     const points = [...(here ? [here] : []), ...located]
@@ -53,7 +49,6 @@ export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
     try {
       const result = await getTrip(points, mode)
       setTrip({ result, here, stops: located, mode, at: Date.now() })
-      setRouteName(`${(here ? t('trip.my_location', 'My location') : located[0].name)} → ${located[located.length - 1].name}`.slice(0, 120))
     } catch (err) {
       const detail = err.response?.data?.detail
       setError(typeof detail === 'string' ? detail : t('trip.failed', "Couldn't calculate travel times right now. Check your connection and try again."))
@@ -75,33 +70,6 @@ export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
       stops: pts.slice(0, -1),
       mode: trip.mode,
     })
-  }
-
-  const save = async () => {
-    if (!trip || saving) return
-    const pts = [...(trip.here ? [{ name: t('trip.my_location', 'My location'), ...trip.here }] : []), ...trip.stops]
-    const lines = trip.result.legs.map((l) => l.geometry)
-    setSaving(true)
-    setError('')
-    try {
-      await saveRoute(touristId, {
-        name: routeName.trim() || pts[0].name,
-        mode: trip.mode,
-        origin: { name: pts[0].name || '', lat: pts[0].lat, lng: pts[0].lng },
-        destination: { name: pts[pts.length - 1].name || '', lat: pts[pts.length - 1].lat, lng: pts[pts.length - 1].lng },
-        stops: pts.slice(1, -1).map((p) => ({ name: p.name || '', lat: p.lat, lng: p.lng })),
-        distance_km: trip.result.total_distance_km,
-        duration_min: trip.result.total_duration_min,
-        geometry: lines.every((g) => g?.length) ? lines.flat() : null,
-      })
-      setSaved(t('trip.saved', '✓ Route saved — find it under Saved routes.'))
-      onRouteSaved?.()
-    } catch (err) {
-      const detail = err.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : t('trip.save_failed', "Couldn't save this route. Please try again."))
-    } finally {
-      setSaving(false)
-    }
   }
 
   if (!located.length) return null
@@ -173,18 +141,6 @@ export default function TripTravelInfo({ touristId, stops, onRouteSaved }) {
             </button>
           </div>
 
-          {touristId != null && (
-            <div className="flex gap-2">
-              <input value={routeName} onChange={(e) => setRouteName(e.target.value)} maxLength={120}
-                aria-label={t('trip.route_name', 'Route name')}
-                className="flex-1 min-w-0 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg px-2 py-1.5" />
-              <button type="button" onClick={save} disabled={saving || !!saved}
-                className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 rounded-lg">
-                {saving ? t('trip.saving', 'Saving…') : `💾 ${t('trip.save_route', 'Save route')}`}
-              </button>
-            </div>
-          )}
-          {saved && <div className="text-xs text-emerald-600 dark:text-emerald-400" role="status">{saved}</div>}
         </div>
       )}
     </div>
