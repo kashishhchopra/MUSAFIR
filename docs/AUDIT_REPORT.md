@@ -78,7 +78,7 @@ Method used for all of these: (a) full backend suite (pytest) and frontend suite
 
 ## 6. Testing results
 
-**Automated:** backend `pytest` – see the final summary in the chat message; frontend `vitest` – **815 passed**; `eslint` – 0 errors (8 pre-existing warnings); `vite build` – OK; `cap sync android` – OK (6 plugins).
+**Automated:** backend `pytest` – **1451 passed, 0 failed** (includes ~60 new tests; one real failure was caught and fixed along the way: the new `saved_routes` table had to be registered in the DPDP personal-data registry); frontend `vitest` – **815 passed** (81 files); `eslint` – 0 errors (8 pre-existing warnings); `vite build` – OK; `cap sync android` – OK (6 plugins).
 **Live (real server + real internet):** place search, road routing in 3 modes, multi-stop trip, typed itinerary → coordinates → confirm, fare check with real route, saved route create → server restart → still there → delete, Open-Meteo weather, live translation both directions.
 
 **Fully working (code + automated + live API):** saved routes, typed itinerary + travel info, real routing/ETA, Fair Price logic, weather, translation endpoint.
