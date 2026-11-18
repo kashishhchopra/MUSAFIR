@@ -458,12 +458,10 @@ def suggest_places(query: str, limit: int = 6, near: tuple[float, float] | None 
     out: list[dict] | None = None
     if settings.PHOTON_URL and not settings.is_test:
         out = _photon(q, limit, near)
-    if out is None:  # Photon off/unreachable -> the regular search (Google or Nominatim)
+    if not out:
+        # Photon off/unreachable (None), or answered "nothing": use the regular search
+        # (Google or Nominatim; it tokenises addresses differently), so a miss is a real miss.
         out = search_places(q, limit)
-    else:
-        # Photon answered but found nothing: one more try with the stricter search
-        # (it tokenises addresses differently), so a miss here is a real miss.
-        out = out or search_places(q, limit)
     with _suggest_lock:
         if len(_suggest_cache) >= _SUGGEST_MAX:
             _suggest_cache.clear()

@@ -101,3 +101,28 @@ Method used for all of these: (a) full backend suite (pytest) and frontend suite
 3. **Plan → Add Your Itinerary → Type your plan**: "visit Taj Mahal tomorrow, then Agra Fort at 5pm" → review → *Calculate travel time* → map + times → *Save route*.
 4. **Plan → Saved routes**: open on map, *Navigate*, delete; force-close and reopen the app – routes still listed.
 5. Turn GPS off → repeat step 1/3 and confirm the specific messages.
+
+---
+
+## Addendum: Walk-Me-Home upgrade (2026-11-18)
+
+**Before:** destination was a one-shot name lookup ("Place not found — the name alone will be shared"); the journey time was
+guessed by the user from fixed buttons; no route, mode, map route, deviation or arrival logic; guardian list could show
+duplicate entries and accepted any text as a phone; no SOS inside the journey; the ended journey kept the last GPS position.
+
+**Now:**
+| Area | Change | Verified by |
+|---|---|---|
+| Destination search | Live type-ahead (`GET /api/maps/suggest`): Photon (OSM, built for autocomplete, tolerates partial words/typos) → Nominatim/Google fallback. 450 ms debounce, ≥3 chars, request cancel, client + server cache. Worldwide. Real "not found" message only after a genuine miss. | unit + real-service run ("Leela Ambience", "AIIMS Delhi", "Louvre", typo "ambiance", gibberish → none) |
+| Route + duration | Device GPS → OSRM road route for walk / cycle / drive (transit only with a Google key). Distance, travel time, ETA. Deadline = travel + `max(25 %, 5 min)` buffer (server-configurable). Recalculates on destination/mode change. Failure/estimate-only is labelled; manual time is an explicit fallback. | unit + live (Delhi: walk 2.95 km/39 min → 50 min deadline) |
+| Contacts | Phone/email validation + normalisation, duplicate refusal (409), edit, remove (confirm), server reason shown. Per-journey selection; only selected contacts' links resolve. | unit + live |
+| Live journey | Route + live dot on map, km/min left along the route, off-route prompt (2 precise fixes > 200 m) with recalc, arrival prompt (2 fixes ≤ 100 m; auto-end only if the user turns it on), offline banner. | unit (jsdom) |
+| SOS | Two-tap SOS in the journey; sends journey details through the normal SOS pipeline; shows sent (incident id) / queued / failed — never "sent" unless the server accepted it. | unit + live (incident created) |
+| Privacy | Position wiped when a journey ends; "Clear history" endpoint + button. | unit + live |
+
+**Not verified:** anything on a real phone (GPS, background behaviour), SMS/push delivery to guardians (needs Twilio/FCM
+credentials), check-in reminders as OS notifications (the in-app timer and server escalation are tested; browser
+notifications are not implemented), transit routing (needs `GOOGLE_MAPS_API_KEY`).
+**Limits:** public Photon/Nominatim/OSRM are fair-use — self-host and set `PHOTON_URL` / `NOMINATIM_URL` for real traffic.
+The route plan (geometry) is stored on the device only, so a journey resumed on a different device has no route line.
+New UI strings are English in the other 20 languages.

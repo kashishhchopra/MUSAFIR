@@ -129,7 +129,7 @@ export default function useTouristData(tid) {
   // queued offline) so a caller that needs to report the outcome -- the
   // voice assistant reads it aloud -- can use the actual result rather than
   // waiting on state. Existing button callers ignore the return value.
-  const sendSOS = async () => {
+  const sendSOS = async (messageOverride) => {
     // An SOS needs coordinates (the server dispatches the nearest unit from
     // them). With no stored position yet -- a brand-new tourist whose first GPS
     // fix hasn't arrived -- get one from the device right now instead of posting
@@ -146,7 +146,7 @@ export default function useTouristData(tid) {
         throw new Error('sos-no-location')
       }
     }
-    const message = emergencyMessage.trim() || 'Emergency! Need help.'
+    const message = (typeof messageOverride === 'string' && messageOverride.trim()) || emergencyMessage.trim() || 'Emergency! Need help.'
     const payload = { lat, lng, message }
     let result = null
     try {

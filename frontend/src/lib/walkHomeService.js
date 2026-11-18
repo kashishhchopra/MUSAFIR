@@ -26,6 +26,9 @@ export const extendJourney = (tid, id, minutes) =>
 export const endJourney = (tid, id) =>
   api.post(`/tourists/${tid}/walk-home/${id}/end`).then((r) => r.data)
 
+export const deleteJourneyHistory = (tid) =>
+  api.delete(`/tourists/${tid}/walk-home`).then((r) => r.data)
+
 export const cancelJourney = (tid, id) =>
   api.post(`/tourists/${tid}/walk-home/${id}/cancel`).then((r) => r.data)
 

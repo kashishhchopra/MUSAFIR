@@ -15,7 +15,8 @@ vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }) => <div data-testid="leaflet">{children}</div>,
   TileLayer: () => null,
   Marker: ({ position }) => <div data-testid="marker" data-pos={position.join(',')} />,
-  useMap: () => ({ setView: () => {}, getZoom: () => 15 }),
+  Polyline: ({ positions }) => <div data-testid="route-line" data-n={positions.length} />,
+  useMap: () => ({ setView: () => {}, getZoom: () => 15, fitBounds: () => {} }),
 }))
 vi.mock('../useWebSocket', () => ({ default: () => ({ connected: false }) }))
 
@@ -28,6 +29,7 @@ const CONFIG = {
   grace: { min: 1, max: 30, default: 5 },
   max_extensions: 3, max_extension_minutes: 60,
   location_interval_seconds: 15, location_stale_seconds: 120, max_guardians: 10,
+  route_buffer_percent: 25, route_buffer_min_minutes: 5,
 }
 const T0 = '2026-11-14T10:00:00Z'
 const iso = (sec) => new Date(Date.parse(T0) + sec * 1000).toISOString()
@@ -42,9 +44,10 @@ const J = (over = {}) => ({
   guardians: [{ id: 2, name: 'Mum', has_access: true }], ...over,
 })
 
+let sosFn
 function Harness() {
   const walk = useWalkHome({ tid: 1 })
-  return (<><WalkHomeBanner walk={walk} onOpen={() => {}} /><WalkHomeCard walk={walk} /></>)
+  return (<><WalkHomeBanner walk={walk} onOpen={() => {}} /><WalkHomeCard walk={walk} onSOS={(m) => sosFn(m)} /></>)
 }
 
 const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(0) })
@@ -85,7 +88,11 @@ beforeEach(() => {
   vi.setSystemTime(new Date(T0))
   mock.onGet('/walk-home/config').reply(200, CONFIG)
   mock.onGet('/tourists/1/guardians').reply(200, [
-    { id: 2, guardian_name: 'Mum', revoked: false }, { id: 3, guardian_name: 'Dad', revoked: false }])
+    { id: 2, guardian_name: 'Mum', guardian_contact: '+919876543210', revoked: false },
+    { id: 3, guardian_name: 'Dad', guardian_contact: '', revoked: false }])
+  mock.onGet('/maps/modes').reply(200, { modes: ['walking', 'bicycling', 'driving'] })
+  sosFn = vi.fn()
+  try { localStorage.clear() } catch { /* ignore */ }
   mock.onGet('/tourists/1/walk-home').reply(200, [])
 })
 afterEach(() => vi.useRealTimers())
@@ -104,71 +111,184 @@ describe('Walk-Me-Home — under React StrictMode (what `npm run dev` uses)', ()
   })
 })
 
+const HOSPITAL = { name: 'City Hospital, MG Road, Bengaluru, Karnataka, India', lat: 12.97, lng: 77.6, demo: false }
+const ROUTE = { distance_km: 3.2, duration_min: 12, demo: false, provider: 'osrm',
+  geometry: [[12.9, 77.5], [12.93, 77.55], [12.97, 77.6]] }
+
+// Type a place, let the debounce elapse, tap the suggestion.
+async function typeAndPick(text, place = HOSPITAL) {
+  fireEvent.change(screen.getByPlaceholderText(/Search any place/), { target: { value: text } })
+  await advance(500)
+  fireEvent.click(screen.getByText(place.name.split(', ')[0], { exact: false }))
+  await flush()
+  await flush()
+}
+const stubMaps = ({ route = ROUTE, places = [HOSPITAL] } = {}) => {
+  mock.onGet('/maps/suggest').reply(200, { results: places })
+  mock.onGet('/maps/route').reply(typeof route === 'function' ? route : () => [200, route])
+}
+
 describe('Walk-Me-Home — setup', () => {
   it('builds the form from server config (nothing hardcoded) and explains how it works', async () => {
     await mount()
-    expect(screen.getByLabelText('Destination')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '15 min' })).toBeInTheDocument() // presets come from the server
-    expect(screen.getAllByRole('button', { name: '30 min' })[0]).toHaveAttribute('aria-pressed', 'true') // server default
+    expect(screen.getByPlaceholderText(/Search any place/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '5 min' })).toBeInTheDocument() // interval presets come from the server
+    expect(screen.getAllByRole('button', { name: '10 min' })[0]).toHaveAttribute('aria-pressed', 'true') // server default
+    expect(screen.queryByRole('button', { name: '120 min' })).toBeNull() // no manual "journey time" guessing by default
     expect(screen.getByText(/only the people ticked here/i)).toBeInTheDocument()
     expect(screen.getByText(/enforced by the server/i)).toBeInTheDocument()
     expect(screen.queryByTestId('wh-banner')).toBeNull()
   })
 
-  it('reviews the details, then starts with the chosen guardians and the real current position', async () => {
+  it('suggests places while typing, but only once the typing pauses (debounced) and never for 1-2 letters', async () => {
+    stubMaps()
+    await mount()
+    const input = screen.getByPlaceholderText(/Search any place/)
+    fireEvent.change(input, { target: { value: 'Ci' } })
+    await advance(1000)
+    expect(mock.history.get.filter((c) => c.url === '/maps/suggest')).toHaveLength(0)
+    fireEvent.change(input, { target: { value: 'Cit' } })
+    await advance(200)
+    fireEvent.change(input, { target: { value: 'City Hosp' } })
+    await advance(500)
+    const calls = mock.history.get.filter((c) => c.url === '/maps/suggest')
+    expect(calls).toHaveLength(1)
+    expect(calls[0].params.q).toBe('City Hosp')
+    expect(screen.getByText('City Hospital', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText(/MG Road, Bengaluru/)).toBeInTheDocument() // address under the name
+    // typing the same thing again is served from the cache
+    fireEvent.change(input, { target: { value: 'City Hos' } })
+    fireEvent.change(input, { target: { value: 'City Hosp' } })
+    await advance(500)
+    expect(mock.history.get.filter((c) => c.url === '/maps/suggest')).toHaveLength(1)
+  })
+
+  it('says so when a place genuinely cannot be found — and lets nothing through', async () => {
+    stubMaps({ places: [] })
+    await mount()
+    fireEvent.change(screen.getByPlaceholderText(/Search any place/), { target: { value: 'qqzzxx nowhere' } })
+    await advance(500)
+    expect(screen.getByText(/No matching place found/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Review journey'))
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a destination')
+    expect(screen.queryByTestId('wh-review')).toBeNull()
+  })
+
+  it('picks the destination, reads the live GPS fix and computes distance, time and the deadline itself', async () => {
+    stubMaps()
+    await mount()
+    await typeAndPick('City Hosp')
+    const r = mock.history.get.find((c) => c.url === '/maps/route')
+    expect(r.params).toMatchObject({ olat: 26.14, olng: 91.73, dlat: 12.97, dlng: 77.6, mode: 'walking' })
+    expect(screen.getByTestId('wh-distance')).toHaveTextContent('3.2 km')
+    expect(screen.getByTestId('wh-travel')).toHaveTextContent('12 min')
+    // 12 min + max(25% = 3, minimum 5) = 17 min: travel time plus a safety buffer.
+    expect(screen.getByTestId('wh-deadline')).toHaveTextContent('17 min')
+    expect(screen.getByTestId('route-line')).toHaveAttribute('data-n', '3')
+    expect(screen.queryByTestId('wh-estimate-only')).toBeNull()
+  })
+
+  it('recalculates when the travel mode changes', async () => {
+    stubMaps({ route: (c) => [200, c.params.mode === 'driving' ? { ...ROUTE, duration_min: 4 } : ROUTE] })
+    await mount()
+    await typeAndPick('City Hosp')
+    expect(screen.getByTestId('wh-travel')).toHaveTextContent('12 min')
+    fireEvent.click(screen.getByTestId('wh-mode-driving'))
+    await flush()
+    await flush()
+    expect(mock.history.get.filter((c) => c.url === '/maps/route').pop().params.mode).toBe('driving')
+    expect(screen.getByTestId('wh-travel')).toHaveTextContent('4 min')
+    expect(screen.getByTestId('wh-deadline')).toHaveTextContent('9 min') // 4 + 5
+  })
+
+  it('starts the journey with the computed deadline, the real destination pin and the chosen contacts', async () => {
+    stubMaps()
     mock.onPost('/tourists/1/walk-home').reply(201, J())
     await mount()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Hostel Aurora' } })
-    fireEvent.click(screen.getByLabelText('Mum'))
+    await typeAndPick('City Hosp')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Mum/ }))
     fireEvent.click(screen.getByText('Review journey'))
-    expect(screen.getByTestId('wh-review')).toHaveTextContent('Hostel Aurora')
+    expect(screen.getByTestId('wh-review')).toHaveTextContent('City Hospital')
+    expect(screen.getByTestId('wh-review')).toHaveTextContent('3.2 km')
     expect(screen.getByTestId('wh-review')).toHaveTextContent('Mum')
     expect(mock.history.post).toHaveLength(0) // nothing is started until confirmed
     fireEvent.click(screen.getByTestId('wh-start'))
     await flush()
     expect(body(mock.history.post[0])).toEqual({
-      destination_name: 'Hostel Aurora', duration_minutes: 30, check_interval_minutes: 10,
-      grace_minutes: 5, guardian_ids: [2], start_lat: 26.14, start_lng: 91.73,
+      destination_name: HOSPITAL.name, dest_lat: 12.97, dest_lng: 77.6,
+      duration_minutes: 17, check_interval_minutes: 10, grace_minutes: 5,
+      guardian_ids: [2], start_lat: 26.14, start_lng: 91.73,
     })
     expect(screen.getByTestId('wh-active')).toBeInTheDocument()
+    // the route is kept on the device so the live screen can follow it
+    expect(JSON.parse(localStorage.getItem('walkhome.plan.5')).geometry).toHaveLength(3)
   })
 
-  it('still starts when GPS is unavailable — it just sends no position', async () => {
-    geo.getCurrentPosition = vi.fn((_ok, fail) => fail({ code: 1 }))
+  it('never invents a duration when the route fails: explains why and offers the manual picker', async () => {
+    stubMaps({ route: () => [502, { detail: 'routing down' }] })
     mock.onPost('/tourists/1/walk-home').reply(201, J())
     await mount()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Home' } })
+    await typeAndPick('City Hosp')
+    expect(screen.getByTestId('wh-route-error')).toBeInTheDocument()
+    expect(screen.queryByTestId('wh-deadline')).toBeNull()
+    expect(screen.getAllByRole('button', { name: '30 min' })[0]).toBeInTheDocument() // manual fallback
+    fireEvent.click(screen.getByRole('button', { name: '60 min' }))
+    fireEvent.click(screen.getByText('Review journey'))
+    fireEvent.click(screen.getByTestId('wh-start'))
+    await flush()
+    expect(body(mock.history.post[0]).duration_minutes).toBe(60)
+  })
+
+  it('without a GPS fix it says so (no fake start point) and falls back to the manual time', async () => {
+    geo.getCurrentPosition = vi.fn((_ok, fail) => fail({ code: 1 }))
+    stubMaps()
+    await mount()
+    await typeAndPick('City Hosp')
+    expect(mock.history.get.filter((c) => c.url === '/maps/route')).toHaveLength(0)
+    expect(screen.getByTestId('wh-need-location')).toBeInTheDocument()
+    expect(screen.getByText(/Location permission is off/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('Review journey'))
     fireEvent.click(screen.getByTestId('wh-start'))
     await flush()
     const sent = body(mock.history.post[0])
     expect(sent).not.toHaveProperty('start_lat')
-    expect(sent.destination_name).toBe('Home')
+    expect(sent.duration_minutes).toBe(30)
   })
 
-  it('looks the destination up through the existing geocoder and never invents a pin', async () => {
-    mock.onGet('/maps/geocode').reply((c) => [200, c.params.place === 'Kamakhya'
-      ? { lat: 26.166, lng: 91.705 } : { lat: null, lng: null }])
+  it('labels a straight-line estimate as one', async () => {
+    stubMaps({ route: { ...ROUTE, demo: true, provider: 'estimate', geometry: null } })
+    await mount()
+    await typeAndPick('City Hosp')
+    expect(screen.getByTestId('wh-estimate-only')).toHaveTextContent(/straight-line estimate/)
+    expect(screen.queryByTestId('route-line')).toBeNull() // no fake road drawn
+  })
+
+  it('refuses a trip longer than the server maximum and asks for another time/mode', async () => {
+    stubMaps({ route: { ...ROUTE, duration_min: 900 } })
+    await mount()
+    await typeAndPick('City Hosp')
+    expect(screen.getByTestId('wh-too-long')).toHaveTextContent('720')
+    expect(screen.queryByTestId('wh-deadline')).not.toBeNull()
+  })
+
+  it('lets the traveller override the calculated time', async () => {
+    stubMaps()
     mock.onPost('/tourists/1/walk-home').reply(201, J())
     await mount()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Nowhere Land' } })
-    fireEvent.click(screen.getByText('Find on map'))
-    await flush()
-    expect(screen.getByText(/Place not found/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Kamakhya' } })
-    fireEvent.click(screen.getByText('Find on map'))
-    await flush()
-    expect(screen.getByTestId('wh-found')).toHaveTextContent('26.1660')
+    await typeAndPick('City Hosp')
+    fireEvent.click(screen.getByTestId('wh-manual-toggle'))
+    fireEvent.click(screen.getByRole('button', { name: '15 min' }))
     fireEvent.click(screen.getByText('Review journey'))
     fireEvent.click(screen.getByTestId('wh-start'))
     await flush()
-    expect(body(mock.history.post[0])).toMatchObject({ dest_lat: 26.166, dest_lng: 91.705 })
+    expect(body(mock.history.post[0]).duration_minutes).toBe(15)
   })
 
   it('warns when no guardian is selected and shows server rejections', async () => {
+    stubMaps()
     mock.onPost('/tourists/1/walk-home').reply(409, { detail: 'You already have a journey in progress.' })
     await mount()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Home' } })
+    await typeAndPick('City Hosp')
     fireEvent.click(screen.getByText('Review journey'))
     expect(screen.getByText(/No guardian selected/)).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('wh-start'))
@@ -178,12 +298,72 @@ describe('Walk-Me-Home — setup', () => {
   })
 
   it('rejects out-of-range values before calling the server', async () => {
+    stubMaps()
     await mount()
-    fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'Home' } })
+    await typeAndPick('City Hosp')
+    fireEvent.click(screen.getByText('Check-in settings')) // advanced section
     fireEvent.change(screen.getByLabelText('Grace after a missed check-in'), { target: { value: '99' } })
     fireEvent.click(screen.getByText('Review journey'))
     expect(screen.getByRole('alert')).toHaveTextContent('1–30')
     expect(screen.queryByTestId('wh-review')).toBeNull()
+  })
+})
+
+describe('Walk-Me-Home — trusted contacts', () => {
+  it('shows each contact once with its number — no duplicate "myself" rows', async () => {
+    await mount()
+    const rows = screen.getAllByTestId('wh-contact')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Mum')
+    expect(rows[0]).toHaveTextContent('+919876543210')
+    expect(rows[1]).toHaveTextContent('no phone')
+  })
+
+  it('adds a contact and ticks it for this journey; shows the server\'s reason when it is refused', async () => {
+    mock.onPost('/tourists/1/guardians').replyOnce(422, { detail: [{ msg: 'Value error, Enter a valid phone number (7-15 digits, e.g. +919876543210)' }] })
+    mock.onPost('/tourists/1/guardians').replyOnce(409, { detail: 'Mum is already in your trusted contacts.' })
+    mock.onPost('/tourists/1/guardians').replyOnce(201, { id: 9, guardian_name: 'Sis', guardian_contact: '+911234567890' })
+    await mount()
+    const name = screen.getByLabelText('Name (e.g. Mum)')
+    const phone = screen.getByLabelText(/Phone number/, { selector: 'form input' })
+    fireEvent.change(name, { target: { value: 'Sis' } })
+    fireEvent.change(phone, { target: { value: 'abc' } })
+    fireEvent.click(screen.getByText('Add guardian'))
+    await flush()
+    expect(screen.getByTestId('wh-contact-error')).toHaveTextContent('valid phone number')
+    fireEvent.click(screen.getByText('Add guardian'))
+    await flush()
+    expect(screen.getByTestId('wh-contact-error')).toHaveTextContent('already in your trusted contacts')
+    fireEvent.change(phone, { target: { value: '+91 12345 67890' } })
+    fireEvent.click(screen.getByText('Add guardian'))
+    await flush()
+    expect(screen.queryByTestId('wh-contact-error')).toBeNull()
+    expect(name).toHaveValue('')
+  })
+
+  it('edits a contact in place and shows a refusal', async () => {
+    mock.onPatch('/tourists/1/guardians/2').replyOnce(409, { detail: 'Dad is already in your trusted contacts.' })
+    mock.onPatch('/tourists/1/guardians/2').replyOnce(200, { id: 2, guardian_name: 'Mummy', guardian_contact: '+919876543210' })
+    await mount()
+    fireEvent.click(screen.getAllByText('Edit')[0])
+    fireEvent.change(screen.getByDisplayValue('Mum'), { target: { value: 'Mummy' } })
+    fireEvent.click(screen.getByText('Save'))
+    await flush()
+    expect(screen.getByRole('alert')).toHaveTextContent('already in your trusted contacts')
+    fireEvent.click(screen.getByText('Save'))
+    await flush()
+    expect(body(mock.history.patch[1])).toEqual({ guardian_name: 'Mummy', guardian_contact: '+919876543210' })
+  })
+
+  it('removes a contact only after confirmation', async () => {
+    mock.onPost('/tourists/1/guardians/3/revoke').reply(200, {})
+    await mount()
+    fireEvent.click(screen.getAllByTestId('wh-contact-remove')[1])
+    expect(posts('/revoke')).toHaveLength(0)
+    expect(screen.getByText(/lose access to any journey/)).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('wh-contact-remove-yes'))
+    await flush()
+    expect(posts('/guardians/3/revoke')).toHaveLength(1)
   })
 })
 
@@ -300,9 +480,162 @@ describe('Walk-Me-Home — live journey', () => {
     await flush()
     expect(screen.getByTestId('wh-ended')).toHaveTextContent('arrived safely')
     expect(geo.clearWatch).toHaveBeenCalledWith(7)
-    expect(screen.getByLabelText('Destination')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Search any place/)).toBeInTheDocument()
   })
 })
+
+describe('Walk-Me-Home — SOS during a journey', () => {
+  const open = async () => {
+    await mount(J())
+    fireEvent.click(screen.getByTestId('wh-sos-open'))
+  }
+
+  it('needs a second tap, so one accidental press sends nothing', async () => {
+    await open()
+    expect(sosFn).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog', { name: /SOS/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Keep going'))
+    expect(sosFn).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('wh-sos-send')).toBeNull()
+  })
+
+  it('sends the journey details with the SOS and reports the incident the server returned', async () => {
+    sosFn = vi.fn().mockResolvedValue({ incident_id: 77 })
+    await open()
+    fireEvent.click(screen.getByTestId('wh-sos-send'))
+    await flush()
+    expect(sosFn).toHaveBeenCalledTimes(1)
+    expect(sosFn.mock.calls[0][0]).toMatch(/Walk-Me-Home journey to Hostel Aurora/)
+    expect(screen.getByTestId('wh-sos-sent')).toHaveTextContent('#77')
+    expect(screen.getByText(/Call emergency number/)).toBeInTheDocument()
+  })
+
+  it('does not claim delivery when it was only queued offline', async () => {
+    sosFn = vi.fn().mockResolvedValue({ queued: true })
+    await open()
+    fireEvent.click(screen.getByTestId('wh-sos-send'))
+    await flush()
+    expect(screen.getByTestId('wh-sos-queued')).toHaveTextContent(/will be sent automatically/)
+    expect(screen.queryByTestId('wh-sos-sent')).toBeNull()
+  })
+
+  it('says it failed — and offers the phone call — when the server rejects it', async () => {
+    sosFn = vi.fn().mockRejectedValue(new Error('boom'))
+    await open()
+    fireEvent.click(screen.getByTestId('wh-sos-send'))
+    await flush()
+    expect(screen.getByTestId('wh-sos-failed')).toBeInTheDocument()
+    expect(screen.queryByTestId('wh-sos-sent')).toBeNull()
+    expect(screen.getByText(/Call emergency number/).closest('a')).toHaveAttribute('href', 'tel:112')
+  })
+})
+
+describe('Walk-Me-Home — following the route', () => {
+  const PATH = [[12.9, 77.5], [12.9, 77.52], [12.9, 77.54], [12.9, 77.56]] // ~2 km east
+  const withPlan = () => localStorage.setItem('walkhome.plan.5', JSON.stringify({
+    mode: 'walking', geometry: PATH, distance_km: 2.2, duration_min: 28, dest: PATH[3] }))
+  const at = (lat, lng, n) => J({
+    dest_lat: 12.9, dest_lng: 77.56, has_location: true, last_lat: lat, last_lng: lng,
+    last_location_at: iso(n), location_age_seconds: 1, location_accuracy_m: 10, server_time: iso(n) })
+  // Each 30 s poll returns the next position.
+  async function feed(positions) {
+    await mount(positions[0])
+    let i = 1 // the mount above consumed positions[0]; each later 30 s poll gets the next
+    mock.onGet('/tourists/1/walk-home/active').reply(() => [200, positions[Math.min(i++, positions.length - 1)]])
+    for (let k = 1; k < positions.length; k += 1) await advance(30_000)
+  }
+
+  it('shows distance and time left along the planned route', async () => {
+    withPlan()
+    await feed([at(12.9, 77.52, 1)])
+    expect(screen.getByTestId('wh-progress')).toHaveTextContent(/km to go/)
+    expect(screen.getByTestId('wh-progress')).toHaveTextContent(/min left/)
+    expect(screen.getByTestId('route-line')).toBeInTheDocument()
+  })
+
+  it('flags a wrong turn only after two separate fixes far from the route, and can recalculate', async () => {
+    withPlan()
+    mock.onGet('/maps/route').reply(200, { ...ROUTE, geometry: [[12.95, 77.52], [12.9, 77.56]] })
+    await feed([at(12.95, 77.52, 1)])           // first far fix
+    expect(screen.queryByTestId('wh-deviation')).toBeNull()
+    await advance(30_000)                        // second far fix
+    mock.onGet('/tourists/1/walk-home/active').reply(200, at(12.95, 77.52, 31))
+    await advance(30_000)
+    expect(screen.getByTestId('wh-deviation')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('wh-recalc'))
+    await flush()
+    expect(mock.history.get.filter((c) => c.url === '/maps/route')).toHaveLength(1)
+    expect(screen.queryByTestId('wh-deviation')).toBeNull()
+    expect(JSON.parse(localStorage.getItem('walkhome.plan.5')).geometry).toHaveLength(2)
+  })
+
+  it('ignores a vague (low-accuracy) or stale fix instead of crying "off route"', async () => {
+    withPlan()
+    const vague = (n) => ({ ...at(12.95, 77.52, n), location_accuracy_m: 900 })
+    await feed([vague(1), vague(31), vague(61)])
+    expect(screen.queryByTestId('wh-deviation')).toBeNull()
+  })
+
+  it('asks before ending when two fixes are at the destination — never ends by itself by default', async () => {
+    withPlan()
+    mock.onPost('/tourists/1/walk-home/5/end').reply(200, J({ status: 'completed', phase: 'completed', active: false }))
+    await feed([at(12.9, 77.5599, 1), at(12.9, 77.5599, 31), at(12.9, 77.5599, 61)])
+    expect(screen.getByTestId('wh-arrival-prompt')).toBeInTheDocument()
+    expect(posts('/end')).toHaveLength(0)
+    fireEvent.click(screen.getByTestId('wh-arrival-yes'))
+    await flush()
+    expect(posts('/end')).toHaveLength(1)
+  })
+
+  it('a single reading at the destination is not enough', async () => {
+    withPlan()
+    await feed([at(12.9, 77.5599, 1)])
+    expect(screen.queryByTestId('wh-arrival-prompt')).toBeNull()
+  })
+
+  it('ends by itself on arrival only when the traveller turned that on', async () => {
+    withPlan()
+    mock.onPost('/tourists/1/walk-home/5/end').reply(200, J({ status: 'completed', phase: 'completed', active: false }))
+    const pos = [at(12.9, 77.5599, 1), at(12.9, 77.5599, 31), at(12.9, 77.5599, 61)]
+    await mount(pos[0])
+    let i = 1
+    mock.onGet('/tourists/1/walk-home/active').reply(() => [200, pos[Math.min(i++, 2)]])
+    fireEvent.click(screen.getByTestId('wh-auto-end'))
+    await advance(30_000)
+    await advance(30_000)
+    expect(posts('/end')).toHaveLength(1)
+  })
+
+  it('warns when the device goes offline, and says the server is still timing the journey', async () => {
+    await mount(J())
+    expect(screen.queryByTestId('wh-offline')).toBeNull()
+    await act(async () => { window.dispatchEvent(new Event('offline')) })
+    expect(screen.getByTestId('wh-offline')).toHaveTextContent(/still being timed by the server/)
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(screen.queryByTestId('wh-offline')).toBeNull()
+  })
+})
+
+describe('Walk-Me-Home — history', () => {
+  it('lists finished journeys with date and duration, and clears them on request', async () => {
+    mock.onGet('/tourists/1/walk-home').reply(200, [
+      J({ id: 1, status: 'completed', active: false, destination_name: 'City Hospital, MG Road',
+        started_at: '2026-11-10T10:00:00Z', ended_at: '2026-11-10T10:25:00Z' })])
+    mock.onDelete('/tourists/1/walk-home').reply(200, { deleted: 1 })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await mount()
+    const list = screen.getByTestId('wh-history')
+    expect(list).toHaveTextContent('City Hospital')
+    expect(list).toHaveTextContent('25 min')
+    expect(list).toHaveTextContent('Arrived safely')
+    fireEvent.click(screen.getByTestId('wh-history-clear'))
+    await flush()
+    expect(mock.history.delete).toHaveLength(1)
+    expect(screen.queryByTestId('wh-history')).toBeNull()
+    expect(screen.getByTestId('wh-ended')).toHaveTextContent('History cleared')
+  })
+})
+
 
 describe('Walk-Me-Home — location sharing', () => {
   it('does not touch GPS when there is no active journey', async () => {

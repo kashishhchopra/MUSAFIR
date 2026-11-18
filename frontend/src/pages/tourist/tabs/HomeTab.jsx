@@ -142,7 +142,7 @@ export default function HomeTab({ data, onVoice, onNavigateTab }) {
         setRoutePickerOpen={setRoutePickerOpen} />
 
       {/* Walk-Me-Home: monitored journey with live guardian tracking. */}
-      {data.walk && <WalkHomeCard walk={data.walk} />}
+      {data.walk && <WalkHomeCard walk={data.walk} onSOS={(msg) => sendSOS(msg)} />}
 
       <DisasterBanner touristId={tid} />
 

@@ -33,7 +33,7 @@ afterEach(() => vi.restoreAllMocks())
 async function pickDestinationAndQuote(utils, quote = '150') {
   fireEvent.change(utils.getByLabelText('Destination (place name)'), { target: { value: 'Taj Mahal' } })
   fireEvent.click(utils.getByText('Search'))
-  fireEvent.click(await utils.findByText(/Taj Mahal, Agra/))
+  fireEvent.click(await utils.findByText(/Taj Mahal/)) // result row: name, with the address on a second line
   fireEvent.change(utils.getByPlaceholderText('Quoted fare (₹)'), { target: { value: quote } })
 }
 
