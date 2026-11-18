@@ -21,7 +21,11 @@ from app.models.tourist import Tourist
 from app.models.user import User
 from app.schemas.itinerary import ExtractedItinerary, ItineraryDocumentOut
 from app.schemas.tourist import Waypoint
-from app.services.itinerary_extract import ExtractionError, extract_text, parse_itinerary_text
+from pydantic import BaseModel, Field
+
+from app.services.itinerary_extract import (
+    ExtractionError, extract_text, parse_itinerary_text, parse_natural_language,
+)
 
 router = APIRouter(prefix="/tourists/{tourist_id}/itinerary-documents", tags=["itinerary"])
 
@@ -88,6 +92,34 @@ async def upload_itinerary_document(
     return _serialize(doc)
 
 
+class TextItineraryRequest(BaseModel):
+    text: str = Field(min_length=2, max_length=2000)
+
+
+@router.post("/from-text", response_model=ItineraryDocumentOut, status_code=201)
+def create_itinerary_from_text(
+    tourist_id: int, payload: TextItineraryRequest, db: Session = Depends(get_db),
+    _: User = Depends(require_self_or_admin),
+):
+    """Build an itinerary from typed natural language ("visit the Taj Mahal
+    tomorrow, then Agra Fort at 5pm"). Lands on the same review/edit/confirm
+    flow as an uploaded document; if no destination could be understood the
+    document is marked failed with a reason and an empty list to fill in."""
+    _get_tourist_or_404(tourist_id, db)
+    doc = ItineraryDocument(tourist_id=tourist_id, filename="Typed plan", content_type="text/plain")
+    extracted = parse_natural_language(payload.text)
+    if extracted["destinations"]:
+        doc.status = "extracted"
+    else:
+        doc.status = "failed"
+        doc.error = "I couldn't find a place name in that. Try e.g. \"Visit the Taj Mahal tomorrow\"."
+    doc.extracted_json = json.dumps(extracted, default=str)
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return _serialize(doc)
+
+
 @router.get("", response_model=list[ItineraryDocumentOut])
 def list_itinerary_documents(tourist_id: int, db: Session = Depends(get_db),
                              _: User = Depends(require_self_admin_or_responder)):
@@ -135,7 +167,7 @@ def confirm_itinerary_document(tourist_id: int, doc_id: int, db: Session = Depen
 
     extracted = ExtractedItinerary.model_validate_json(doc.extracted_json or "{}")
     waypoints = [
-        Waypoint(name=d.name, lat=d.lat, lng=d.lng)
+        Waypoint(name=d.name, lat=d.lat, lng=d.lng, date=d.date, time=d.time)
         for d in extracted.destinations if d.lat is not None and d.lng is not None
     ]
     if waypoints:

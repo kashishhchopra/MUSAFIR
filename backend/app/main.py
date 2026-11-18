@@ -34,6 +34,7 @@ from app.api import (
     police_network,
     privacy,
     safety_reports,
+    saved_routes,
     simulation,
     tourist_id,
     tourists,
@@ -292,6 +293,7 @@ app.include_router(festivals.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(permits.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(safety_reports.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(fare.router, prefix=PREFIX, dependencies=_rl)
+app.include_router(saved_routes.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(etiquette.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(currency.router, prefix=PREFIX, dependencies=_rl)
 app.include_router(simulation.router, prefix=PREFIX, dependencies=_rl)

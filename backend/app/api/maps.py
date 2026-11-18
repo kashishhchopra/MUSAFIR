@@ -5,7 +5,8 @@ couldn't place), without duplicating the geocoding logic client-side.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -23,3 +24,51 @@ def geocode_place(place: str, _: User = Depends(get_current_user)):
     if result is None:
         return {"lat": None, "lng": None, "demo": True}
     return result
+
+
+@router.get("/search")
+def search_places(q: str, limit: int = 5, _: User = Depends(get_current_user)):
+    """Candidate matches for a place name, so the client can show a picker."""
+    q = q.strip()
+    if not q:
+        raise HTTPException(status_code=422, detail="Enter a place name.")
+    return {"results": maps.search_places(q, max(1, min(limit, 10)))}
+
+
+@router.get("/modes")
+def travel_modes(_: User = Depends(get_current_user)):
+    """Travel modes that can return a real routed answer in this deployment
+    (public transport only appears when a Google Maps key is configured)."""
+    return {"modes": maps.available_modes()}
+
+
+@router.get("/route")
+def route(
+    olat: float = Query(ge=-90, le=90), olng: float = Query(ge=-180, le=180),
+    dlat: float = Query(ge=-90, le=90), dlng: float = Query(ge=-180, le=180),
+    mode: str = "driving", _: User = Depends(get_current_user),
+):
+    """Real distance/ETA/geometry between two coordinates for one mode."""
+    if mode not in maps.TRAVEL_MODES:
+        raise HTTPException(status_code=422, detail=f"Unknown travel mode: {mode}")
+    if mode not in maps.available_modes():
+        raise HTTPException(status_code=422, detail=f"'{mode}' routing is not available here.")
+    return maps.directions(olat, olng, dlat, dlng, mode)
+
+
+class TripPoint(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class TripRequest(BaseModel):
+    points: list[TripPoint] = Field(min_length=2, max_length=15)
+    mode: str = "driving"
+
+
+@router.post("/trip")
+def trip(payload: TripRequest, _: User = Depends(get_current_user)):
+    """Leg-by-leg time/distance through an ordered list of stops, with totals."""
+    if payload.mode not in maps.available_modes():
+        raise HTTPException(status_code=422, detail=f"'{payload.mode}' routing is not available here.")
+    return maps.trip_legs([(p.lat, p.lng) for p in payload.points], payload.mode)

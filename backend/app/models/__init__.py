@@ -23,6 +23,7 @@ from app.models.place import PointOfInterest
 from app.models.police import Camera, PoliceStation, PoliceUnit
 from app.models.response import EscalationEvent, ResponseSetting, SeverityClassification
 from app.models.revoked_token import RevokedToken
+from app.models.saved_route import SavedRoute  # noqa: F401
 from app.models.safety_report import SafetyReport
 from app.models.tourist import IdBlock, LocationPing, Tourist
 from app.models.medical_profile import MedicalProfile
@@ -35,6 +36,7 @@ from app.models.user import User
 from app.models.zone import Zone
 
 __all__ = [
+    "SavedRoute",
     "User",
     "Tourist",
     "IdBlock",

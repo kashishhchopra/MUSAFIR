@@ -174,14 +174,81 @@ def _strip_html(text: str) -> str:
     return _HTML_TAG.sub("", text)
 
 
-def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> dict:
-    """Distance and ETA between two points. Real (Google Directions API,
-    actual road distance/time, plus real turn-by-turn `steps`) when a key is
-    configured; otherwise a straight-line haversine distance at an assumed
-    urban speed and no steps -- clearly marked `demo: True` since it is not
-    a routed answer. `steps`, when present, is a list of plain-text
-    instructions ("Turn left onto MG Road", ...) suitable for a voice
-    assistant to read aloud one at a time."""
+# Travel modes the app exposes -> (Google Directions mode, OSRM service path/profile).
+# Public transport has no keyless routing source, so it is only offered when
+# GOOGLE_MAPS_API_KEY is configured -- never faked.
+TRAVEL_MODES = ("driving", "walking", "bicycling", "transit")
+_GOOGLE_MODE = {"driving": "driving", "walking": "walking", "bicycling": "bicycling", "transit": "transit"}
+_OSRM_PROFILE = {
+    "driving": ("routed-car", "driving"),
+    "walking": ("routed-foot", "foot"),
+    "bicycling": ("routed-bike", "bike"),
+}
+# Straight-line fallback speeds per mode (km/h) -- an estimate, flagged demo.
+_FALLBACK_SPEED_KMH = {"driving": _DEMO_SPEED_KMH, "walking": 5.0, "bicycling": 15.0, "transit": 20.0}
+
+
+def available_modes() -> list[str]:
+    """Modes that can return a real routed answer in this deployment."""
+    modes = ["driving", "walking", "bicycling"]
+    if settings.GOOGLE_MAPS_API_KEY:
+        modes.append("transit")
+    return modes
+
+
+def _osrm_route(olat, olng, dlat, dlng, mode: str) -> dict | None:
+    """Real road/footpath routing via the free OSRM instances run by
+    routing.openstreetmap.de (no key). Returns distance, duration, the full
+    route geometry and turn-by-turn steps, or None on any failure."""
+    profile = _OSRM_PROFILE.get(mode)
+    if profile is None:
+        return None
+    service, name = profile
+    try:
+        resp = httpx.get(
+            f"https://routing.openstreetmap.de/{service}/route/v1/{name}/{olng},{olat};{dlng},{dlat}",
+            params={"overview": "full", "geometries": "geojson", "steps": "true"},
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, routing)"},
+            timeout=8.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("code") != "Ok" or not data.get("routes"):
+            return None
+        route = data["routes"][0]
+        leg = route["legs"][0]
+        steps = []
+        for st in leg.get("steps", []):
+            m = st.get("maneuver", {})
+            road = st.get("name") or ""
+            kind = (m.get("type") or "").replace("_", " ")
+            mod = m.get("modifier") or ""
+            text = " ".join(x for x in [kind.capitalize() if kind != "depart" else "Head", mod, f"on {road}" if road else ""] if x).strip()
+            if text:
+                steps.append(text)
+        return {
+            "distance_km": round(route["distance"] / 1000, 2),
+            "duration_min": round(route["duration"] / 60, 1),
+            "demo": False, "steps": steps or None, "provider": "osrm",
+            "geometry": [[c[1], c[0]] for c in route["geometry"]["coordinates"]],
+        }
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as e:
+        logger.warning("OSRM routing request failed, falling back: %s", e)
+        return None
+
+
+def directions(
+    origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float, mode: str = "driving",
+) -> dict:
+    """Distance and ETA between two points for a travel `mode`. Tiers:
+    Google Directions (when a key is set; real turn-by-turn, supports transit),
+    then free keyless OSRM road routing (driving/walking/cycling), and only if
+    both are unreachable a straight-line estimate at an assumed speed, marked
+    `demo: True` since it is not a routed answer. `geometry` (when present) is
+    the real route polyline as [[lat, lng], ...]; `steps` is a list of
+    plain-text instructions suitable for a voice assistant."""
+    if mode not in TRAVEL_MODES:
+        mode = "driving"
     if settings.GOOGLE_MAPS_API_KEY:
         try:
             resp = httpx.get(
@@ -189,6 +256,7 @@ def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: 
                 params={
                     "origin": f"{origin_lat},{origin_lng}",
                     "destination": f"{dest_lat},{dest_lng}",
+                    "mode": _GOOGLE_MODE[mode],
                     "key": settings.GOOGLE_MAPS_API_KEY,
                 },
                 timeout=5.0,
@@ -201,15 +269,88 @@ def directions(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: 
                 return {
                     "distance_km": round(leg["distance"]["value"] / 1000, 2),
                     "duration_min": round(leg["duration"]["value"] / 60, 1),
-                    "demo": False,
-                    "steps": steps,
+                    "demo": False, "steps": steps, "provider": "google", "geometry": None,
                 }
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
             logger.warning("Directions API request failed, falling back: %s", e)
 
+    # Tests stay hermetic/offline (see Settings.is_test), like geocode().
+    if not settings.is_test:
+        routed = _osrm_route(origin_lat, origin_lng, dest_lat, dest_lng, mode)
+        if routed:
+            return routed
+
     distance_km = haversine_m(origin_lat, origin_lng, dest_lat, dest_lng) / 1000
-    duration_min = (distance_km / _DEMO_SPEED_KMH) * 60
+    duration_min = (distance_km / _FALLBACK_SPEED_KMH[mode]) * 60
     return {
         "distance_km": round(distance_km, 2), "duration_min": round(duration_min, 1),
-        "demo": True, "steps": None,
+        "demo": True, "steps": None, "provider": "estimate", "geometry": None,
     }
+
+
+def trip_legs(points: list[tuple[float, float]], mode: str = "driving") -> dict:
+    """Leg-by-leg distance/time through an ordered list of (lat, lng) stops,
+    plus totals. `demo` is True if ANY leg fell back to an estimate."""
+    legs = []
+    for a, b in zip(points, points[1:], strict=False):
+        d = directions(a[0], a[1], b[0], b[1], mode)
+        legs.append({
+            "distance_km": d["distance_km"], "duration_min": d["duration_min"],
+            "demo": d["demo"], "geometry": d.get("geometry"),
+        })
+    return {
+        "mode": mode, "legs": legs,
+        "total_distance_km": round(sum(x["distance_km"] for x in legs), 2),
+        "total_duration_min": round(sum(x["duration_min"] for x in legs), 1),
+        "demo": any(x["demo"] for x in legs),
+    }
+
+
+def search_places(query: str, limit: int = 5) -> list[dict]:
+    """Candidate matches for a place name -> [{name, lat, lng, demo}], best
+    first, so the tourist can pick the right "Taj Mahal" rather than trust
+    the top hit blindly. Google Geocoding when keyed, else Nominatim (the same
+    free, rate-limited service geocode() uses); empty list if neither answers."""
+    name = query.strip()
+    if not name:
+        return []
+    if settings.GOOGLE_MAPS_API_KEY:
+        try:
+            resp = httpx.get(
+                "https://maps.googleapis.com/maps/api/geocode/json",
+                params={"address": name, "key": settings.GOOGLE_MAPS_API_KEY}, timeout=5.0,
+            )
+            resp.raise_for_status()
+            out = [
+                {"name": r.get("formatted_address", name), "lat": r["geometry"]["location"]["lat"],
+                 "lng": r["geometry"]["location"]["lng"], "demo": False}
+                for r in resp.json().get("results", [])[:limit]
+            ]
+            if out:
+                return out
+        except (httpx.HTTPError, KeyError, ValueError) as e:
+            logger.warning("Place search (Google) failed, falling back: %s", e)
+    if settings.is_test:
+        m = _CITY_GAZETTEER.get(name.lower())
+        return [{"name": name, "lat": m[0], "lng": m[1], "demo": True}] if m else []
+
+    global _last_nominatim_call
+    with _nominatim_lock:
+        wait = _NOMINATIM_MIN_INTERVAL_S - (time.monotonic() - _last_nominatim_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_nominatim_call = time.monotonic()
+    try:
+        resp = httpx.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": name, "format": "json", "limit": limit, "viewbox": "68,37,97,6", "bounded": 0},
+            headers={"User-Agent": "MUSAFIR/1.0 (tourist safety app, place search)"}, timeout=5.0,
+        )
+        resp.raise_for_status()
+        return [
+            {"name": r.get("display_name", name), "lat": float(r["lat"]), "lng": float(r["lon"]), "demo": False}
+            for r in resp.json()
+        ]
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
+        logger.warning("Place search (Nominatim) failed: %s", e)
+        return []
